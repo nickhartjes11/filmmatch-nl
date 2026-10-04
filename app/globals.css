@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.dashboard-shell {
+  background: linear-gradient(135deg, #304b4a 0%, #384555 52%, #4a3544 100%);
+  background-attachment: fixed;
+}
+
+.dashboard-sidebar,
+.dashboard-feed {
+  background-color: rgba(31, 50, 54, 0.96);
+  background-image: linear-gradient(180deg, rgba(95, 150, 139, 0.18), transparent 42%, rgba(163, 86, 128, 0.12));
+}
+
+.dashboard-header {
+  background-color: rgba(44, 60, 66, 0.94);
+}
+
+.dashboard-content {
+  background-image: linear-gradient(145deg, rgba(105, 156, 142, 0.08), transparent 42%, rgba(170, 102, 139, 0.08));
+}
+
+.dashboard-feature {
+  isolation: isolate;
+  background: linear-gradient(115deg, #3a625f 0%, #414e60 54%, #61415a 100%);
+  border-color: rgba(255, 255, 255, 0.18);
+  animation: dashboard-enter 650ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.cinema-backdrop {
+  z-index: -2;
+  transform: scale(1.08);
+  animation: cinema-drift 24s ease-in-out infinite alternate;
+}
+
+.feature-wash {
+  z-index: -1;
+  background-image:
+    linear-gradient(105deg, rgba(7, 8, 10, 0.98) 8%, rgba(7, 8, 10, 0.88) 42%, rgba(7, 8, 10, 0.3) 100%),
+    linear-gradient(0deg, rgba(7, 8, 10, 0.48), transparent 55%);
+  background-size: 200% 100%, 100% 100%;
+  animation: feature-light-sweep 16s ease-in-out infinite alternate;
+}
+
+.movie-card-reveal {
+  background: linear-gradient(150deg, #3d5b5a, #3a4052 72%, #4d3d50);
+  border-color: rgba(255, 255, 255, 0.14);
+  animation: dashboard-enter 500ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.movie-card-reveal:hover {
+  transform: translateY(-4px);
+  border-color: rgba(251, 113, 133, 0.6);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+}
+
+.movie-card-reveal:nth-child(2) { animation-delay: 60ms; }
+.movie-card-reveal:nth-child(3) { animation-delay: 120ms; }
+.movie-card-reveal:nth-child(4) { animation-delay: 180ms; }
+.movie-card-reveal:nth-child(5) { animation-delay: 240ms; }
+.movie-card-reveal:nth-child(6) { animation-delay: 300ms; }
+.movie-card-reveal:nth-child(7) { animation-delay: 360ms; }
+.movie-card-reveal:nth-child(8) { animation-delay: 420ms; }
+
+.activity-live {
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
+  animation: activity-pulse 2.2s ease-out infinite;
+}
+
+.activity-card {
+  transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.activity-card:hover {
+  transform: translateX(-3px);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+@keyframes dashboard-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cinema-drift {
+  from { transform: scale(1.08) translate3d(-1%, 0, 0); }
+  to { transform: scale(1.15) translate3d(1%, -1%, 0); }
+}
+
+@keyframes feature-light-sweep {
+  from { background-position: 0% 50%, 0 0; }
+  to { background-position: 100% 50%, 0 0; }
+}
+
+@keyframes activity-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55); }
+  70%, 100% { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-feature,
+  .cinema-backdrop,
+  .feature-wash,
+  .movie-card-reveal,
+  .activity-live {
+    animation: none;
+  }
+
+  .movie-card-reveal:hover,
+  .activity-card:hover {
+    transform: none;
+  }
+}

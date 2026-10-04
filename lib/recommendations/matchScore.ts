@@ -107,10 +107,14 @@ export function calculateMatchScore(
       ),
       weight: MATCH_WEIGHTS.cast,
     },
-  ].filter((category): category is { score: number; weight: number } => category.score !== null);
+  ];
 
-  if (categories.length === 0) return 50;
+  const validCategories = categories.flatMap((category) =>
+    category.score !== null ? [{ score: category.score, weight: Number(category.weight) }] : []
+  );
 
-  const totalWeight = categories.reduce((total, category) => total + category.weight, 0);
-  return Math.round(categories.reduce((total, category) => total + category.score * category.weight, 0) / totalWeight);
+  if (validCategories.length === 0) return 50;
+
+  const totalWeight = validCategories.reduce((total, category) => total + category.weight, 0);
+  return Math.round(validCategories.reduce((total, category) => total + category.score * category.weight, 0) / totalWeight);
 }

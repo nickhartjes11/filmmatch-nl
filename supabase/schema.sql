@@ -4,6 +4,9 @@ create table if not exists public.profiles (
   streaming_services text[] not null default '{}',
   favorite_movie_ids bigint[] not null default '{}',
   preferred_genres text[] not null default '{}',
+  disliked_genres text[] not null default '{}',
+  favorite_directors text[] not null default '{}',
+  favorite_cast text[] not null default '{}',
   release_year_before integer,
   max_runtime_minutes integer,
   onboarding_completed boolean not null default false,
@@ -13,7 +16,10 @@ create table if not exists public.profiles (
 
 alter table public.profiles
   add column if not exists release_year_before integer,
-  add column if not exists max_runtime_minutes integer;
+  add column if not exists max_runtime_minutes integer,
+  add column if not exists disliked_genres text[] not null default '{}',
+  add column if not exists favorite_directors text[] not null default '{}',
+  add column if not exists favorite_cast text[] not null default '{}';
 
 alter table public.profiles enable row level security;
 

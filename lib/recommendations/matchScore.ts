@@ -12,6 +12,9 @@ export interface RatedMovieTasteSignals extends MovieTasteSignals {
 export interface MatchPreferences {
   favoriteMovies: readonly MovieTasteSignals[];
   ratedMovies: readonly RatedMovieTasteSignals[];
+  dislikedGenres?: readonly string[];
+  favoriteDirectors?: readonly string[];
+  favoriteCast?: readonly string[];
 }
 
 const MATCH_WEIGHTS = {
@@ -19,6 +22,9 @@ const MATCH_WEIGHTS = {
   director: 0.25,
   cast: 0.15,
 } as const;
+
+const DISLIKE_PENALTY_PER_GENRE = 25;
+const EXPLICIT_PERSON_PREFERENCE_WEIGHT = 3;
 
 export function getMatchColorBand(score: number): 'strong' | 'medium' | 'low' {
   if (score >= 75) return 'strong';
@@ -32,6 +38,30 @@ function normalize(value: string): string {
 
 function ratingWeight(rating: number): number {
   return Math.max(-1, Math.min(1, (rating - 5.5) / 4.5));
+}
+
+function dislikePenalty(genres: readonly string[], dislikedGenres: readonly string[] | undefined): number {
+  if (!dislikedGenres || dislikedGenres.length === 0) return 0;
+  const disliked = new Set(dislikedGenres.map(normalize).filter(Boolean));
+  if (disliked.size === 0) return 0;
+
+  const candidateGenres = Array.from(new Set(genres.map(normalize).filter(Boolean)));
+  const matchCount = candidateGenres.filter((genre) => disliked.has(genre)).length;
+
+  return matchCount * DISLIKE_PENALTY_PER_GENRE;
+}
+
+function withExplicitPreferences(
+  weights: Map<string, number>,
+  explicitTraits: readonly string[] | undefined
+): Map<string, number> {
+  if (!explicitTraits || explicitTraits.length === 0) return weights;
+  explicitTraits.forEach((trait) => {
+    const key = normalize(trait);
+    if (!key) return;
+    weights.set(key, (weights.get(key) || 0) + EXPLICIT_PERSON_PREFERENCE_WEIGHT);
+  });
+  return weights;
 }
 
 function createTraitWeights(
@@ -95,7 +125,10 @@ export function calculateMatchScore(
       score: movie.director
         ? scoreTraits(
             [movie.director],
-            createTraitWeights(favoriteMovies, ratedMovies, (item) => item.director ? [item.director] : [])
+            withExplicitPreferences(
+              createTraitWeights(favoriteMovies, ratedMovies, (item) => item.director ? [item.director] : []),
+              preferences?.favoriteDirectors
+            )
           )
         : null,
       weight: MATCH_WEIGHTS.director,
@@ -103,7 +136,10 @@ export function calculateMatchScore(
     {
       score: scoreTraits(
         movie.cast || [],
-        createTraitWeights(favoriteMovies, ratedMovies, (item) => item.cast || [])
+        withExplicitPreferences(
+          createTraitWeights(favoriteMovies, ratedMovies, (item) => item.cast || []),
+          preferences?.favoriteCast
+        )
       ),
       weight: MATCH_WEIGHTS.cast,
     },
@@ -113,8 +149,13 @@ export function calculateMatchScore(
     category.score !== null ? [{ score: category.score, weight: Number(category.weight) }] : []
   );
 
-  if (validCategories.length === 0) return 50;
+  const baseScore = validCategories.length === 0
+    ? 50
+    : Math.round(
+        validCategories.reduce((total, category) => total + category.score * category.weight, 0) /
+          validCategories.reduce((total, category) => total + category.weight, 0)
+      );
 
-  const totalWeight = validCategories.reduce((total, category) => total + category.weight, 0);
-  return Math.round(validCategories.reduce((total, category) => total + category.score * category.weight, 0) / totalWeight);
+  const penalty = dislikePenalty(movie.genres || [], preferences?.dislikedGenres);
+  return Math.max(0, Math.min(100, baseScore - penalty));
 }

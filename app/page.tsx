@@ -105,11 +105,11 @@ const ONBOARDING_FAVORITES = [
   { id: 438631, title: 'Dune', poster_path: '/d5NXSklXo0qyIYkgV94XAgMIckC.jpg', year: '2021', genres: ['Sciencefiction', 'Avontuur'] },
   { id: 329865, title: 'Arrival', poster_path: '/pEzNVQfdzYDzVK0XqxERIw2x2se.jpg', year: '2016', genres: ['Sciencefiction', 'Drama', 'Mysterie'] },
   { id: 872585, title: 'Oppenheimer', poster_path: '/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg', year: '2023', genres: ['Drama', 'Historisch'] },
-  { id: 278, title: 'The Shawshank Redemption', poster_path: '/9cqNxx0GxF0bflZmeSMl5tnGzr.jpg', year: '1994', genres: ['Drama', 'Misdaad'] },
+  { id: 278, title: 'The Shawshank Redemption', poster_path: '/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg', year: '1994', genres: ['Drama', 'Misdaad'] },
   { id: 680, title: 'Pulp Fiction', poster_path: '/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg', year: '1994', genres: ['Misdaad', 'Drama'] },
   { id: 98, title: 'Gladiator', poster_path: '/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg', year: '2000', genres: ['Actie', 'Avontuur', 'Drama'] },
   { id: 807, title: 'Se7en', poster_path: '/191nKfP0ehp3uIvWqgPbFmI4lv9.jpg', year: '1995', genres: ['Misdaad', 'Mysterie', 'Thriller'] },
-  { id: 122, title: 'The Lord of the Rings', poster_path: '/6oom5QYQ2yQTMJIbnvbkBL9cHo5.jpg', year: '2003', genres: ['Avontuur', 'Fantasy'] },
+  { id: 122, title: 'The Lord of the Rings', poster_path: '/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg', year: '2003', genres: ['Avontuur', 'Fantasy'] },
   { id: 597, title: 'Titanic', poster_path: '/9xjZS2rlVxm8SFx8kPC3aIGCOYQ.jpg', year: '1997', genres: ['Drama', 'Romantiek'] },
   { id: 603, title: 'The Matrix', poster_path: '/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg', year: '1999', genres: ['Sciencefiction', 'Actie'] },
   { id: 496243, title: 'Parasite', poster_path: '/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg', year: '2019', genres: ['Misdaad', 'Drama', 'Thriller'] },
@@ -119,6 +119,16 @@ const ONBOARDING_FAVORITES = [
   { id: 324857, title: 'Spider-Man: Into the Spider-Verse', poster_path: '/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg', year: '2018', genres: ['Animatie', 'Actie', 'Avontuur', 'Sciencefiction'] },
   { id: 313369, title: 'La La Land', poster_path: '/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg', year: '2016', genres: ['Komedie', 'Drama', 'Romantiek'] },
   { id: 11631, title: 'Mamma Mia!', poster_path: '/xYLiCWmAMHJubx5jNZ7HuXKjAbV.jpg', year: '2008', genres: ['Komedie', 'Romantiek', 'Muziek'] },
+  { id: 419430, title: 'Get Out', poster_path: '/5Axrbsz7ps5RzYB7a1L8IxBSfsD.jpg', year: '2017', genres: ['Horror', 'Mysterie', 'Thriller'] },
+  { id: 68718, title: 'Django Unchained', poster_path: '/7oWY8VDWW7thTzWh3OKYRkWUlD5.jpg', year: '2012', genres: ['Western', 'Drama'] },
+  { id: 530915, title: '1917', poster_path: '/iZf0KyrE25z1sage4SYFLCCrMi9.jpg', year: '2019', genres: ['Oorlog', 'Drama', 'Historisch'] },
+  { id: 515042, title: 'Free Solo', poster_path: '/v4QfYZMACODlWul9doN9RxE99ag.jpg', year: '2018', genres: ['Documentaire', 'Avontuur'] },
+];
+
+const GENRE_OPTIONS = [
+  'Actie', 'Avontuur', 'Animatie', 'Komedie', 'Misdaad', 'Documentaire', 'Drama', 'Familie',
+  'Fantasy', 'Historisch', 'Horror', 'Muziek', 'Mysterie', 'Romantiek', 'Sciencefiction',
+  'Thriller', 'Oorlog', 'Western',
 ];
 
 const FRIENDS_LIST: FriendActivityItem[] = [
@@ -373,6 +383,12 @@ export default function Home() {
   const [tasteMovieMetadata, setTasteMovieMetadata] = useState<Record<number, MovieTasteMetadata>>({});
   const [releaseYearBefore, setReleaseYearBefore] = useState<number | null>(null);
   const [maxRuntimeMinutes, setMaxRuntimeMinutes] = useState<number | null>(null);
+  const [dislikedGenres, setDislikedGenres] = useState<string[]>([]);
+  const [favoriteDirectors, setFavoriteDirectors] = useState<string[]>([]);
+  const [favoriteCast, setFavoriteCast] = useState<string[]>([]);
+  const [favoritePersonQuery, setFavoritePersonQuery] = useState('');
+  const [favoritePersonMatches, setFavoritePersonMatches] = useState<PersonSearchResult[]>([]);
+  const [favoritePersonLoading, setFavoritePersonLoading] = useState(false);
   const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [accountEmail, setAccountEmail] = useState('');
@@ -409,9 +425,32 @@ export default function Home() {
     [movieRatings, tasteMovieMetadata]
   );
   const matchPreferences = useMemo<MatchPreferences>(
-    () => ({ favoriteMovies, ratedMovies }),
-    [favoriteMovies, ratedMovies]
+    () => ({ favoriteMovies, ratedMovies, dislikedGenres, favoriteDirectors, favoriteCast }),
+    [favoriteMovies, ratedMovies, dislikedGenres, favoriteDirectors, favoriteCast]
   );
+  const toggleDislikedGenre = (genre: string) => {
+    setDislikedGenres((current) => (
+      current.includes(genre)
+        ? current.filter((item) => item !== genre)
+        : [...current, genre]
+    ));
+  };
+  const addFavoritePerson = (person: PersonSearchResult) => {
+    const setter = person.known_for_department === 'Directing' ? setFavoriteDirectors : setFavoriteCast;
+    setter((current) => (
+      current.some((name) => name.trim().toLocaleLowerCase() === person.name.trim().toLocaleLowerCase())
+        ? current
+        : [...current, person.name]
+    ));
+    setFavoritePersonQuery('');
+    setFavoritePersonMatches([]);
+  };
+  const removeFavoriteDirector = (name: string) => {
+    setFavoriteDirectors((current) => current.filter((item) => item !== name));
+  };
+  const removeFavoriteCast = (name: string) => {
+    setFavoriteCast((current) => current.filter((item) => item !== name));
+  };
   const scoredMovies = useMemo(
     () => movies
       .map((movie) => ({
@@ -476,7 +515,7 @@ export default function Home() {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, display_name, streaming_services, favorite_movie_ids, preferred_genres, release_year_before, max_runtime_minutes, onboarding_completed')
+      .select('id, display_name, streaming_services, favorite_movie_ids, preferred_genres, disliked_genres, favorite_directors, favorite_cast, release_year_before, max_runtime_minutes, onboarding_completed')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -506,6 +545,9 @@ export default function Home() {
       setSelectedPlatforms(services);
       setSelectedFavorites(favorites);
       setMovieRatings((ratingRows || []).map((row) => ({ movie_id: Number(row.movie_id), rating: Number(row.rating) })));
+      setDislikedGenres(profile?.disliked_genres || []);
+      setFavoriteDirectors(profile?.favorite_directors || []);
+      setFavoriteCast(profile?.favorite_cast || []);
       setReleaseYearBefore(profile?.release_year_before ?? null);
       setMaxRuntimeMinutes(profile?.max_runtime_minutes ?? null);
       setMinimumImdbRating(0);
@@ -643,6 +685,9 @@ export default function Home() {
       streaming_services: selectedPlatforms,
       favorite_movie_ids: selectedFavorites,
       preferred_genres: preferredGenres,
+      disliked_genres: dislikedGenres,
+      favorite_directors: favoriteDirectors,
+      favorite_cast: favoriteCast,
       release_year_before: releaseYearBefore,
       max_runtime_minutes: maxRuntimeMinutes,
       onboarding_completed: true,
@@ -826,6 +871,34 @@ export default function Home() {
       window.clearTimeout(timer);
     };
   }, [searchQuery, libraryView, selectedPerson, resolvedSearchQuery]);
+
+  useEffect(() => {
+    const query = favoritePersonQuery.trim();
+    if (query.length < 2) {
+      setFavoritePersonMatches([]);
+      setFavoritePersonLoading(false);
+      return;
+    }
+
+    let isActive = true;
+    setFavoritePersonLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/movies?people=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        if (isActive) setFavoritePersonMatches(Array.isArray(data.people) ? data.people : []);
+      } catch {
+        if (isActive) setFavoritePersonMatches([]);
+      } finally {
+        if (isActive) setFavoritePersonLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      isActive = false;
+      window.clearTimeout(timer);
+    };
+  }, [favoritePersonQuery]);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -2003,6 +2076,32 @@ export default function Home() {
                     )}
                   </div>
 
+                  <div className="mt-5">
+                    <h3 className="text-[10px] font-semibold uppercase tracking-wide text-neutral-300">Genres die je liever niet ziet</h3>
+                    <p className="mt-1 text-[10px] text-neutral-400">Optioneel. Deze genres wegen we mee als min-punt in je FilmMatch-score.</p>
+                    <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Genres die je liever niet ziet">
+                      {GENRE_OPTIONS.map((genre) => {
+                        const isDisliked = dislikedGenres.includes(genre);
+                        return (
+                          <button
+                            key={genre}
+                            type="button"
+                            aria-pressed={isDisliked}
+                            onClick={() => toggleDislikedGenre(genre)}
+                            className={`rounded-md border px-2.5 py-1.5 text-[10px] font-medium transition ${
+                              isDisliked
+                                ? 'border-rose-400/60 bg-rose-500/20 text-rose-100'
+                                : 'border-white/10 bg-black/[0.12] text-neutral-300 hover:border-white/25 hover:text-white'
+                            }`}
+                          >
+                            {isDisliked && <span className="mr-1" aria-hidden="true">−</span>}
+                            {genre}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="mt-6">
                     <div className="flex items-baseline justify-between gap-3">
                       <h3 className="text-[10px] font-semibold uppercase tracking-wide text-neutral-300">Jouw cijferverdeling</h3>
@@ -2026,6 +2125,116 @@ export default function Home() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                </section>
+
+                <section className="border-t border-white/[0.12] pt-5">
+                  <div>
+                    <h2 className="text-sm font-bold text-white">Favoriete acteurs &amp; regisseurs</h2>
+                    <p className="mt-1 text-[10px] text-neutral-400">Optioneel. Geeft een extra boost aan films met deze mensen erin.</p>
+                  </div>
+
+                  <div className="relative mt-4">
+                    <input
+                      type="text"
+                      value={favoritePersonQuery}
+                      onChange={(event) => setFavoritePersonQuery(event.target.value)}
+                      placeholder="Zoek een acteur of regisseur…"
+                      aria-autocomplete="list"
+                      aria-expanded={favoritePersonQuery.trim().length >= 2}
+                      aria-controls="favorite-person-results"
+                      className="w-full rounded-lg border border-white/10 bg-black/[0.12] px-3 py-2 text-xs text-neutral-200 placeholder:text-neutral-500 transition focus:border-rose-400 focus:outline-none"
+                    />
+                    {favoritePersonQuery.trim().length >= 2 && (
+                      <div
+                        id="favorite-person-results"
+                        role="listbox"
+                        aria-label="Acteurs en regisseurs"
+                        className="absolute inset-x-0 top-full z-10 mt-1.5 max-h-64 overflow-y-auto rounded-lg border border-white/10 bg-neutral-950 shadow-2xl"
+                      >
+                        {favoritePersonLoading ? (
+                          <p role="status" className="px-3 py-2.5 text-xs text-neutral-300">Zoeken…</p>
+                        ) : favoritePersonMatches.length > 0 ? (
+                          favoritePersonMatches.map((person) => (
+                            <button
+                              key={person.id}
+                              type="button"
+                              role="option"
+                              aria-selected={false}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => addFavoritePerson(person)}
+                              className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition hover:bg-white/[0.08]"
+                            >
+                              <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 text-[10px] font-bold text-white">
+                                {person.profile_path ? (
+                                  <Image
+                                    src={`https://image.tmdb.org/t/p/w185${person.profile_path}`}
+                                    alt=""
+                                    fill
+                                    unoptimized
+                                    className="object-cover"
+                                  />
+                                ) : person.name.slice(0, 1).toUpperCase()}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-xs font-semibold text-white">{person.name}</span>
+                                <span className="block text-[10px] text-neutral-400">
+                                  {person.known_for_department === 'Directing' ? 'Regisseur' : 'Acteur'}
+                                </span>
+                              </span>
+                            </button>
+                          ))
+                        ) : (
+                          <p role="status" className="px-3 py-2.5 text-xs text-neutral-300">Geen acteurs of regisseurs gevonden.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4">
+                    <h3 className="text-[10px] font-semibold uppercase tracking-wide text-neutral-300">Regisseurs</h3>
+                    {favoriteDirectors.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {favoriteDirectors.map((name) => (
+                          <span key={name} className="inline-flex items-center gap-1.5 rounded-md border border-rose-200/15 bg-rose-200/[0.06] px-2.5 py-1.5 text-[10px] font-medium text-rose-50">
+                            {name}
+                            <button
+                              type="button"
+                              onClick={() => removeFavoriteDirector(name)}
+                              aria-label={`Verwijder ${name} uit favoriete regisseurs`}
+                              className="text-rose-200/70 transition hover:text-white"
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-neutral-400">Nog geen favoriete regisseurs toegevoegd.</p>
+                    )}
+                  </div>
+
+                  <div className="mt-4">
+                    <h3 className="text-[10px] font-semibold uppercase tracking-wide text-neutral-300">Acteurs</h3>
+                    {favoriteCast.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {favoriteCast.map((name) => (
+                          <span key={name} className="inline-flex items-center gap-1.5 rounded-md border border-rose-200/15 bg-rose-200/[0.06] px-2.5 py-1.5 text-[10px] font-medium text-rose-50">
+                            {name}
+                            <button
+                              type="button"
+                              onClick={() => removeFavoriteCast(name)}
+                              aria-label={`Verwijder ${name} uit favoriete acteurs`}
+                              className="text-rose-200/70 transition hover:text-white"
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-neutral-400">Nog geen favoriete acteurs toegevoegd.</p>
+                    )}
                   </div>
                 </section>
 

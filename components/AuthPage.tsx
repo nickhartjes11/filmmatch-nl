@@ -94,8 +94,8 @@ export default function AuthPage({
 
   if (mode === 'login') {
     return (
-      <div className="dashboard-shell relative min-h-screen overflow-hidden text-neutral-100 selection:bg-rose-500 selection:text-white">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-45 blur-[1px]">
+      <div className="dashboard-shell relative min-h-screen overflow-x-hidden text-neutral-100 selection:bg-rose-500 selection:text-white">
+        <div aria-hidden="true" className="pointer-events-none fixed inset-0 opacity-45 blur-[1px]">
           <div className="grid h-full grid-cols-4 grid-rows-5 gap-0 sm:hidden">
             {favoriteFilms.slice(0, 20).map((film) => (
               <div key={film.id} className="relative overflow-hidden bg-[#101a1d]">
@@ -120,27 +120,27 @@ export default function AuthPage({
           <div className="absolute inset-0 bg-[#071014]/55" />
         </div>
 
-        <main className="relative z-10 mx-auto grid min-h-screen max-w-6xl grid-cols-1 gap-7 px-5 py-7 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-16 lg:py-10">
-          <section className="order-1 mx-auto w-full max-w-md rounded-lg border border-white/10 bg-[#0d1e23]/90 p-6 shadow-2xl backdrop-blur-md sm:p-8 lg:order-1">
-            <div className="mb-7 flex items-center gap-3">
-              <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-tr from-rose-400 to-amber-300 text-3xl text-slate-950 shadow-lg shadow-rose-950/30" aria-hidden="true">🍿</span>
+        <main className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-6 px-5 py-10 sm:px-8">
+          <section className="mx-auto w-full max-w-xl rounded-xl border border-white/10 bg-[#0d1e23]/90 p-8 shadow-2xl backdrop-blur-md sm:p-10">
+            <div className="mb-8 flex items-center gap-4">
+              <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-tr from-rose-400 to-amber-300 text-4xl text-slate-950 shadow-lg shadow-rose-950/30" aria-hidden="true">🍿</span>
               <div>
-                <h1 className="text-2xl font-black tracking-wide text-white sm:text-3xl">FILM<span className="text-rose-400">MATCH</span>NL</h1>
-                <p className="mt-1 text-xs font-medium text-neutral-200">Jouw volgende filmavond begint hier</p>
+                <h1 className="text-3xl font-black tracking-wide text-white sm:text-4xl">FILM<span className="text-rose-400">MATCH</span>NL</h1>
+                <p className="mt-1 text-sm font-medium text-neutral-200">Jouw volgende filmavond begint hier</p>
               </div>
             </div>
 
-            <div className="mb-6">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-200">Fijn dat je er weer bent</p>
-              <h2 className="mt-2 text-3xl font-black text-white">Welkom terug</h2>
-              <p className="mt-2 text-sm leading-relaxed text-neutral-200">Log in om verder te gaan met films die bij jou passen.</p>
+            <div className="mb-7">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-200">Fijn dat je er weer bent</p>
+              <h2 className="mt-2 text-4xl font-black text-white">Welkom terug</h2>
+              <p className="mt-2 text-base leading-relaxed text-neutral-200">Log in om verder te gaan met films die bij jou passen.</p>
             </div>
 
-            {authError && <p role="alert" className="mb-4 rounded-lg border border-rose-300/25 bg-rose-300/10 px-3 py-2.5 text-xs text-rose-100">{authError}</p>}
-            {authNotice && <p role="status" className="mb-4 rounded-lg border border-emerald-300/25 bg-emerald-300/10 px-3 py-2.5 text-xs text-emerald-100">{authNotice}</p>}
+            {authError && <p role="alert" className="mb-4 rounded-lg border border-rose-300/25 bg-rose-300/10 px-3 py-2.5 text-sm text-rose-100">{authError}</p>}
+            {authNotice && <p role="status" className="mb-4 rounded-lg border border-emerald-300/25 bg-emerald-300/10 px-3 py-2.5 text-sm text-emerald-100">{authNotice}</p>}
 
-            <form onSubmit={onSignIn} className="space-y-4">
-              <label className="block space-y-2 text-xs font-semibold text-neutral-100">
+            <form onSubmit={onSignIn} className="space-y-5">
+              <label className="block space-y-2 text-sm font-semibold text-neutral-100">
                 E-mailadres
                 <input
                   type="email"
@@ -149,10 +149,10 @@ export default function AuthPage({
                   value={loginEmail}
                   onChange={(event) => onLoginEmailChange(event.target.value)}
                   placeholder="jij@voorbeeld.nl"
-                  className="w-full rounded-lg border border-white/15 bg-[#14282d]/90 px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-neutral-400 focus:border-rose-300/70 focus:ring-2 focus:ring-rose-300/10"
+                  className="w-full rounded-lg border border-white/15 bg-[#14282d]/90 px-4 py-3.5 text-base text-white outline-none transition placeholder:text-neutral-400 focus:border-rose-300/70 focus:ring-2 focus:ring-rose-300/10"
                 />
               </label>
-              <label className="block space-y-2 text-xs font-semibold text-neutral-100">
+              <label className="block space-y-2 text-sm font-semibold text-neutral-100">
                 Wachtwoord
                 <input
                   type="password"
@@ -161,21 +161,21 @@ export default function AuthPage({
                   value={loginPassword}
                   onChange={(event) => onLoginPasswordChange(event.target.value)}
                   placeholder="Je wachtwoord"
-                  className="w-full rounded-lg border border-white/15 bg-[#14282d]/90 px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-neutral-400 focus:border-rose-300/70 focus:ring-2 focus:ring-rose-300/10"
+                  className="w-full rounded-lg border border-white/15 bg-[#14282d]/90 px-4 py-3.5 text-base text-white outline-none transition placeholder:text-neutral-400 focus:border-rose-300/70 focus:ring-2 focus:ring-rose-300/10"
                 />
               </label>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2.5 sm:grid-cols-2">
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="w-full rounded-lg bg-rose-400 py-3 text-sm font-bold text-[#271017] transition hover:bg-rose-300 disabled:cursor-wait disabled:opacity-60"
+                  className="w-full rounded-lg bg-rose-400 py-3.5 text-base font-bold text-[#271017] transition hover:bg-rose-300 disabled:cursor-wait disabled:opacity-60"
                 >
                   {authLoading ? 'Bezig met inloggen…' : 'Inloggen'}
                 </button>
                 <button
                   type="button"
                   onClick={onOpenRegister}
-                  className="w-full rounded-lg border border-white/20 bg-white/[0.06] py-3 text-sm font-semibold text-white transition hover:bg-white/[0.12]"
+                  className="w-full rounded-lg border border-white/20 bg-white/[0.06] py-3.5 text-base font-semibold text-white transition hover:bg-white/[0.12]"
                 >
                   Account aanmaken
                 </button>
@@ -185,23 +185,19 @@ export default function AuthPage({
             {!supabaseConfigured && <p className="mt-4 text-center text-[10px] leading-relaxed text-amber-100/90">Supabase is nog niet geconfigureerd. Voeg de project-URL en publishable key toe.</p>}
           </section>
 
-          <aside className="relative isolate order-2 mx-auto w-full max-w-lg lg:order-2">
-            <div className="mt-6 border-t border-white/10 pt-4">
-              <p className="mb-3 text-center text-sm font-bold text-white lg:text-left">Films van jouw streamingdiensten</p>
-              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3 lg:justify-start" role="group" aria-label="Streamingdiensten">
-                {platforms.map((platform) => (
-                  <div key={platform.id} className="flex items-center gap-2">
-                    <StreamingLogo
-                      name={platform.name}
-                      logoPath={platform.logo_path}
-                      mark={platform.mark}
-                      color={platform.color}
-                      className="h-10 w-10"
-                    />
-                    <span className="hidden text-[10px] font-medium text-neutral-300 sm:inline">{platform.name}</span>
-                  </div>
-                ))}
-              </div>
+          <aside className="mx-auto w-full max-w-xl opacity-70">
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2" role="group" aria-label="Streamingdiensten">
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-400">Jouw diensten:</span>
+              {platforms.map((platform) => (
+                <StreamingLogo
+                  key={platform.id}
+                  name={platform.name}
+                  logoPath={platform.logo_path}
+                  mark={platform.mark}
+                  color={platform.color}
+                  className="h-5 w-5"
+                />
+              ))}
             </div>
           </aside>
         </main>

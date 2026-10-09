@@ -87,7 +87,6 @@ export async function GET(request: Request) {
   const genreName = searchParams.get('genre')?.trim();
   const similarToParam = searchParams.get('similarTo');
   const similarToId = similarToParam ? Number.parseInt(similarToParam, 10) : null;
-  const lookupImdbRatings = searchParams.get('sortBy') === 'imdbCandidates';
   const isRailRequest = searchParams.get('rail') === '1';
   const providersParam = searchParams.get('providers');
   const selectedProviderNames = providersParam ? new Set(providersParam.split(',').filter(Boolean)) : null;
@@ -139,11 +138,13 @@ export async function GET(request: Request) {
         .filter((id) => Number.isSafeInteger(id) && id > 0)))
         .slice(0, 40);
       const metadataMovies = await Promise.all(ids.map(async (id) => {
-        const detailsUrl = `https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}&language=nl-NL&append_to_response=credits`;
+        const detailsUrl = `https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}&language=nl-NL&append_to_response=credits,external_ids`;
         const response = await fetch(detailsUrl, { cache: 'no-store' });
         if (!response.ok) return null;
         const details = await response.json();
         const director = details.credits?.crew?.find((person: any) => person.job === 'Director')?.name;
+        const imdbId = details.external_ids?.imdb_id || details.imdb_id;
+        const rating = imdbId && omdbKey ? await getImdbRating(imdbId, omdbKey) : null;
         return {
           id: details.id,
           title: details.title,
@@ -155,13 +156,15 @@ export async function GET(request: Request) {
           cast: (details.credits?.cast || []).slice(0, 10).map((person: any) => person.name),
           runtime_minutes: details.runtime || null,
           release_date: details.release_date || '',
+          rating,
+          rating_source: rating ? 'IMDb' : null,
         };
       }));
 
       return NextResponse.json({ movies: metadataMovies.filter(Boolean) });
     }
 
-    if (!omdbKey && (!isRailRequest || lookupImdbRatings)) {
+    if (!omdbKey) {
       return NextResponse.json({ error: 'OMDB_API_KEY ontbreekt; echte IMDb-scores zijn niet beschikbaar.' }, { status: 503 });
     }
 
@@ -193,12 +196,18 @@ export async function GET(request: Request) {
         query!.trim()
       )}&page=${page}&include_adult=false`;
       const searchRes = await fetch(searchUrl, { cache: 'no-store' });
+      if (!searchRes.ok) {
+        return NextResponse.json({ error: 'Zoekresultaten konden niet worden opgehaald' }, { status: searchRes.status });
+      }
       const searchData = await searchRes.json();
       rawMovies = searchData.results || [];
       totalPages = searchData.total_pages || 1;
     } else if (genreId) {
       const discoverUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&language=nl-NL&sort_by=popularity.desc&watch_region=NL&with_watch_providers=${providerIdsQuery}&with_watch_monetization_types=flatrate&with_genres=${genreId}&page=${page}&include_adult=false`;
       const discoverRes = await fetch(discoverUrl, { cache: 'no-store' });
+      if (!discoverRes.ok) {
+        return NextResponse.json({ error: 'Films binnen dit genre konden niet worden opgehaald' }, { status: discoverRes.status });
+      }
       const discoverData = await discoverRes.json();
       rawMovies = discoverData.results || [];
       totalPages = discoverData.total_pages || 1;
@@ -215,6 +224,9 @@ export async function GET(request: Request) {
       // Standaard homepage: populaire titels op de 5 diensten
       const discoverUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&language=nl-NL&sort_by=popularity.desc&watch_region=NL&with_watch_providers=${providerIdsQuery}&with_watch_monetization_types=flatrate&page=${page}&include_adult=false`;
       const discoverRes = await fetch(discoverUrl, { cache: 'no-store' });
+      if (!discoverRes.ok) {
+        return NextResponse.json({ error: 'Films konden niet worden opgehaald' }, { status: discoverRes.status });
+      }
       const discoverData = await discoverRes.json();
       rawMovies = discoverData.results || [];
       totalPages = discoverData.total_pages || 1;
@@ -226,12 +238,10 @@ export async function GET(request: Request) {
           `https://api.themoviedb.org/3/movie/${movie.id}/watch/providers?api_key=${apiKey}`,
           { cache: 'no-store' }
         );
-        const externalRequest = lookupImdbRatings
-          ? fetch(`https://api.themoviedb.org/3/movie/${movie.id}/external_ids?api_key=${apiKey}`, { cache: 'no-store' })
-          : null;
+        const externalRequest = fetch(`https://api.themoviedb.org/3/movie/${movie.id}/external_ids?api_key=${apiKey}`, { cache: 'no-store' });
         const [providerRes, externalRes] = await Promise.all([
           providerRequest,
-          externalRequest || Promise.resolve(null),
+          externalRequest,
         ]);
         const providerData = providerRes.ok ? await providerRes.json() : null;
         const externalData = externalRes?.ok ? await externalRes.json() : null;
@@ -250,7 +260,7 @@ export async function GET(request: Request) {
         let rating: string | null = null;
         let ratingSource: 'IMDb' | null = null;
         const imdbId = externalData?.imdb_id;
-        if (lookupImdbRatings && imdbId && omdbKey) {
+        if (imdbId && omdbKey) {
           rating = await getImdbRating(imdbId, omdbKey);
           if (rating) ratingSource = 'IMDb';
         }

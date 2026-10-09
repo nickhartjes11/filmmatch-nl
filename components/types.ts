@@ -7,6 +7,9 @@ export interface UserProfile {
   streaming_services: string[];
   favorite_movie_ids: number[];
   preferred_genres: string[];
+  disliked_genres: string[];
+  favorite_directors: string[];
+  favorite_cast: string[];
   release_year_before: number | null;
   max_runtime_minutes: number | null;
   onboarding_completed: boolean;

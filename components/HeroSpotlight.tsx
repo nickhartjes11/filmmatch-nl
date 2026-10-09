@@ -24,7 +24,7 @@ interface HeroSpotlightProps {
   onToggleWatched: (movie: Movie) => void;
 }
 
-function RatingBadge({ rating, source }: { rating: string; source?: 'IMDb' | null }) {
+function RatingBadge({ rating, source }: { rating: string; source?: Movie['rating_source'] }) {
   return (
     <span className="inline-flex items-center gap-1 rounded bg-black/75 px-1.5 py-0.5 backdrop-blur-md">
       <span className={`rounded-sm px-1 text-[9px] font-black leading-3 ${source === 'IMDb' ? 'bg-[#f5c518] text-black' : 'text-neutral-400'}`}>
@@ -117,7 +117,7 @@ export default function HeroSpotlight({
               <span>{movie.release_date?.split('-')[0] || 'Jaar onbekend'}</span>
               {movie.runtime && <><span>&bull;</span><span>{movie.runtime}</span></>}
               {movie.genres?.length ? <><span>&bull;</span><span>{movie.genres.join(', ')}</span></> : null}
-              {movie.rating && movie.rating_source === 'IMDb' && <><span>&bull;</span><RatingBadge rating={movie.rating} source="IMDb" /></>}
+              {movie.rating && movie.rating_source && <><span>&bull;</span><RatingBadge rating={movie.rating} source={movie.rating_source} /></>}
             </div>
             {movie.director && (
               <p className="mt-1 text-xs text-neutral-200">

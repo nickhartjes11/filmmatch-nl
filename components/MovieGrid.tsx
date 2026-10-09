@@ -55,7 +55,7 @@ interface DynamicMovieRailRequest {
   excludedMovieId?: number;
 }
 
-function RatingBadge({ rating, source }: { rating?: string | null; source?: 'IMDb' | null }) {
+function RatingBadge({ rating, source }: { rating?: string | null; source?: Movie['rating_source'] }) {
   if (!rating) return null;
 
   return (
@@ -98,8 +98,8 @@ function MovieCard({ movie, watchlistIds, watchedIds, onSelectMovie, ratings, on
             {movie.match_percentage}%
           </span>
           <RatingBadge
-            rating={movie.rating_source === 'IMDb' ? movie.rating : null}
-            source={movie.rating_source === 'IMDb' ? 'IMDb' : null}
+            rating={movie.rating}
+            source={movie.rating_source}
           />
         </div>
       </button>

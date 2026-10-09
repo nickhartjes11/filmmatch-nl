@@ -43,6 +43,11 @@ const TMDB_GENRES: Record<number, string> = {
 const imdbRatingCache = new Map<string, { rating: string | null; expiresAt: number }>();
 const pendingImdbRatings = new Map<string, Promise<string | null>>();
 
+function formatTmdbRating(value: unknown): string | null {
+  const rating = Number(value);
+  return Number.isFinite(rating) && rating > 0 ? rating.toFixed(1) : null;
+}
+
 async function getImdbRating(imdbId: string, apiKey: string): Promise<string | null> {
   const cached = imdbRatingCache.get(imdbId);
   if (cached && cached.expiresAt > Date.now()) return cached.rating;
@@ -144,7 +149,8 @@ export async function GET(request: Request) {
         const details = await response.json();
         const director = details.credits?.crew?.find((person: any) => person.job === 'Director')?.name;
         const imdbId = details.external_ids?.imdb_id || details.imdb_id;
-        const rating = imdbId && omdbKey ? await getImdbRating(imdbId, omdbKey) : null;
+        const imdbRating = imdbId && omdbKey ? await getImdbRating(imdbId, omdbKey) : null;
+        const rating = imdbRating || formatTmdbRating(details.vote_average);
         return {
           id: details.id,
           title: details.title,
@@ -157,15 +163,11 @@ export async function GET(request: Request) {
           runtime_minutes: details.runtime || null,
           release_date: details.release_date || '',
           rating,
-          rating_source: rating ? 'IMDb' : null,
+          rating_source: imdbRating ? 'IMDb' : rating ? 'TMDb' : null,
         };
       }));
 
       return NextResponse.json({ movies: metadataMovies.filter(Boolean) });
-    }
-
-    if (!omdbKey) {
-      return NextResponse.json({ error: 'OMDB_API_KEY ontbreekt; echte IMDb-scores zijn niet beschikbaar.' }, { status: 503 });
     }
 
     let rawMovies: any[] = [];
@@ -258,11 +260,15 @@ export async function GET(request: Request) {
         });
 
         let rating: string | null = null;
-        let ratingSource: 'IMDb' | null = null;
+        let ratingSource: 'IMDb' | 'TMDb' | null = null;
         const imdbId = externalData?.imdb_id;
         if (imdbId && omdbKey) {
           rating = await getImdbRating(imdbId, omdbKey);
           if (rating) ratingSource = 'IMDb';
+        }
+        if (!rating) {
+          rating = formatTmdbRating(movie.vote_average);
+          if (rating) ratingSource = 'TMDb';
         }
 
         return {
@@ -327,6 +333,7 @@ export async function GET(request: Request) {
 
           let realImdbRating: string | null = null;
           if (imdbId && omdbKey) realImdbRating = await getImdbRating(imdbId, omdbKey);
+          const rating = realImdbRating || formatTmdbRating(detailsData?.vote_average ?? movie.vote_average);
 
           return {
             id: movie.id,
@@ -339,11 +346,12 @@ export async function GET(request: Request) {
             director: detailsData?.credits?.crew?.find((person: any) => person.job === 'Director')?.name,
             cast: (detailsData?.credits?.cast || []).slice(0, 10).map((person: any) => person.name),
             runtime_minutes: detailsData?.runtime || null,
-            rating: realImdbRating,
-            rating_source: realImdbRating ? 'IMDb' : null,
+            rating,
+            rating_source: realImdbRating ? 'IMDb' : rating ? 'TMDb' : null,
             providers: filteredProviders,
           };
         } catch {
+          const rating = formatTmdbRating(movie.vote_average);
           return {
             id: movie.id,
             title: movie.title,
@@ -351,8 +359,8 @@ export async function GET(request: Request) {
             poster_path: movie.poster_path,
             release_date: movie.release_date,
             genres: (movie.genre_ids || []).map((genreId: number) => TMDB_GENRES[genreId]).filter(Boolean),
-            rating: null,
-            rating_source: null,
+            rating,
+            rating_source: rating ? 'TMDb' : null,
             providers: [],
           };
         }

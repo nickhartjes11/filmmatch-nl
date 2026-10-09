@@ -1125,8 +1125,8 @@ export default function Home() {
                 ...details,
                 runtime: details.runtime_minutes ? `${details.runtime_minutes}m` : candidate.runtime,
                 providers: candidate.providers,
-                rating: candidate.rating,
-                rating_source: candidate.rating_source,
+                rating: candidate.rating || details.rating,
+                rating_source: candidate.rating_source || details.rating_source,
                 match_percentage: candidate.match_percentage,
               }
             : candidate));

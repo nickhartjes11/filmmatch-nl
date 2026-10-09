@@ -34,7 +34,7 @@ export interface Movie {
   backdrop_path?: string;
   release_date: string;
   rating?: string | null;
-  rating_source?: 'IMDb' | null;
+  rating_source?: 'IMDb' | 'TMDb' | null;
   runtime?: string;
   runtime_minutes?: number | null;
   genres?: string[];

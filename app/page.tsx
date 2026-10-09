@@ -520,7 +520,14 @@ export default function Home() {
       .maybeSingle();
 
     if (error) {
-      setAuthError('Je bent ingelogd, maar je profiel kon niet worden geladen. Controleer of het Supabase-schema is toegepast.');
+      const schemaError = error.code === '42P01' || error.code === '42703' || error.code?.startsWith('PGRST');
+      const permissionError = error.code === '42501';
+      const explanation = schemaError
+        ? 'Controleer of het nieuwste Supabase-schema is toegepast en of de profiles-tabel en gevraagde kolommen bestaan.'
+        : permissionError
+          ? 'Controleer de Row Level Security-policy voor profiles; de ingelogde gebruiker moet zijn eigen profiel kunnen lezen.'
+          : error.message;
+      setAuthError(`Je bent ingelogd, maar je profiel kon niet worden geladen${error.code ? ` (${error.code})` : ''}: ${explanation}`);
       return;
     }
 

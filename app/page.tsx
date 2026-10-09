@@ -18,6 +18,8 @@ interface MovieApiResult extends Partial<Movie> {
   id: number;
   title: string;
   vote_average?: number;
+  imdb_rating?: string | number;
+  imdbRating?: string | number;
 }
 
 interface PersonSearchResult {
@@ -38,9 +40,12 @@ function mapMovieResults(list: MovieApiResult[], query: string, offset = 0): Mov
   return list.map((movie, index) => {
     const itemIndex = offset + index;
     const genres = Array.isArray(movie.genres) ? movie.genres : [];
+    const imdbRating = movie.imdb_rating ?? movie.imdbRating;
+    const hasImdbRating = imdbRating !== undefined && Number.isFinite(Number(imdbRating)) && Number(imdbRating) > 0;
 
     return {
       ...movie,
+      ...(hasImdbRating ? { rating: String(imdbRating), rating_source: 'IMDb' } : {}),
       id: movie.id,
       title: movie.title,
       overview: movie.overview || '',
@@ -1125,8 +1130,8 @@ export default function Home() {
                 ...details,
                 runtime: details.runtime_minutes ? `${details.runtime_minutes}m` : candidate.runtime,
                 providers: candidate.providers,
-                rating: candidate.rating || details.rating,
-                rating_source: candidate.rating_source || details.rating_source,
+                rating: details.rating_source === 'IMDb' ? details.rating : candidate.rating || details.rating,
+                rating_source: details.rating_source === 'IMDb' ? 'IMDb' : candidate.rating_source || details.rating_source,
                 match_percentage: candidate.match_percentage,
               }
             : candidate));

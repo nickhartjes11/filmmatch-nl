@@ -21,9 +21,9 @@ interface SidebarProps {
   onLogout: () => void;
   onTogglePlatform: (name: string) => void;
   onMinimumImdbRatingChange: (rating: number) => void;
+  onResetToHome?: () => void;
 }
 
-// Officiële TMDB provider logo paths als backup/standaard
 const OFFICIAL_LOGOS: Record<string, string> = {
   Netflix: '/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg',
   'Prime Video': '/pvsKGltTBD6bJk1n5Q2p57T77o6.jpg',
@@ -49,11 +49,20 @@ export default function Sidebar({
   onLogout,
   onTogglePlatform,
   onMinimumImdbRatingChange,
+  onResetToHome,
 }: SidebarProps) {
   const [mobileRatingOpen, setMobileRatingOpen] = useState(false);
   const discoveryItems: { mode: DiscoveryMode; label: string; icon: string }[] = [
     { mode: 'recommended', label: 'Aanbevolen voor jou', icon: '★' },
   ];
+
+  const handleLogoClick = () => {
+    if (onResetToHome) {
+      onResetToHome();
+    } else {
+      onNavigate('discover');
+    }
+  };
 
   const renderRatingSlider = (id: string) => (
     <div className="w-full">
@@ -85,8 +94,9 @@ export default function Sidebar({
     <aside className="dashboard-sidebar w-[68px] md:w-20 xl:w-60 border-r border-white/[0.1] flex flex-col justify-between items-center xl:items-stretch px-2 xl:px-3 py-4 shrink-0 sticky top-0 h-screen z-30">
       <div className="flex flex-col items-center xl:items-stretch gap-6">
         <button
-          onClick={() => onNavigate('discover')}
-          aria-label="FilmMatchNL startpagina"
+          onClick={handleLogoClick}
+          title="Herstel alle filters en ga naar startpagina"
+          aria-label="FilmMatchNL startpagina en filters resetten"
           className="flex h-11 w-full items-center justify-center gap-2 rounded-lg text-left transition hover:bg-white/[0.06] xl:justify-start xl:px-1"
         >
           <span className="text-[25px] leading-none" aria-hidden="true">🍿</span>

@@ -154,9 +154,6 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<PersonSearchResult | null>(null);
   const [spotlightMovieId, setSpotlightMovieId] = useState<number | null>(null);
-  const [personMatches, setPersonMatches] = useState<PersonSearchResult[]>([]);
-  const [personSearchFocused, setPersonSearchFocused] = useState(false);
-  const [peopleLoading, setPeopleLoading] = useState(false);
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [rotationPaused, setRotationPaused] = useState(false);
 
@@ -194,6 +191,22 @@ export default function Home() {
   const canCreateAccount = Boolean(
     displayName.trim() && accountEmail.trim() && accountPassword.length >= 8 && passwordsMatch
   );
+
+  // Complete resetfunctie voor het FilmMatchNL logo linksboven
+  const handleResetToHome = () => {
+    setCurrentView('dashboard');
+    setLibraryView('discover');
+    setDiscoveryMode('recommended');
+    setSearchQuery('');
+    setSelectedPerson(null);
+    setSpotlightMovieId(null);
+    setFeaturedIndex(0);
+    setMinimumImdbRating(0);
+    setReleaseYearBefore(null);
+    setMaxRuntimeMinutes(null);
+    setSelectedPlatforms(FIVE_PLATFORMS.map((p) => p.name));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const favoriteMovies = useMemo<MovieTasteSignals[]>(
     () => ONBOARDING_FAVORITES
@@ -765,14 +778,11 @@ export default function Home() {
 
   const visibleMovies = filteredMovies.slice(0, visibleMovieLimit);
 
-  // De top 5 carrousel films voor het dashboard
   const featuredCarrouselMovies = useMemo(() => {
     return visibleMovies.slice(0, 5);
   }, [visibleMovies]);
 
-  // Automatische carrousel rotatie elke 6 seconden
   useEffect(() => {
-    // Alleen roteren op het discover overzicht, als er geen zoekactie actief is en rotatie niet gepauzeerd is
     if (libraryView !== 'discover' || spotlightMovieId !== null || searchQuery.trim() || rotationPaused) {
       return;
     }
@@ -792,7 +802,6 @@ export default function Home() {
        movies.find((m) => m.id === spotlightMovieId))
     : null;
 
-  // Kies de film op basis van de automatische carrousel of handmatige spotlight
   const topMatch = spotlightMovie || (libraryView === 'discover' ? featuredCarrouselMovies[featuredIndex % Math.max(1, featuredCarrouselMovies.length)] || visibleMovies[0] : null);
 
   const gridMatches = libraryView === 'watched'
@@ -911,6 +920,7 @@ export default function Home() {
           selectedPlatforms={selectedPlatforms}
           minimumImdbRating={minimumImdbRating}
           platforms={FIVE_PLATFORMS}
+          onResetToHome={handleResetToHome}
           onNavigate={(view) => {
             setCurrentView('dashboard');
             setLibraryView(view);
@@ -995,6 +1005,7 @@ export default function Home() {
         selectedPlatforms={selectedPlatforms}
         minimumImdbRating={minimumImdbRating}
         platforms={FIVE_PLATFORMS}
+        onResetToHome={handleResetToHome}
         onNavigate={(view) => {
           setCurrentView('dashboard');
           setLibraryView(view);
@@ -1025,12 +1036,12 @@ export default function Home() {
           setSelectedPerson={setSelectedPerson}
           setSpotlightMovieId={setSpotlightMovieId}
           setVisibleMovieLimit={setVisibleMovieLimit}
-          personSearchFocused={personSearchFocused}
-          setPersonSearchFocused={setPersonSearchFocused}
+          personSearchFocused={false}
+          setPersonSearchFocused={() => {}}
           loading={loading}
           movieMatches={[]}
-          peopleLoading={peopleLoading}
-          personMatches={personMatches}
+          peopleLoading={false}
+          personMatches={[]}
           selectPerson={selectPerson}
           clearSearch={clearSearch}
           goBackToPreviousView={goBackToPreviousView}
@@ -1119,7 +1130,6 @@ export default function Home() {
                     />
                   )}
 
-                  {/* Sorteerbediening voor Watchlist én Gezien */}
                   {(libraryView === 'watchlist' || libraryView === 'watched') &&
                     (libraryView === 'watchlist' ? library.watchlist.length > 0 : library.watched.length > 0) && (
                     <div className="flex flex-wrap items-center justify-between gap-3 pb-2 pt-2 border-b border-white/[0.08]">

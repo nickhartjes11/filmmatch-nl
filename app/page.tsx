@@ -407,9 +407,10 @@ export default function Home() {
         .select('movie_id, rating')
         .eq('user_id', user.id);
 
+      // Sorteer op created_at zodat de meest recent toegevoegde films écht bovenaan staan
       const [{ data: watchlistRows }, { data: watchedRows }] = await Promise.all([
-        supabase.from('user_watchlist').select('movie_data').eq('user_id', user.id),
-        supabase.from('user_watched').select('movie_data').eq('user_id', user.id),
+        supabase.from('user_watchlist').select('movie_data').eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('user_watched').select('movie_data').eq('user_id', user.id).order('created_at', { ascending: false }),
       ]);
 
       const userWatchlist = (watchlistRows || []).map((row) => row.movie_data as Movie).filter(Boolean);
@@ -661,7 +662,7 @@ export default function Home() {
       await supabase.from('user_watchlist').delete().match({ user_id: authUserId, movie_id: movie.id });
     } else {
       await supabase.from('user_watched').delete().match({ user_id: authUserId, movie_id: movie.id });
-      await supabase.from('user_watchlist').upsert({ user_id: authUserId, movie_id: movie.id, movie_data: movie });
+      await supabase.from('user_watchlist').upsert({ user_id: authUserId, movie_id: movie.id, movie_data: movie, created_at: new Date().toISOString() });
     }
   };
 
@@ -701,6 +702,7 @@ export default function Home() {
           user_id: authUserId,
           movie_id: ratingMovie.movie.id,
           movie_data: ratingMovie.movie,
+          created_at: new Date().toISOString(),
         });
       }
 
@@ -746,7 +748,6 @@ export default function Home() {
     if (libraryView === 'watchlist' || libraryView === 'watched') {
       if (librarySort === 'rating') {
         catalog.sort((a, b) => {
-          // Gebruik de eigen gegeven score indien aanwezig, anders IMDb/TMDb
           const ratingA = ratingsByMovieId[a.id] ?? Number.parseFloat(a.rating || '0');
           const ratingB = ratingsByMovieId[b.id] ?? Number.parseFloat(b.rating || '0');
           return ratingB - ratingA;

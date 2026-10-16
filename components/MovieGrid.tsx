@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import Image from 'next/image';
 import MovieRatingControl from './MovieRatingControl';
@@ -300,6 +300,41 @@ export default function MovieGrid({
       }
     : null;
 
+  // Maak een lookup map zodat films overal exact dezelfde matchscore krijgen
+  const baseMatchMap = useMemo(() => {
+    const map = new Map<number, number>();
+    movies.forEach((movie) => {
+      const score = calculateMatchScore(
+        {
+          id: movie.id,
+          genres: movie.genres || [],
+          director: movie.director,
+          cast: movie.cast,
+          rating: movie.rating,
+        },
+        matchPreferences
+      );
+      map.set(movie.id, score);
+    });
+    return map;
+  }, [movies, matchPreferences]);
+
+  const synchronizedMovies = useMemo(() => {
+    return movies.map((movie) => ({
+      ...movie,
+      match_percentage: baseMatchMap.get(movie.id) ?? calculateMatchScore(
+        {
+          id: movie.id,
+          genres: movie.genres || [],
+          director: movie.director,
+          cast: movie.cast,
+          rating: movie.rating,
+        },
+        matchPreferences
+      ),
+    }));
+  }, [movies, baseMatchMap, matchPreferences]);
+
   useEffect(() => {
     setSimilarIndex(0);
     if (recentMovies.length < 2) return;
@@ -383,9 +418,23 @@ export default function MovieGrid({
           eligibleMovies.forEach((movie) => {
             seenMovieIds.add(movie.id);
             if (request.parameter === 'imdb' || railMovies.length < 25) {
+              const existingScore = baseMatchMap.get(movie.id);
+              const finalScore = existingScore !== undefined
+                ? existingScore
+                : calculateMatchScore(
+                    {
+                      id: movie.id,
+                      genres: movie.genres || [],
+                      director: movie.director,
+                      cast: movie.cast,
+                      rating: movie.rating,
+                    },
+                    matchPreferences
+                  );
+
               railMovies.push({
                 ...movie,
-                match_percentage: calculateMatchScore({ ...movie, genres: movie.genres || [] }, matchPreferences),
+                match_percentage: finalScore,
               });
             }
           });
@@ -416,11 +465,12 @@ export default function MovieGrid({
     return () => {
       isActive = false;
     };
-  }, [libraryView, searchQuery, railFilterKey, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, matchPreferences, dynamicRailMovies, genreNames.join('|'), similarRailRequest?.key]);
+  }, [libraryView, searchQuery, railFilterKey, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, matchPreferences, dynamicRailMovies, genreNames.join('|'), similarRailRequest?.key, baseMatchMap]);
 
   const displayedMovies = libraryView === 'watched' && watchedSort === 'rating'
-    ? [...movies].sort((first, second) => (ratings[second.id] ?? -1) - (ratings[first.id] ?? -1))
-    : movies;
+    ? [...synchronizedMovies].sort((first, second) => (ratings[second.id] ?? -1) - (ratings[first.id] ?? -1))
+    : synchronizedMovies;
+
   const heading = libraryView === 'watchlist'
     ? 'Nog te kijken'
     : libraryView === 'watched'
@@ -438,7 +488,9 @@ export default function MovieGrid({
       {
         id: 'hits',
         title: 'Beste filmhits',
-        movies: [...movies].sort((first, second) => (second.match_percentage || 0) - (first.match_percentage || 0)),
+        movies: [...synchronizedMovies]
+          .filter((movie) => (movie.match_percentage || 0) >= 68)
+          .sort((first, second) => (second.match_percentage || 0) - (first.match_percentage || 0)),
       },
       ...(similarRailRequest ? [{
         id: similarRailRequest.key,
@@ -503,7 +555,7 @@ export default function MovieGrid({
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-bold tracking-wider text-white">{heading}</h2>
-        <span className="text-xs text-neutral-100">{movies.length} films</span>
+        <span className="text-xs text-neutral-100">{displayedMovies.length} films</span>
       </div>
       {libraryView === 'watched' && (
         <div className="flex flex-wrap items-center justify-between gap-2">

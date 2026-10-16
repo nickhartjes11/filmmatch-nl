@@ -1,4 +1,10 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase client voor server-side caching
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 interface Provider {
   provider_id: number;
@@ -40,7 +46,7 @@ const TMDB_GENRES: Record<number, string> = {
   37: 'Western',
 };
 
-const imdbRatingCache = new Map<string, { rating: string | null; expiresAt: number }>();
+// Geheugencache voor actieve requests
 const pendingImdbRatings = new Map<string, Promise<string | null>>();
 
 function formatTmdbRating(value: unknown): string | null {
@@ -49,9 +55,24 @@ function formatTmdbRating(value: unknown): string | null {
 }
 
 async function getImdbRating(imdbId: string, apiKey: string): Promise<string | null> {
-  const cached = imdbRatingCache.get(imdbId);
-  if (cached && cached.expiresAt > Date.now()) return cached.rating;
+  // 1. Controleer of het cijfer al in Supabase staat
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('movie_imdb_cache')
+        .select('imdb_rating')
+        .eq('imdb_id', imdbId)
+        .maybeSingle();
 
+      if (data?.imdb_rating) {
+        return Number(data.imdb_rating).toFixed(1);
+      }
+    } catch {
+      // Ga door als de database even niet bereikbaar is
+    }
+  }
+
+  // 2. Vermijd dubbele parallelle verzoeken naar OMDb
   const pending = pendingImdbRatings.get(imdbId);
   if (pending) return pending;
 
@@ -60,7 +81,22 @@ async function getImdbRating(imdbId: string, apiKey: string): Promise<string | n
       const response = await fetch(`https://www.omdbapi.com/?i=${imdbId}&apikey=${apiKey}`, { cache: 'no-store' });
       if (!response.ok) return null;
       const data = await response.json();
-      return data.imdbRating && data.imdbRating !== 'N/A' ? String(data.imdbRating) : null;
+      
+      if (data.imdbRating && data.imdbRating !== 'N/A') {
+        const ratingStr = String(data.imdbRating);
+        const ratingNum = Number.parseFloat(ratingStr);
+
+        // 3. Sla het cijfer direct permanent op in Supabase!
+        if (supabase && Number.isFinite(ratingNum)) {
+          void supabase
+            .from('movie_imdb_cache')
+            .upsert({ imdb_id: imdbId, imdb_rating: ratingNum })
+            .then();
+        }
+
+        return ratingStr;
+      }
+      return null;
     } catch {
       return null;
     }
@@ -69,10 +105,6 @@ async function getImdbRating(imdbId: string, apiKey: string): Promise<string | n
   pendingImdbRatings.set(imdbId, request);
   const rating = await request;
   pendingImdbRatings.delete(imdbId);
-  imdbRatingCache.set(imdbId, {
-    rating,
-    expiresAt: Date.now() + (rating ? 24 * 60 * 60 * 1000 : 5 * 60 * 1000),
-  });
   return rating;
 }
 

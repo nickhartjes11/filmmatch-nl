@@ -138,6 +138,7 @@ export default function Home() {
   const [registerStep, setRegisterStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [libraryView, setLibraryView] = useState<LibraryView>('discover');
   const [discoveryMode, setDiscoveryMode] = useState<DiscoveryMode>('recommended');
+  const [watchlistSort, setWatchlistSort] = useState<'default' | 'rating' | 'match'>('default');
   const [library, setLibrary] = useState<{ watchlist: Movie[]; watched: Movie[] }>({ watchlist: [], watched: [] });
 
   const [movies, setMovies] = useState<Movie[]>([]);
@@ -735,11 +736,24 @@ export default function Home() {
 
   const filteredMovies = useMemo(() => {
     const watchedIds = new Set(library.watched.map((m) => m.id));
-    const catalog = libraryView === 'watchlist'
-      ? library.watchlist
+    let catalog = libraryView === 'watchlist'
+      ? [...library.watchlist]
       : libraryView === 'watched'
         ? library.watched
         : scoredMovies;
+
+    // Sortering specifiek voor de Watchlist toepassen
+    if (libraryView === 'watchlist') {
+      if (watchlistSort === 'rating') {
+        catalog.sort((a, b) => {
+          const ratingA = Number.parseFloat(a.rating || '0');
+          const ratingB = Number.parseFloat(b.rating || '0');
+          return ratingB - ratingA;
+        });
+      } else if (watchlistSort === 'match') {
+        catalog.sort((a, b) => (b.match_percentage || 0) - (a.match_percentage || 0));
+      }
+    }
 
     return catalog.filter((m) => {
       const matchQuery = selectedPerson || !searchQuery.trim() || `${m.title} ${m.overview}`.toLowerCase().includes(searchQuery.trim().toLowerCase());
@@ -747,7 +761,7 @@ export default function Home() {
       const isUnwatched = libraryView !== 'discover' || !watchedIds.has(m.id);
       return matchQuery && matchesFilters && isUnwatched;
     });
-  }, [scoredMovies, library, libraryView, searchQuery, selectedPerson, selectedPlatforms, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes]);
+  }, [scoredMovies, library, libraryView, searchQuery, selectedPerson, selectedPlatforms, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, watchlistSort]);
 
   const visibleMovies = filteredMovies.slice(0, visibleMovieLimit);
 
@@ -1078,6 +1092,50 @@ export default function Home() {
                       onToggleWatchlist={toggleWatchlist}
                       onToggleWatched={openMovieRating}
                     />
+                  )}
+
+                  {/* Sorteerbediening specifiek voor de Watchlist */}
+                  {libraryView === 'watchlist' && library.watchlist.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 pb-2 pt-2 border-b border-white/[0.08]">
+                      <span className="text-xs font-semibold text-neutral-400">
+                        {library.watchlist.length} {library.watchlist.length === 1 ? 'film' : 'films'} in je watchlist
+                      </span>
+                      <div className="flex items-center gap-1.5 bg-neutral-900/90 p-1 rounded-xl border border-white/10 shadow-lg">
+                        <button
+                          type="button"
+                          onClick={() => setWatchlistSort('default')}
+                          className={`px-3 py-1.5 text-xs rounded-lg font-medium transition ${
+                            watchlistSort === 'default'
+                              ? 'bg-white/15 text-white font-bold shadow-sm'
+                              : 'text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          Recent toegevoegd
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWatchlistSort('rating')}
+                          className={`px-3 py-1.5 text-xs rounded-lg font-medium transition flex items-center gap-1.5 ${
+                            watchlistSort === 'rating'
+                              ? 'bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30 shadow-sm'
+                              : 'text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          <span>★</span> Hoogste cijfer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWatchlistSort('match')}
+                          className={`px-3 py-1.5 text-xs rounded-lg font-medium transition flex items-center gap-1.5 ${
+                            watchlistSort === 'match'
+                              ? 'bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30 shadow-sm'
+                              : 'text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          <span>⚡</span> Hoogste match
+                        </button>
+                      </div>
+                    </div>
                   )}
 
                   <MovieGrid

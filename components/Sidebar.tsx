@@ -8,6 +8,7 @@ interface SidebarProps {
   libraryView: LibraryView;
   discoveryMode: DiscoveryMode;
   friendsActive: boolean;
+  watchTogetherActive: boolean;
   profileActive: boolean;
   displayName: string;
   watchlistCount: number;
@@ -17,6 +18,7 @@ interface SidebarProps {
   onNavigate: (view: LibraryView) => void;
   onSelectDiscoveryMode: (mode: DiscoveryMode) => void;
   onOpenFriends: () => void;
+  onOpenWatchTogether: () => void;
   onOpenProfile: () => void;
   onLogout: () => void;
   onTogglePlatform: (name: string) => void;
@@ -36,6 +38,7 @@ export default function Sidebar({
   libraryView,
   discoveryMode,
   friendsActive,
+  watchTogetherActive,
   profileActive,
   displayName,
   watchlistCount,
@@ -45,6 +48,7 @@ export default function Sidebar({
   onNavigate,
   onSelectDiscoveryMode,
   onOpenFriends,
+  onOpenWatchTogether,
   onOpenProfile,
   onLogout,
   onTogglePlatform,
@@ -110,7 +114,7 @@ export default function Sidebar({
 
         <nav className="flex flex-col items-center xl:items-stretch gap-1">
           {discoveryItems.map((item) => {
-            const active = libraryView === 'discover' && discoveryMode === item.mode;
+            const active = !friendsActive && !watchTogetherActive && !profileActive && libraryView === 'discover' && discoveryMode === item.mode;
             return (
               <button
                 key={item.mode}
@@ -125,27 +129,43 @@ export default function Sidebar({
               </button>
             );
           })}
+
+          {/* Samen Kijken Knop */}
+          <button
+            type="button"
+            onClick={onOpenWatchTogether}
+            title="Samen Kijken met een vriend"
+            aria-label="Samen Kijken met een vriend"
+            aria-pressed={watchTogetherActive}
+            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${watchTogetherActive ? 'bg-rose-600 text-white shadow-md' : 'text-neutral-200 hover:bg-white/10 hover:text-white'}`}
+          >
+            <span className="w-4 text-center text-sm" aria-hidden="true">🛋️</span>
+            <span className="hidden xl:inline">Samen Kijken</span>
+          </button>
+
           <button
             onClick={() => onNavigate('watchlist')}
             title="Watchlist"
             aria-label={`Watchlist, ${watchlistCount} films`}
-            aria-pressed={libraryView === 'watchlist'}
-            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${libraryView === 'watchlist' ? 'bg-amber-300/20 text-amber-50' : 'text-neutral-200 hover:bg-white/10 hover:text-white'}`}
+            aria-pressed={!friendsActive && !watchTogetherActive && libraryView === 'watchlist'}
+            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${!friendsActive && !watchTogetherActive && libraryView === 'watchlist' ? 'bg-amber-300/20 text-amber-50' : 'text-neutral-200 hover:bg-white/10 hover:text-white'}`}
           >
             <span className="w-4 text-center text-sm" aria-hidden="true">🔖</span>
             <span className="hidden xl:inline">Watchlist</span>
             {watchlistCount > 0 && <span className="hidden xl:inline text-[10px]">{watchlistCount}</span>}
           </button>
+
           <button
             onClick={() => onNavigate('watched')}
             title="Gezien"
             aria-label="Gezien"
-            aria-pressed={libraryView === 'watched'}
-            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${libraryView === 'watched' ? 'bg-emerald-300/20 text-emerald-50' : 'text-neutral-200 hover:bg-white/10 hover:text-white'}`}
+            aria-pressed={!friendsActive && !watchTogetherActive && libraryView === 'watched'}
+            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${!friendsActive && !watchTogetherActive && libraryView === 'watched' ? 'bg-emerald-300/20 text-emerald-50' : 'text-neutral-200 hover:bg-white/10 hover:text-white'}`}
           >
             <span className="w-4 text-center text-sm" aria-hidden="true">✓</span>
             <span className="hidden xl:inline">Gezien</span>
           </button>
+
           <button
             type="button"
             onClick={onOpenFriends}

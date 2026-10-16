@@ -7,12 +7,13 @@ import RegisterFlow from '../components/RegisterFlow';
 import ProfileView from '../components/ProfileView';
 import DashboardHeader from '../components/DashboardHeader';
 import FriendActivityPage from '../components/FriendActivityPage';
+import WatchTogetherPage from '../components/WatchTogetherPage';
 import HeroSpotlight from '../components/HeroSpotlight';
 import AuthPage from '../components/AuthPage';
 import MovieGrid from '../components/MovieGrid';
 import MovieRatingDialog from '../components/MovieRatingDialog';
 import Sidebar from '../components/Sidebar';
-import type { DiscoveryMode, FriendActivityItem, LibraryView, Movie, MovieRating, StreamingPlatform, UserProfile } from '../components/types';
+import type { DiscoveryMode, FriendActivityItem, LibraryView, Movie, MovieRating, StreamingPlatform } from '../components/types';
 import { createSupabaseBrowserClient } from '../lib/supabase/client';
 import { calculateMatchScore, type MatchPreferences, type MovieTasteSignals, type RatedMovieTasteSignals } from '@/lib/recommendations/matchScore';
 
@@ -36,7 +37,7 @@ interface MovieTasteMetadata extends MovieTasteSignals {
   runtime_minutes: number | null;
 }
 
-type AppView = 'landing' | 'register' | 'login' | 'dashboard' | 'profile' | 'activity' | 'friends';
+type AppView = 'landing' | 'register' | 'login' | 'dashboard' | 'profile' | 'activity' | 'friends' | 'watch-together';
 
 function mapMovieResults(list: MovieApiResult[], query: string, offset = 0): Movie[] {
   return (list || []).map((movie) => {
@@ -192,7 +193,6 @@ export default function Home() {
     displayName.trim() && accountEmail.trim() && accountPassword.length >= 8 && passwordsMatch
   );
 
-  // Complete resetfunctie voor het FilmMatchNL logo linksboven
   const handleResetToHome = () => {
     setCurrentView('dashboard');
     setLibraryView('discover');
@@ -783,7 +783,7 @@ export default function Home() {
   }, [visibleMovies]);
 
   useEffect(() => {
-    if (libraryView !== 'discover' || spotlightMovieId !== null || searchQuery.trim() || rotationPaused) {
+    if (currentView !== 'dashboard' || libraryView !== 'discover' || spotlightMovieId !== null || searchQuery.trim() || rotationPaused) {
       return;
     }
 
@@ -794,7 +794,7 @@ export default function Home() {
     }, 6000);
 
     return () => clearInterval(timer);
-  }, [libraryView, spotlightMovieId, searchQuery, rotationPaused, featuredCarrouselMovies.length]);
+  }, [currentView, libraryView, spotlightMovieId, searchQuery, rotationPaused, featuredCarrouselMovies.length]);
 
   const spotlightMovie = spotlightMovieId
     ? (library.watched.find((m) => m.id === spotlightMovieId) ||
@@ -914,6 +914,7 @@ export default function Home() {
           libraryView={libraryView}
           discoveryMode={discoveryMode}
           friendsActive={false}
+          watchTogetherActive={false}
           profileActive
           displayName={displayName}
           watchlistCount={library.watchlist.length}
@@ -935,6 +936,7 @@ export default function Home() {
             setSearchQuery('');
           }}
           onOpenFriends={() => navigateToView('friends')}
+          onOpenWatchTogether={() => navigateToView('watch-together')}
           onOpenProfile={() => navigateToView('profile')}
           onLogout={handleSignOut}
           onTogglePlatform={togglePlatform}
@@ -999,6 +1001,7 @@ export default function Home() {
         libraryView={libraryView}
         discoveryMode={discoveryMode}
         friendsActive={currentView === 'friends'}
+        watchTogetherActive={currentView === 'watch-together'}
         profileActive={false}
         displayName={displayName}
         watchlistCount={library.watchlist.length}
@@ -1020,6 +1023,7 @@ export default function Home() {
           setSearchQuery('');
         }}
         onOpenFriends={() => navigateToView('friends')}
+        onOpenWatchTogether={() => navigateToView('watch-together')}
         onOpenProfile={() => navigateToView('profile')}
         onLogout={handleSignOut}
         onTogglePlatform={togglePlatform}
@@ -1051,7 +1055,23 @@ export default function Home() {
         />
 
         <main className="dashboard-content flex-1 p-4 md:p-8 space-y-8 overflow-y-auto">
-          {currentView === 'activity' || currentView === 'friends' ? (
+          {currentView === 'watch-together' ? (
+            <WatchTogetherPage
+              currentUserId={authUserId}
+              currentUserName={displayName || 'Jij'}
+              myWatchlist={library.watchlist}
+              myStreamingServices={selectedPlatforms}
+              friends={friendsList}
+              platforms={FIVE_PLATFORMS}
+              onSelectMovieSpotlight={(id) => {
+                setCurrentView('dashboard');
+                setLibraryView('discover');
+                setSpotlightMovieId(id);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onToggleWatchlist={toggleWatchlist}
+            />
+          ) : currentView === 'activity' || currentView === 'friends' ? (
             <FriendActivityPage
               currentUserId={authUserId}
               currentUserName={displayName || 'Jij'}

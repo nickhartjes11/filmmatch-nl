@@ -407,7 +407,6 @@ export default function Home() {
         .select('movie_id, rating')
         .eq('user_id', user.id);
 
-      // Sorteer op created_at zodat de meest recent toegevoegde films écht bovenaan staan
       const [{ data: watchlistRows }, { data: watchedRows }] = await Promise.all([
         supabase.from('user_watchlist').select('movie_data').eq('user_id', user.id).order('created_at', { ascending: false }),
         supabase.from('user_watched').select('movie_data').eq('user_id', user.id).order('created_at', { ascending: false }),
@@ -744,7 +743,6 @@ export default function Home() {
         ? [...library.watched]
         : scoredMovies;
 
-    // Sortering voor Watchlist én Gezien toepassen
     if (libraryView === 'watchlist' || libraryView === 'watched') {
       if (librarySort === 'rating') {
         catalog.sort((a, b) => {
@@ -767,13 +765,35 @@ export default function Home() {
 
   const visibleMovies = filteredMovies.slice(0, visibleMovieLimit);
 
+  // De top 5 carrousel films voor het dashboard
+  const featuredCarrouselMovies = useMemo(() => {
+    return visibleMovies.slice(0, 5);
+  }, [visibleMovies]);
+
+  // Automatische carrousel rotatie elke 6 seconden
+  useEffect(() => {
+    // Alleen roteren op het discover overzicht, als er geen zoekactie actief is en rotatie niet gepauzeerd is
+    if (libraryView !== 'discover' || spotlightMovieId !== null || searchQuery.trim() || rotationPaused) {
+      return;
+    }
+
+    if (featuredCarrouselMovies.length <= 1) return;
+
+    const timer = setInterval(() => {
+      setFeaturedIndex((current) => (current + 1) % featuredCarrouselMovies.length);
+    }, 6000);
+
+    return () => clearInterval(timer);
+  }, [libraryView, spotlightMovieId, searchQuery, rotationPaused, featuredCarrouselMovies.length]);
+
   const spotlightMovie = spotlightMovieId
     ? (library.watched.find((m) => m.id === spotlightMovieId) ||
        library.watchlist.find((m) => m.id === spotlightMovieId) ||
        movies.find((m) => m.id === spotlightMovieId))
     : null;
 
-  const topMatch = spotlightMovie || (libraryView === 'discover' ? visibleMovies[0] : null);
+  // Kies de film op basis van de automatische carrousel of handmatige spotlight
+  const topMatch = spotlightMovie || (libraryView === 'discover' ? featuredCarrouselMovies[featuredIndex % Math.max(1, featuredCarrouselMovies.length)] || visibleMovies[0] : null);
 
   const gridMatches = libraryView === 'watched'
     ? visibleMovies
@@ -1062,8 +1082,8 @@ export default function Home() {
                   {topMatch && (
                     <HeroSpotlight
                       movie={topMatch}
-                      featuredMovies={visibleMovies.slice(0, 5)}
-                      activeFeaturedIndex={0}
+                      featuredMovies={featuredCarrouselMovies}
+                      activeFeaturedIndex={featuredIndex % Math.max(1, featuredCarrouselMovies.length)}
                       rotationPaused={rotationPaused}
                       isSearch={Boolean(searchQuery.trim())}
                       spotlightLabel={bannerLabel}
@@ -1088,7 +1108,10 @@ export default function Home() {
                         setSearchQuery(name);
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      onSelectFeatured={() => {}}
+                      onSelectFeatured={(idx) => {
+                        setSpotlightMovieId(null);
+                        setFeaturedIndex(idx);
+                      }}
                       onToggleRotation={() => setRotationPaused((p) => !p)}
                       onEditRating={openMovieRating}
                       onToggleWatchlist={toggleWatchlist}

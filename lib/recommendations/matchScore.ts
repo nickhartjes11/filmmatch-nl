@@ -3,10 +3,11 @@ export interface MovieTasteSignals {
   genres: readonly string[];
   director?: string | null;
   cast?: readonly string[];
+  rating?: string | number | null; // Optionele IMDb rating (bijv. 8.2 of "8.2")
 }
 
 export interface RatedMovieTasteSignals extends MovieTasteSignals {
-  rating: number;
+  rating: number; // Persoonlijke review score van de gebruiker (1-10)
 }
 
 export interface MatchPreferences {
@@ -17,14 +18,16 @@ export interface MatchPreferences {
   favoriteCast?: readonly string[];
 }
 
+// Gewichten moeten samen 1.0 vormen
 const MATCH_WEIGHTS = {
-  genres: 0.6,
-  director: 0.25,
+  genres: 0.45,
+  imdb: 0.20,
+  director: 0.20,
   cast: 0.15,
 } as const;
 
-const DISLIKE_PENALTY_PER_GENRE = 25;
-const EXPLICIT_PERSON_PREFERENCE_WEIGHT = 3;
+const DISLIKE_PENALTY_PER_GENRE = 30;
+const EXPLICIT_PERSON_PREFERENCE_WEIGHT = 2.5;
 
 export function getMatchColorBand(score: number): 'strong' | 'medium' | 'low' {
   if (score >= 75) return 'strong';
@@ -36,7 +39,8 @@ function normalize(value: string): string {
   return value.trim().toLocaleLowerCase();
 }
 
-function ratingWeight(rating: number): number {
+function userRatingWeight(rating: number): number {
+  // Beoordeling van gebruiker: 1-10 omzetten naar -1 tot +1
   return Math.max(-1, Math.min(1, (rating - 5.5) / 4.5));
 }
 
@@ -82,11 +86,11 @@ function createTraitWeights(
 
   favoriteMovies.forEach((movie) => {
     const rating = ratingsByMovie.get(movie.id);
-    addMovie(movie, rating === undefined ? 1 : ratingWeight(rating));
+    addMovie(movie, rating === undefined ? 1 : userRatingWeight(rating));
   });
 
   ratedMovies.forEach((movie) => {
-    if (!includedIds.has(movie.id)) addMovie(movie, ratingWeight(movie.rating));
+    if (!includedIds.has(movie.id)) addMovie(movie, userRatingWeight(movie.rating));
   });
 
   return weights;
@@ -99,12 +103,24 @@ function scoreTraits(candidateTraits: readonly string[], preferenceWeights: Map<
   const strongestPreference = Math.max(...Array.from(preferenceWeights.values()).map(Math.abs));
   if (strongestPreference === 0) return null;
 
-  const affinity = traits.reduce(
-    (total, trait) => total + (preferenceWeights.get(trait) || 0) / strongestPreference,
-    0
-  ) / traits.length;
+  const traitScores = traits.map((trait) => (preferenceWeights.get(trait) || 0) / strongestPreference);
+  const maxScore = Math.max(...traitScores);
+  const avgScore = traitScores.reduce((sum, s) => sum + s, 0) / traitScores.length;
 
-  return Math.round(Math.max(0, Math.min(100, 50 + affinity * 50)));
+  // 70% focus op het beste matchende element, 30% op de totale match
+  const blendedAffinity = Math.max(0, maxScore * 0.7 + avgScore * 0.3);
+
+  return Math.round(Math.min(100, blendedAffinity * 100));
+}
+
+function scoreImdb(rating: string | number | null | undefined): number | null {
+  if (!rating) return null;
+  const num = typeof rating === 'string' ? parseFloat(rating) : rating;
+  if (isNaN(num) || num <= 0) return null;
+
+  // Schaal: een IMDb van 5.0 = 40%, 7.0 = 70%, 8.5+ = 95-100%
+  const normalized = Math.max(0, Math.min(100, (num / 10) * 100));
+  return Math.round(normalized);
 }
 
 export function calculateMatchScore(
@@ -113,6 +129,7 @@ export function calculateMatchScore(
 ): number {
   const favoriteMovies = Array.isArray(preferences?.favoriteMovies) ? preferences.favoriteMovies : [];
   const ratedMovies = Array.isArray(preferences?.ratedMovies) ? preferences.ratedMovies : [];
+
   const categories = [
     {
       score: scoreTraits(
@@ -122,11 +139,15 @@ export function calculateMatchScore(
       weight: MATCH_WEIGHTS.genres,
     },
     {
+      score: scoreImdb(movie.rating),
+      weight: MATCH_WEIGHTS.imdb,
+    },
+    {
       score: movie.director
         ? scoreTraits(
             [movie.director],
             withExplicitPreferences(
-              createTraitWeights(favoriteMovies, ratedMovies, (item) => item.director ? [item.director] : []),
+              createTraitWeights(favoriteMovies, ratedMovies, (item) => (item.director ? [item.director] : [])),
               preferences?.favoriteDirectors
             )
           )
@@ -145,17 +166,19 @@ export function calculateMatchScore(
     },
   ];
 
-  const validCategories = categories.flatMap((category) =>
-    category.score !== null ? [{ score: category.score, weight: Number(category.weight) }] : []
-  );
+  const validCategories = categories.filter((category) => category.score !== null);
 
-  const baseScore = validCategories.length === 0
-    ? 50
-    : Math.round(
-        validCategories.reduce((total, category) => total + category.score * category.weight, 0) /
-          validCategories.reduce((total, category) => total + category.weight, 0)
-      );
+  // Als er nog geen enkele voorkeur bekend is, gebruik de IMDb score of een neutrale 60%
+  if (validCategories.length === 0) {
+    const imdbFallback = scoreImdb(movie.rating);
+    return imdbFallback ?? 60;
+  }
 
+  const totalWeight = validCategories.reduce((sum, c) => sum + c.weight, 0);
+  const weightedSum = validCategories.reduce((sum, c) => sum + c.score! * c.weight, 0);
+
+  const baseScore = Math.round(weightedSum / totalWeight);
   const penalty = dislikePenalty(movie.genres || [], preferences?.dislikedGenres);
+
   return Math.max(0, Math.min(100, baseScore - penalty));
 }

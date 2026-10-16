@@ -257,7 +257,6 @@ export default function MovieGrid({
   maxRuntimeMinutes,
   matchPreferences,
 }: MovieGridProps) {
-  const [watchedSort, setWatchedSort] = useState<'rating' | 'recent'>('recent');
   const [similarIndex, setSimilarIndex] = useState(0);
   const [dynamicRailMovies, setDynamicRailMovies] = useState<Record<string, Movie[]>>({});
   const [loadingRailKeys, setLoadingRailKeys] = useState<Record<string, boolean>>({});
@@ -467,14 +466,12 @@ export default function MovieGrid({
     };
   }, [libraryView, searchQuery, railFilterKey, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, matchPreferences, dynamicRailMovies, genreNames.join('|'), similarRailRequest?.key, baseMatchMap]);
 
-  const displayedMovies = libraryView === 'watched' && watchedSort === 'rating'
-    ? [...synchronizedMovies].sort((first, second) => (ratings[second.id] ?? -1) - (ratings[first.id] ?? -1))
-    : synchronizedMovies;
+  const displayedMovies = synchronizedMovies;
 
   const heading = libraryView === 'watchlist'
-    ? 'Nog te kijken'
+    ? null
     : libraryView === 'watched'
-      ? 'Gezien'
+      ? null
       : searchQuery
         ? 'Alle resultaten'
         : discoveryMode === 'new_releases'
@@ -553,35 +550,13 @@ export default function MovieGrid({
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xs font-bold tracking-wider text-white">{heading}</h2>
-        <span className="text-xs text-neutral-100">{displayedMovies.length} films</span>
-      </div>
-      {libraryView === 'watched' && (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[10px] font-medium text-neutral-300">Sorteren</span>
-          <div className="inline-flex max-w-full rounded-lg border border-white/10 bg-black/10 p-1" role="group" aria-label="Sorteer geziene films">
-            <button
-              type="button"
-              onClick={() => setWatchedSort('rating')}
-              aria-label="Sorteer op jouw cijfer, hoog naar laag"
-              aria-pressed={watchedSort === 'rating'}
-              className={`whitespace-nowrap rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${watchedSort === 'rating' ? 'bg-amber-300 text-neutral-950' : 'text-neutral-300 hover:text-white'}`}
-            >
-              Hoogste cijfer
-            </button>
-            <button
-              type="button"
-              onClick={() => setWatchedSort('recent')}
-              aria-label="Sorteer op meest recent gezien"
-              aria-pressed={watchedSort === 'recent'}
-              className={`whitespace-nowrap rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${watchedSort === 'recent' ? 'bg-emerald-300 text-neutral-950' : 'text-neutral-300 hover:text-white'}`}
-            >
-              Meest recent
-            </button>
-          </div>
+      {heading && (
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold tracking-wider text-white">{heading}</h2>
+          <span className="text-xs text-neutral-100">{displayedMovies.length} films</span>
         </div>
       )}
+
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {displayedMovies.map((movie) => (
           <MovieCard

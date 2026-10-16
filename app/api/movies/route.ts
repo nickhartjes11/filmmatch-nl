@@ -122,38 +122,38 @@ export async function GET(request: Request) {
   const trailerMovieId = searchParams.get('trailerMovieId');
   if (trailerMovieId) {
     try {
-      const videosUrl = `https://api.themoviedb.org/3/movie/${encodeURIComponent(trailerMovieId)}/videos?api_key=${apiKey}&language=nl-NL`;
-      let videosRes = await fetch(videosUrl, { cache: 'no-store' });
-      let videosData = videosRes.ok ? await videosRes.json() : null;
-
-      // Als er geen Nederlandse trailer is, val terug op de Engelse trailer
-      if (!videosData?.results || videosData.results.length === 0) {
-        const enVideosUrl = `https://api.themoviedb.org/3/movie/${encodeURIComponent(trailerMovieId)}/videos?api_key=${apiKey}&language=en-US`;
-        videosRes = await fetch(enVideosUrl, { cache: 'no-store' });
-        videosData = videosRes.ok ? await videosRes.json() : null;
-      }
+      // Haal alle video's op zonder strikte taalfilter, zodat alle officiële trailers (NL, EN, etc.) worden meegenomen
+      const videosUrl = `https://api.themoviedb.org/3/movie/${encodeURIComponent(trailerMovieId)}/videos?api_key=${apiKey}`;
+      const videosRes = await fetch(videosUrl, { cache: 'no-store' });
+      const videosData = videosRes.ok ? await videosRes.json() : null;
 
       const videos = (videosData?.results || []) as Array<{
-        site: string;
-        type: string;
-        key: string;
+        site?: string;
+        type?: string;
+        key?: string;
         official?: boolean;
+        iso_639_1?: string;
       }>;
 
-      const ytVideos = videos.filter((v) => v.site === 'YouTube' && Boolean(v.key));
+      // Filter uitsluitend werkende YouTube video's
+      const ytVideos = videos.filter(
+        (v) => v.site?.toLowerCase() === 'youtube' && Boolean(v.key)
+      );
 
-      // Zoek eerst naar een officiële trailer, dan teaser, clip of eerste video
+      // Prioriteit:
+      // 1. Officiële Nederlandse trailer
+      // 2. Officiële trailer (algemeen/Engels)
+      // 3. Elke trailer
+      // 4. Teaser
+      // 5. Eerste beschikbare clip/video
       const trailer =
+        ytVideos.find((v) => v.type === 'Trailer' && v.official && v.iso_639_1 === 'nl') ||
         ytVideos.find((v) => v.type === 'Trailer' && v.official) ||
         ytVideos.find((v) => v.type === 'Trailer') ||
         ytVideos.find((v) => v.type === 'Teaser') ||
         ytVideos[0];
 
-      if (trailer) {
-        return NextResponse.json({ youtubeKey: trailer.key });
-      }
-
-      return NextResponse.json({ youtubeKey: null });
+      return NextResponse.json({ youtubeKey: trailer?.key ?? null });
     } catch {
       return NextResponse.json({ error: 'Fout bij het ophalen van de trailer' }, { status: 500 });
     }
@@ -267,7 +267,6 @@ export async function GET(request: Request) {
         .sort((first, second) => (second.popularity || 0) - (first.popularity || 0))
         .slice(0, 20);
     } else if (isSearch) {
-      // Zoek in de volledige wereldwijde database
       const searchUrl = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&language=nl-NL&query=${encodeURIComponent(
         query!.trim()
       )}&page=${page}&include_adult=false`;
@@ -297,7 +296,6 @@ export async function GET(request: Request) {
       rawMovies = recommendationsData.results || [];
       totalPages = recommendationsData.total_pages || 1;
     } else {
-      // Standaard homepage: populaire titels op de 5 diensten
       const discoverUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&language=nl-NL&sort_by=popularity.desc&watch_region=NL&with_watch_providers=${providerIdsQuery}&with_watch_monetization_types=flatrate&page=${page}&include_adult=false`;
       const discoverRes = await fetch(discoverUrl, { cache: 'no-store' });
       if (!discoverRes.ok) {

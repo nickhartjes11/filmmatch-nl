@@ -1,5 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
+
 interface PersonSearchResult {
   id: number;
   name: string;
@@ -36,8 +39,46 @@ export default function DashboardHeader({
   setSearchQuery,
   selectedPerson,
   setSelectedPerson,
+  selectPerson,
   clearSearch,
 }: DashboardHeaderProps) {
+  const [personSuggestions, setPersonSuggestions] = useState<PersonSearchResult[]>([]);
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Zoeken naar acteurs en regisseurs zodra je typt
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q || selectedPerson || q.length < 2) {
+      setPersonSuggestions([]);
+      return;
+    }
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/movies?people=${encodeURIComponent(q)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (active && Array.isArray(data.people)) {
+          setPersonSuggestions(data.people);
+        }
+      } catch {
+        // negeer fout
+      }
+    }, 200);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, selectedPerson]);
+
+  const handleSelectPerson = (person: PersonSearchResult) => {
+    selectPerson(person);
+    setPersonSuggestions([]);
+    setIsFocused(false);
+  };
+
   const placeholderText =
     libraryView === 'watched'
       ? 'Zoek in films die je hebt gezien...'
@@ -54,6 +95,8 @@ export default function DashboardHeader({
           <input
             type="text"
             value={searchQuery}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setTimeout(() => setIsFocused(false), 250)}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               if (selectedPerson) setSelectedPerson(null);
@@ -73,6 +116,47 @@ export default function DashboardHeader({
             </button>
           )}
         </div>
+
+        {/* Suggesties dropdown direct onder de zoekbalk */}
+        {isFocused && personSuggestions.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-2 bg-neutral-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50">
+            <div className="px-3 py-2 bg-neutral-950/60 border-b border-white/[0.06] text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+              Acteurs &amp; Regisseurs
+            </div>
+            <div className="max-h-64 overflow-y-auto divide-y divide-white/[0.04]">
+              {personSuggestions.map((person) => (
+                <button
+                  key={person.id}
+                  type="button"
+                  onMouseDown={() => handleSelectPerson(person)}
+                  className="w-full p-2.5 flex items-center gap-3 hover:bg-white/[0.08] transition text-left"
+                >
+                  <div className="relative w-8 h-8 rounded-full overflow-hidden bg-neutral-800 shrink-0 border border-white/10">
+                    {person.profile_path ? (
+                      <Image
+                        src={`https://image.tmdb.org/t/p/w92${person.profile_path}`}
+                        alt={person.name}
+                        fill
+                        unoptimized
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[10px] text-neutral-400 font-bold">
+                        {person.name.slice(0, 1)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white truncate">{person.name}</p>
+                    <p className="text-[10px] text-neutral-400">
+                      {person.known_for_department === 'Directing' ? 'Regisseur' : 'Acteur / Actrice'}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );

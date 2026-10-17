@@ -68,10 +68,11 @@ function matchesDiscoveryFilters(
   selectedPlatforms: string[],
   minimumImdbRating: number,
   releaseYearBefore: number | null,
-  maxRuntimeMinutes: number | null
+  maxRuntimeMinutes: number | null,
+  isCinema = false
 ): boolean {
   const year = Number.parseInt(movie.release_date?.slice(0, 4) || '', 10);
-  const matchesPlatform = selectedPlatforms.length === 0 ||
+  const matchesPlatform = isCinema || selectedPlatforms.length === 0 ||
     Boolean(movie.providers?.some((p) => selectedPlatforms.includes(p.provider_name)));
   const matchesImdb = minimumImdbRating === 0 || (
     movie.rating_source === 'IMDb' && Number.parseFloat(movie.rating || '0') >= minimumImdbRating
@@ -580,9 +581,10 @@ export default function Home() {
     });
   }, []);
 
+  // Films inladen (zowel discover als bioscoop)
   useEffect(() => {
     const query = searchQuery.trim();
-    if (libraryView !== 'discover') {
+    if (libraryView !== 'discover' && libraryView !== 'cinema') {
       return;
     }
 
@@ -594,19 +596,25 @@ export default function Home() {
       setMovieLoadError('');
 
       try {
-        const pagesToFetch = query || selectedPerson ? [1] : [1, 2];
+        const isCinema = libraryView === 'cinema';
+        const pagesToFetch = query || selectedPerson || isCinema ? [1] : [1, 2];
         const requests = pagesToFetch.map(async (p) => {
           const params = new URLSearchParams({
             page: String(p),
-            providers: selectedPlatforms.length > 0 ? selectedPlatforms.join(',') : FIVE_PLATFORMS.map((x) => x.name).join(','),
           });
 
-          if (selectedPerson) {
-            params.set('personId', String(selectedPerson.id));
-          } else if (query) {
-            params.set('query', query);
-          } else if (preferredGenres.length > 0) {
-            params.set('genre', preferredGenres[0]);
+          if (isCinema) {
+            params.set('nowPlaying', 'true');
+          } else {
+            params.set('providers', selectedPlatforms.length > 0 ? selectedPlatforms.join(',') : FIVE_PLATFORMS.map((x) => x.name).join(','));
+
+            if (selectedPerson) {
+              params.set('personId', String(selectedPerson.id));
+            } else if (query) {
+              params.set('query', query);
+            } else if (preferredGenres.length > 0) {
+              params.set('genre', preferredGenres[0]);
+            }
           }
 
           const res = await fetch(`/api/movies?${params.toString()}`);
@@ -779,7 +787,7 @@ export default function Home() {
         ? [...library.watched]
         : scoredMovies;
 
-    if (libraryView === 'watchlist' || libraryView === 'watched') {
+    if (libraryView === 'watchlist' || libraryView === 'watched' || libraryView === 'cinema') {
       if (librarySort === 'rating') {
         catalog.sort((a, b) => {
           const ratingA = ratingsByMovieId[a.id] ?? Number.parseFloat(a.rating || '0');
@@ -791,10 +799,12 @@ export default function Home() {
       }
     }
 
+    const isCinema = libraryView === 'cinema';
+
     return catalog.filter((m) => {
       const matchQuery = selectedPerson || !searchQuery.trim() || `${m.title} ${m.overview}`.toLowerCase().includes(searchQuery.trim().toLowerCase());
-      const matchesFilters = libraryView !== 'discover' || matchesDiscoveryFilters(m, selectedPlatforms, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes);
-      const isUnwatched = libraryView !== 'discover' || !watchedIds.has(m.id);
+      const matchesFilters = (libraryView !== 'discover' && !isCinema) || matchesDiscoveryFilters(m, selectedPlatforms, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, isCinema);
+      const isUnwatched = (libraryView !== 'discover' && !isCinema) || !watchedIds.has(m.id);
       return matchQuery && matchesFilters && isUnwatched;
     });
   }, [scoredMovies, library, libraryView, searchQuery, selectedPerson, selectedPlatforms, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, librarySort, ratingsByMovieId]);
@@ -806,7 +816,7 @@ export default function Home() {
   }, [visibleMovies]);
 
   useEffect(() => {
-    if (currentView !== 'dashboard' || libraryView !== 'discover' || spotlightMovieId !== null || searchQuery.trim() || rotationPaused) {
+    if (currentView !== 'dashboard' || (libraryView !== 'discover' && libraryView !== 'cinema') || spotlightMovieId !== null || searchQuery.trim() || rotationPaused) {
       return;
     }
 
@@ -825,7 +835,11 @@ export default function Home() {
        movies.find((m) => m.id === spotlightMovieId))
     : null;
 
-  const topMatch = spotlightMovie || (libraryView === 'discover' ? featuredCarrouselMovies[featuredIndex % Math.max(1, featuredCarrouselMovies.length)] || visibleMovies[0] : null);
+  const topMatch = spotlightMovie || (
+    (libraryView === 'discover' || libraryView === 'cinema')
+      ? featuredCarrouselMovies[featuredIndex % Math.max(1, featuredCarrouselMovies.length)] || visibleMovies[0]
+      : null
+  );
 
   const gridMatches = libraryView === 'watched'
     ? visibleMovies
@@ -835,9 +849,11 @@ export default function Home() {
     ? 'GEZIENE FILM'
     : libraryView === 'watchlist'
       ? 'IN JE WATCHLIST'
-      : spotlightMovieId
-        ? 'GEKOZEN FILM'
-        : 'AANBEVELING VAN HET MOMENT';
+      : libraryView === 'cinema'
+        ? '🎟️ NU IN DE BIOSCOOP'
+        : spotlightMovieId
+          ? 'GEKOZEN FILM'
+          : 'AANBEVELING VAN HET MOMENT';
 
   if (currentView === 'landing') {
     return (
@@ -1125,10 +1141,20 @@ export default function Home() {
               ) : visibleMovies.length === 0 ? (
                 <div className="py-24 text-center space-y-2">
                   <p className="text-sm font-bold text-white">
-                    {libraryView === 'watched' ? 'Je hebt nog geen films als gezien gemarkeerd' : libraryView === 'watchlist' ? 'Je watchlist is leeg' : 'Geen films gevonden'}
+                    {libraryView === 'watched'
+                      ? 'Je hebt nog geen films als gezien gemarkeerd'
+                      : libraryView === 'watchlist'
+                        ? 'Je watchlist is leeg'
+                        : libraryView === 'cinema'
+                          ? 'Geen bioscoopfilms gevonden'
+                          : 'Geen films gevonden'}
                   </p>
                   <p className="text-xs text-neutral-400">
-                    {libraryView === 'discover' ? 'Controleer je dienstenfilters.' : 'Voeg films toe vanuit het aanbevolen overzicht.'}
+                    {libraryView === 'discover'
+                      ? 'Controleer je dienstenfilters.'
+                      : libraryView === 'cinema'
+                        ? 'Probeer eventuele IMDb-filters aan te passen.'
+                        : 'Voeg films toe vanuit het aanbevolen overzicht.'}
                   </p>
                 </div>
               ) : (
@@ -1156,13 +1182,14 @@ export default function Home() {
                     />
                   )}
 
-                  {(libraryView === 'watchlist' || libraryView === 'watched') &&
-                    (libraryView === 'watchlist' ? library.watchlist.length > 0 : library.watched.length > 0) && (
+                  {(libraryView === 'watchlist' || libraryView === 'watched' || libraryView === 'cinema') && (
                     <div className="flex flex-wrap items-center justify-between gap-3 pb-2 pt-2 border-b border-white/[0.08]">
                       <span className="text-xs font-semibold text-neutral-400">
                         {libraryView === 'watchlist'
                           ? `${library.watchlist.length} ${library.watchlist.length === 1 ? 'film' : 'films'} in je watchlist`
-                          : `${library.watched.length} ${library.watched.length === 1 ? 'film' : 'films'} gezien`}
+                          : libraryView === 'watched'
+                            ? `${library.watched.length} ${library.watched.length === 1 ? 'film' : 'films'} gezien`
+                            : `${visibleMovies.length} actuele ${visibleMovies.length === 1 ? 'bioscoopfilm' : 'bioscoopfilms'} in Nederland`}
                       </span>
                       <div className="flex items-center gap-1.5 bg-neutral-900/90 p-1 rounded-xl border border-white/10 shadow-lg">
                         <button
@@ -1174,7 +1201,7 @@ export default function Home() {
                               : 'text-neutral-400 hover:text-white'
                           }`}
                         >
-                          Recent toegevoegd
+                          {libraryView === 'cinema' ? 'Populair in de zaal' : 'Recent toegevoegd'}
                         </button>
                         <button
                           type="button"

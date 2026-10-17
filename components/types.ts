@@ -1,4 +1,4 @@
-export type LibraryView = 'discover' | 'watchlist' | 'watched';
+export type LibraryView = 'discover' | 'watchlist' | 'watched' | 'cinema';
 export type DiscoveryMode = 'recommended' | 'new_releases' | 'popular';
 
 export interface UserProfile {
@@ -61,7 +61,7 @@ export interface StreamingPlatform {
 
 export interface FriendActivityItem {
   id: number;
-  friendId: number;
+  friendId: number | string;
   name: string;
   initial: string;
   avatarGradient: string;

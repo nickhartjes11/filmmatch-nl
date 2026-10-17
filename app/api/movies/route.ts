@@ -86,7 +86,7 @@ async function getImdbRating(imdbId: string, apiKey: string): Promise<string | n
         const ratingStr = String(data.imdbRating);
         const ratingNum = Number.parseFloat(ratingStr);
 
-        // 3. Sla het cijfer direct permanent op in Supabase!
+        // 3. Sla het cijfer direct permanent op in Supabase
         if (supabase && Number.isFinite(ratingNum)) {
           void supabase
             .from('movie_imdb_cache')
@@ -122,7 +122,6 @@ export async function GET(request: Request) {
   const trailerMovieId = searchParams.get('trailerMovieId');
   if (trailerMovieId) {
     try {
-      // Haal alle video's op zonder strikte taalfilter, zodat alle officiële trailers (NL, EN, etc.) worden meegenomen
       const videosUrl = `https://api.themoviedb.org/3/movie/${encodeURIComponent(trailerMovieId)}/videos?api_key=${apiKey}`;
       const videosRes = await fetch(videosUrl, { cache: 'no-store' });
       const videosData = videosRes.ok ? await videosRes.json() : null;
@@ -135,17 +134,10 @@ export async function GET(request: Request) {
         iso_639_1?: string;
       }>;
 
-      // Filter uitsluitend werkende YouTube video's
       const ytVideos = videos.filter(
         (v) => v.site?.toLowerCase() === 'youtube' && Boolean(v.key)
       );
 
-      // Prioriteit:
-      // 1. Officiële Nederlandse trailer
-      // 2. Officiële trailer (algemeen/Engels)
-      // 3. Elke trailer
-      // 4. Teaser
-      // 5. Eerste beschikbare clip/video
       const trailer =
         ytVideos.find((v) => v.type === 'Trailer' && v.official && v.iso_639_1 === 'nl') ||
         ytVideos.find((v) => v.type === 'Trailer' && v.official) ||
@@ -167,6 +159,8 @@ export async function GET(request: Request) {
   const similarToParam = searchParams.get('similarTo');
   const similarToId = similarToParam ? Number.parseInt(similarToParam, 10) : null;
   const isRailRequest = searchParams.get('rail') === '1';
+  const nowPlaying = searchParams.get('nowPlaying') === 'true';
+
   const providersParam = searchParams.get('providers');
   const selectedProviderNames = providersParam ? new Set(providersParam.split(',').filter(Boolean)) : null;
   const selectedProviderIds = selectedProviderNames
@@ -247,7 +241,17 @@ export async function GET(request: Request) {
     let rawMovies: any[] = [];
     let totalPages = 1;
 
-    if (personId) {
+    if (nowPlaying) {
+      // Actuele films in de bioscoop in Nederland
+      const cinemaUrl = `https://api.themoviedb.org/3/movie/now_playing?api_key=${apiKey}&language=nl-NL&region=NL&page=${page}`;
+      const cinemaRes = await fetch(cinemaUrl, { cache: 'no-store' });
+      if (!cinemaRes.ok) {
+        return NextResponse.json({ error: 'Bioscoopfilms konden niet worden opgehaald' }, { status: cinemaRes.status });
+      }
+      const cinemaData = await cinemaRes.json();
+      rawMovies = cinemaData.results || [];
+      totalPages = cinemaData.total_pages || 1;
+    } else if (personId) {
       const creditsUrl = `https://api.themoviedb.org/3/person/${encodeURIComponent(personId)}/movie_credits?api_key=${apiKey}&language=nl-NL`;
       const creditsResponse = await fetch(creditsUrl, { cache: 'no-store' });
       if (!creditsResponse.ok) {
@@ -360,7 +364,7 @@ export async function GET(request: Request) {
       return NextResponse.json({
         page: Number(page),
         totalPages,
-        movies: railMovies.filter((movie) => movie.providers.length > 0),
+        movies: nowPlaying ? railMovies : railMovies.filter((movie) => movie.providers.length > 0),
       });
     }
 
@@ -439,14 +443,17 @@ export async function GET(request: Request) {
       })
     );
 
-    const finalMovies = moviesWithDetails.filter((movie) => movie.providers.length > 0);
+    // Voor bioscoopfilms houden we alle films (ook zonder streamingsdienst)
+    const finalMovies = nowPlaying
+      ? moviesWithDetails
+      : moviesWithDetails.filter((movie) => movie.providers.length > 0);
 
     return NextResponse.json({
       page: Number(page),
       totalPages,
       movies: finalMovies,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Interne serverfout' }, { status: 500 });
   }
 }

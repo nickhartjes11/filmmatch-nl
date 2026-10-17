@@ -153,6 +153,18 @@ export default function Sidebar({
             <span className="hidden xl:inline">Gezien</span>
           </button>
 
+          {/* IN DE BIOSCOOP KNOP */}
+          <button
+            onClick={() => onNavigate('cinema')}
+            title="In de bioscoop"
+            aria-label="In de bioscoop"
+            aria-pressed={!friendsActive && !watchTogetherActive && libraryView === 'cinema'}
+            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${!friendsActive && !watchTogetherActive && libraryView === 'cinema' ? 'bg-rose-500/20 text-rose-100 border border-rose-500/30' : 'text-neutral-200 hover:bg-white/10 hover:text-white'}`}
+          >
+            <span className="w-4 text-center text-sm" aria-hidden="true">🎟️</span>
+            <span className="hidden xl:inline">In de bioscoop</span>
+          </button>
+
           <button
             type="button"
             onClick={onOpenFriends}

@@ -38,95 +38,111 @@ export default function WatchTogetherPage({
   onSelectMovieSpotlight,
   onToggleWatchlist,
 }: WatchTogetherPageProps) {
-  const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
+  // Meerdere vrienden selecteren (groep van 1 tot N vrienden)
+  const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
 
-  const [friendProfile, setFriendProfile] = useState<FriendProfile | null>(null);
+  const [groupProfiles, setGroupProfiles] = useState<Record<string, FriendProfile>>({});
   const [myProfile, setMyProfile] = useState<FriendProfile | null>(null);
-  const [friendWatchedIds, setFriendWatchedIds] = useState<number[]>([]);
-  const [myWatchedIds, setMyWatchedIds] = useState<number[]>([]);
+  const [allWatchedMovieIds, setAllWatchedMovieIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [candidateMovies, setCandidateMovies] = useState<Movie[]>([]);
 
   // Paginering voor de refresh knop
   const [refreshPageOffset, setRefreshPageOffset] = useState(0);
 
-  // Modal states voor opengeklikte film
+  // Modal states voor de film details
   const [activeModalMovie, setActiveModalMovie] = useState<Movie | null>(null);
   const [modalDetails, setModalDetails] = useState<{ director?: string; cast?: string[] }>({});
-  const [trailerKey, setTrailerKey] = useState<string | null>(null);
+  
+  // Dedicated grote bioscoop trailer modal
+  const [cinemaTrailerKey, setCinemaTrailerKey] = useState<string | null>(null);
   const [trailerLoading, setTrailerLoading] = useState(false);
 
-  // Zoeken in vrienden
+  // Zoeken in vriendenlijst
   const filteredFriends = useMemo(() => {
     const q = friendSearchQuery.trim().toLowerCase();
     if (!q) return friends;
     return friends.filter((f) => f.display_name.toLowerCase().includes(q));
   }, [friends, friendSearchQuery]);
 
-  // Laad profielen en bekeken films
+  const toggleSelectFriend = (friendId: string) => {
+    setSelectedFriendIds((current) =>
+      current.includes(friendId)
+        ? current.filter((id) => id !== friendId)
+        : [...current, friendId]
+    );
+  };
+
+  // Laad profielen en geziene films van iedereen in de groep
   useEffect(() => {
-    if (!selectedFriendId || !currentUserId) return;
+    if (selectedFriendIds.length === 0 || !currentUserId) return;
 
     let active = true;
     setLoading(true);
 
-    const loadData = async () => {
+    const loadGroupData = async () => {
       try {
         const supabase = createSupabaseBrowserClient();
         if (!supabase) return;
 
-        const [
-          { data: myProf },
-          { data: friendProf },
-          { data: myWatchedRows },
-          { data: friendWatchedRows },
-        ] = await Promise.all([
-          supabase.from('profiles').select('*').eq('id', currentUserId).maybeSingle(),
-          supabase.from('profiles').select('*').eq('id', selectedFriendId).maybeSingle(),
-          supabase.from('user_watched').select('movie_id').eq('user_id', currentUserId),
-          supabase.from('user_watched').select('movie_id').eq('user_id', selectedFriendId),
+        const allUserIds = [currentUserId, ...selectedFriendIds];
+
+        const [{ data: profs }, { data: watchedRows }] = await Promise.all([
+          supabase.from('profiles').select('*').in('id', allUserIds),
+          supabase.from('user_watched').select('movie_id').in('user_id', allUserIds),
         ]);
 
         if (!active) return;
 
-        setMyProfile(myProf || null);
-        setFriendProfile(friendProf || null);
-        setMyWatchedIds((myWatchedRows || []).map((r) => Number(r.movie_id)));
-        setFriendWatchedIds((friendWatchedRows || []).map((r) => Number(r.movie_id)));
+        const profMap: Record<string, FriendProfile> = {};
+        (profs || []).forEach((p) => {
+          profMap[p.id] = p;
+        });
+
+        setMyProfile(profMap[currentUserId] || null);
+        setGroupProfiles(profMap);
+        setAllWatchedMovieIds((watchedRows || []).map((r) => Number(r.movie_id)));
       } catch (err) {
-        console.error('Fout bij ophalen samen-kijken data:', err);
+        console.error('Fout bij ophalen groepsdata:', err);
       } finally {
         if (active) setLoading(false);
       }
     };
 
-    void loadData();
+    void loadGroupData();
 
     return () => {
       active = false;
     };
-  }, [selectedFriendId, currentUserId]);
+  }, [selectedFriendIds, currentUserId]);
 
-  // Gecombineerde platforms
+  // Gecombineerde platforms van de hele groep
   const combinedPlatforms = useMemo(() => {
-    const friendServices = friendProfile?.streaming_services || [];
-    const combined = Array.from(new Set([...myStreamingServices, ...friendServices]));
-    return combined.length > 0 ? combined : ['Netflix', 'Prime Video', 'Disney+', 'HBO Max', 'Videoland'];
-  }, [myStreamingServices, friendProfile]);
+    const allServices = new Set<string>(myStreamingServices);
+    selectedFriendIds.forEach((id) => {
+      groupProfiles[id]?.streaming_services?.forEach((s) => allServices.add(s));
+    });
+    const result = Array.from(allServices);
+    return result.length > 0 ? result : ['Netflix', 'Prime Video', 'Disney+', 'HBO Max', 'Videoland'];
+  }, [myStreamingServices, selectedFriendIds, groupProfiles]);
 
-  // Films ophalen (haalt 2 pagina's tegelijk op zodat we altijd ruim boven de 20 unieke geschikte films zitten)
+  // Haal films op voor de gezamenlijke smaak
   useEffect(() => {
-    if (!selectedFriendId) return;
+    if (selectedFriendIds.length === 0) return;
 
     let active = true;
     setLoading(true);
 
     const fetchRecommendations = async () => {
       try {
-        const myGenres = myProfile?.preferred_genres || [];
-        const friendGenres = friendProfile?.preferred_genres || [];
-        const topSharedGenres = Array.from(new Set([...myGenres, ...friendGenres])).slice(0, 3);
+        // Verzamel topgenres van iedereen
+        const allGenres = new Set<string>();
+        myProfile?.preferred_genres?.forEach((g) => allGenres.add(g));
+        selectedFriendIds.forEach((id) => {
+          groupProfiles[id]?.preferred_genres?.forEach((g) => allGenres.add(g));
+        });
+        const genreList = Array.from(allGenres);
 
         const page1 = refreshPageOffset * 2 + 1;
         const page2 = refreshPageOffset * 2 + 2;
@@ -136,8 +152,8 @@ export default function WatchTogetherPage({
             page: String(pageNum),
             providers: combinedPlatforms.join(','),
           });
-          if (topSharedGenres.length > 0) {
-            p.set('genre', topSharedGenres[refreshPageOffset % topSharedGenres.length]);
+          if (genreList.length > 0) {
+            p.set('genre', genreList[refreshPageOffset % genreList.length]);
           }
           return `/api/movies?${p.toString()}`;
         };
@@ -155,7 +171,6 @@ export default function WatchTogetherPage({
           ...(Array.isArray(data2.movies) ? data2.movies : []),
         ];
 
-        // Ontdubbelen op film-ID
         const uniqueMap = new Map<number, Movie>();
         combinedList.forEach((m: Movie) => {
           if (!uniqueMap.has(m.id)) uniqueMap.set(m.id, m);
@@ -163,7 +178,7 @@ export default function WatchTogetherPage({
 
         setCandidateMovies(Array.from(uniqueMap.values()));
       } catch (err) {
-        console.error('Fout bij ophalen samen-kijken films:', err);
+        console.error('Fout bij ophalen groepsfilms:', err);
       } finally {
         if (active) setLoading(false);
       }
@@ -174,38 +189,42 @@ export default function WatchTogetherPage({
     return () => {
       active = false;
     };
-  }, [selectedFriendId, combinedPlatforms, myProfile, friendProfile, refreshPageOffset]);
+  }, [selectedFriendIds, combinedPlatforms, myProfile, groupProfiles, refreshPageOffset]);
 
-  // Bereken de Top 20
+  // Bereken de Top 20 voor de hele groep
   const topSamenMatches = useMemo(() => {
     if (!candidateMovies.length) return [];
 
-    const allExcludedIds = new Set([...myWatchedIds, ...friendWatchedIds]);
-    const sharedDislikedGenres = new Set([
-      ...(myProfile?.disliked_genres || []),
-      ...(friendProfile?.disliked_genres || []),
-    ]);
+    const excludedIds = new Set(allWatchedMovieIds);
 
-    const myPrefs: MatchPreferences = {
-      favoriteMovies: [],
-      ratedMovies: [],
-      dislikedGenres: myProfile?.disliked_genres || [],
-      favoriteDirectors: myProfile?.favorite_directors || [],
-      favoriteCast: myProfile?.favorite_cast || [],
-    };
+    // Verzamel genres die wie dan ook verafschuwt
+    const allDisliked = new Set<string>(myProfile?.disliked_genres || []);
+    selectedFriendIds.forEach((id) => {
+      groupProfiles[id]?.disliked_genres?.forEach((g) => allDisliked.add(g));
+    });
 
-    const friendPrefs: MatchPreferences = {
-      favoriteMovies: [],
-      ratedMovies: [],
-      dislikedGenres: friendProfile?.disliked_genres || [],
-      favoriteDirectors: friendProfile?.favorite_directors || [],
-      favoriteCast: friendProfile?.favorite_cast || [],
-    };
+    // Bouw match preferences voor elk groepslid
+    const allMemberPrefs: MatchPreferences[] = [
+      {
+        favoriteMovies: [],
+        ratedMovies: [],
+        dislikedGenres: myProfile?.disliked_genres || [],
+        favoriteDirectors: myProfile?.favorite_directors || [],
+        favoriteCast: myProfile?.favorite_cast || [],
+      },
+      ...selectedFriendIds.map((id) => ({
+        favoriteMovies: [],
+        ratedMovies: [],
+        dislikedGenres: groupProfiles[id]?.disliked_genres || [],
+        favoriteDirectors: groupProfiles[id]?.favorite_directors || [],
+        favoriteCast: groupProfiles[id]?.favorite_cast || [],
+      })),
+    ];
 
     const scored = candidateMovies
       .filter((movie) => {
-        if (allExcludedIds.has(movie.id)) return false;
-        if (movie.genres?.some((g) => sharedDislikedGenres.has(g))) return false;
+        if (excludedIds.has(movie.id)) return false;
+        if (movie.genres?.some((g) => allDisliked.has(g))) return false;
         return true;
       })
       .map((movie) => {
@@ -217,26 +236,28 @@ export default function WatchTogetherPage({
           rating: movie.rating,
         };
 
-        const score1 = calculateMatchScore(tasteSignal, myPrefs);
-        const score2 = calculateMatchScore(tasteSignal, friendPrefs);
-        const combinedScore = Math.round((score1 + score2) / 2);
+        // Bereken score per groepslid en neem het gemiddelde
+        const scores = allMemberPrefs.map((pref) => calculateMatchScore(tasteSignal, pref));
+        const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / Math.max(1, scores.length));
 
         return {
           ...movie,
-          match_percentage: combinedScore,
+          match_percentage: avgScore,
         };
       })
       .sort((a, b) => (b.match_percentage || 0) - (a.match_percentage || 0));
 
     return scored.slice(0, 20);
-  }, [candidateMovies, myWatchedIds, friendWatchedIds, myProfile, friendProfile]);
+  }, [candidateMovies, allWatchedMovieIds, myProfile, selectedFriendIds, groupProfiles]);
 
-  const selectedFriend = friends.find((f) => f.id === selectedFriendId);
+  const selectedFriends = friends.filter((f) => selectedFriendIds.includes(f.id));
+  const groupNamesLabel = selectedFriends.length > 0
+    ? selectedFriends.map((f) => f.display_name).join(', ')
+    : '';
 
-  // Open modal en haal zo nodig regisseur en cast op
+  // Open modal en haal extra credits op indien nodig
   const handleOpenModal = async (movie: Movie) => {
     setActiveModalMovie(movie);
-    setTrailerKey(null);
     setModalDetails({
       director: movie.director,
       cast: movie.cast,
@@ -261,17 +282,17 @@ export default function WatchTogetherPage({
     }
   };
 
-  const openTrailer = async (movie: Movie) => {
+  const openCinemaTrailer = async (movieId: number) => {
     setTrailerLoading(true);
-    setTrailerKey(null);
+    setCinemaTrailerKey(null);
     try {
-      const res = await fetch(`/api/movies?trailerMovieId=${movie.id}`);
+      const res = await fetch(`/api/movies?trailerMovieId=${movieId}`);
       if (res.ok) {
         const data = await res.json();
-        setTrailerKey(data.youtubeKey || null);
+        setCinemaTrailerKey(data.youtubeKey || null);
       }
     } catch {
-      setTrailerKey(null);
+      setCinemaTrailerKey(null);
     } finally {
       setTrailerLoading(false);
     }
@@ -286,24 +307,25 @@ export default function WatchTogetherPage({
             <span>🛋️</span> Samen Kijken
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            {selectedFriend ? `Samen Kijken met ${selectedFriend.display_name}` : 'Kies een vriend om mee te kijken'}
+            {selectedFriendIds.length > 0
+              ? `Filmavond met ${groupNamesLabel}`
+              : 'Met wie ga je vanavond kijken?'}
           </h1>
           <p className="text-xs text-neutral-400 mt-1">
-            {selectedFriend
-              ? 'Jullie filmprofielen en streamingdiensten zijn gecombineerd tot een persoonlijke Top 20.'
-              : 'Selecteer een vriend om direct een gedeelde Top 20 te genereren op basis van jullie beider smaak.'}
+            {selectedFriendIds.length > 0
+              ? `Jullie ${selectedFriendIds.length + 1} filmprofielen en platforms zijn samengevoegd tot een ideale gezamenlijke Top 20.`
+              : 'Kies één of meerdere vrienden om direct een groepsselectie te maken.'}
           </p>
         </div>
 
-        {selectedFriend && (
+        {selectedFriendIds.length > 0 && (
           <div className="flex items-center gap-2 self-start md:self-auto">
-            {/* Refresh knop */}
             <button
               type="button"
               onClick={() => setRefreshPageOffset((prev) => prev + 1)}
               disabled={loading}
               title="Haal 20 nieuwe films op"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition disabled:opacity-50 shadow-md"
             >
               <span className={loading ? 'animate-spin' : ''}>🔄</span>
               <span>Nieuwe films</span>
@@ -312,20 +334,20 @@ export default function WatchTogetherPage({
             <button
               type="button"
               onClick={() => {
-                setSelectedFriendId(null);
+                setSelectedFriendIds([]);
                 setCandidateMovies([]);
                 setRefreshPageOffset(0);
               }}
               className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/15 text-xs font-bold text-neutral-300 hover:text-white transition"
             >
-              ← Andere vriend
+              ✏️ Groep aanpassen
             </button>
           </div>
         )}
       </div>
 
-      {/* STAP 1: VRIEND SELECTEREN */}
-      {!selectedFriend ? (
+      {/* STAP 1: VRIENDEN KIEZEN (1 OF MEERDERE) */}
+      {selectedFriendIds.length === 0 ? (
         <div className="space-y-6 max-w-2xl mx-auto py-8">
           <div className="relative">
             <span className="absolute inset-y-0 left-3 flex items-center text-neutral-400">🔍</span>
@@ -339,9 +361,12 @@ export default function WatchTogetherPage({
           </div>
 
           <div className="space-y-3">
-            <p className="text-xs font-bold uppercase tracking-wider text-neutral-400">
-              Vrienden ({filteredFriends.length})
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+                Selecteer vrienden ({filteredFriends.length})
+              </p>
+              <span className="text-[11px] text-neutral-500">Klik op meerdere vrienden om een groep te maken</span>
+            </div>
 
             {filteredFriends.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-xs text-neutral-400">
@@ -354,21 +379,21 @@ export default function WatchTogetherPage({
                     key={friend.id}
                     type="button"
                     onClick={() => {
-                      setSelectedFriendId(friend.id);
+                      toggleSelectFriend(friend.id);
                       setRefreshPageOffset(0);
                     }}
-                    className="flex items-center gap-3 p-3 rounded-2xl border border-white/10 bg-neutral-900/60 hover:bg-neutral-800/80 hover:border-rose-500/40 text-left transition group shadow-lg"
+                    className="flex items-center gap-3 p-3.5 rounded-2xl border border-white/10 bg-neutral-900/60 hover:bg-neutral-800/80 hover:border-rose-500/40 text-left transition group shadow-lg"
                   >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 text-sm font-black text-slate-950">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 text-sm font-black text-slate-950">
                       {friend.display_name.slice(0, 1).toUpperCase()}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold text-white group-hover:text-rose-300 transition truncate">
                         {friend.display_name}
                       </p>
-                      <p className="text-[11px] text-neutral-400">Klik om samen te matchen</p>
+                      <p className="text-[11px] text-neutral-400">Klik om te selecteren</p>
                     </div>
-                    <span className="text-neutral-500 group-hover:text-rose-400 transition text-sm">→</span>
+                    <span className="text-neutral-500 group-hover:text-rose-400 transition text-sm">＋</span>
                   </button>
                 ))}
               </div>
@@ -378,9 +403,40 @@ export default function WatchTogetherPage({
       ) : (
         /* STAP 2: DE TOP 20 FILM GRID */
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          {/* Balk met geselecteerde vrienden tags */}
+          <div className="flex items-center gap-2 flex-wrap bg-neutral-900/80 border border-white/10 p-2.5 rounded-2xl">
+            <span className="text-xs font-bold text-neutral-400 pl-1">Actieve groep:</span>
+            <span className="px-2.5 py-1 rounded-xl bg-white/15 text-xs font-bold text-white">
+              {currentUserName} (jij)
+            </span>
+            {selectedFriends.map((f) => (
+              <span
+                key={f.id}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/20 border border-rose-500/30 text-xs font-bold text-rose-200"
+              >
+                <span>{f.display_name}</span>
+                <button
+                  type="button"
+                  onClick={() => toggleSelectFriend(f.id)}
+                  title={`Verwijder ${f.display_name} uit deze sessie`}
+                  className="hover:text-white"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              onClick={() => setSelectedFriendIds([])}
+              className="text-xs font-semibold text-neutral-400 hover:text-white pl-2 transition"
+            >
+              + Iemand toevoegen
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
             <h2 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
-              <span className="text-rose-500">✨</span> Top 20 Aanbevelingen voor {currentUserName} &amp; {selectedFriend.display_name}
+              <span className="text-rose-500">✨</span> Top 20 Aanbevelingen voor de groep
             </h2>
             <span className="text-xs text-neutral-400">Klik op een poster voor info, cast &amp; trailer</span>
           </div>
@@ -388,11 +444,11 @@ export default function WatchTogetherPage({
           {loading ? (
             <div className="py-28 text-center text-xs text-neutral-400">
               <span className="inline-block animate-spin mr-2">🔄</span>
-              20 films op maat berekenen...
+              20 groepsmatches berekenen...
             </div>
           ) : topSamenMatches.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-12 text-center bg-white/[0.02]">
-              <p className="text-sm font-bold text-white mb-1">Geen matches gevonden op deze pagina</p>
+              <p className="text-sm font-bold text-white mb-1">Geen matches gevonden voor deze selectie</p>
               <button
                 type="button"
                 onClick={() => setRefreshPageOffset((prev) => prev + 1)}
@@ -424,12 +480,10 @@ export default function WatchTogetherPage({
                       </div>
                     )}
 
-                    {/* Rank nummer */}
                     <span className="absolute top-2 left-2 px-2 py-0.5 rounded-lg bg-black/80 backdrop-blur-md text-[11px] font-black text-rose-400 border border-white/10">
                       #{index + 1}
                     </span>
 
-                    {/* IMDb Score & Match Score Badge */}
                     <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
                       <span className="px-1.5 py-0.5 rounded-lg bg-emerald-500 text-[10px] font-black text-black shadow-md">
                         {movie.match_percentage}% MATCH
@@ -457,7 +511,6 @@ export default function WatchTogetherPage({
                       </p>
                     </div>
 
-                    {/* Direct zichtbare streamingdiensten op het kaartje */}
                     {movie.providers && movie.providers.length > 0 && (
                       <div className="flex items-center gap-1 pt-1.5 border-t border-white/[0.08]">
                         {movie.providers.slice(0, 3).map((provider) => (
@@ -478,7 +531,7 @@ export default function WatchTogetherPage({
         </div>
       )}
 
-      {/* GROTE FILM DETAIL MODAL */}
+      {/* DETAIL MODAL VOOR DE FILM */}
       {activeModalMovie && (
         <div
           role="dialog"
@@ -502,7 +555,7 @@ export default function WatchTogetherPage({
                 />
               )}
               <span className="absolute top-4 left-4 px-3 py-1.5 rounded-xl bg-emerald-500 text-xs font-black text-black shadow-xl">
-                {activeModalMovie.match_percentage}% Samen Match
+                {activeModalMovie.match_percentage}% Groeps Match
               </span>
             </div>
 
@@ -534,11 +587,11 @@ export default function WatchTogetherPage({
                   </button>
                 </div>
 
-                {/* Beschikbare streamingdiensten in de modal */}
+                {/* Beschikbare streamingdiensten */}
                 {activeModalMovie.providers && activeModalMovie.providers.length > 0 && (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-neutral-400 font-medium">Te zien op:</span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {activeModalMovie.providers.map((provider) => (
                         <span key={provider.provider_id} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.08] border border-white/10 text-xs font-semibold text-white">
                           <StreamingLogo
@@ -564,7 +617,7 @@ export default function WatchTogetherPage({
                   </div>
                 )}
 
-                {/* Regisseur & Acteurs / Cast */}
+                {/* Regisseur & Acteurs */}
                 <div className="space-y-1.5 pt-2 border-t border-white/10 text-xs">
                   {modalDetails.director && (
                     <p className="text-neutral-300">
@@ -586,38 +639,61 @@ export default function WatchTogetherPage({
                 </p>
               </div>
 
-              {/* Knoppen & Trailer */}
-              <div className="space-y-3 pt-4 border-t border-white/10">
-                {trailerKey ? (
-                  <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black shadow-inner">
-                    <iframe
-                      src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1`}
-                      title="Trailer"
-                      allow="autoplay; encrypted-media"
-                      allowFullScreen
-                      className="h-full w-full border-0"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => openTrailer(activeModalMovie)}
-                      disabled={trailerLoading}
-                      className="flex-1 py-3 px-5 rounded-2xl bg-rose-600 hover:bg-rose-500 font-bold text-xs sm:text-sm text-white transition flex items-center justify-center gap-2 shadow-lg"
-                    >
-                      <span>▶</span> {trailerLoading ? 'Trailer laden...' : 'Bekijk Trailer'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onToggleWatchlist(activeModalMovie)}
-                      className="py-3 px-5 rounded-2xl bg-white/10 hover:bg-white/20 font-bold text-xs sm:text-sm text-white transition flex items-center gap-1.5"
-                    >
-                      + Watchlist
-                    </button>
-                  </div>
-                )}
+              {/* Actieknoppen */}
+              <div className="flex gap-3 pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => openCinemaTrailer(activeModalMovie.id)}
+                  disabled={trailerLoading}
+                  className="flex-1 py-3 px-5 rounded-2xl bg-rose-600 hover:bg-rose-500 font-bold text-xs sm:text-sm text-white transition flex items-center justify-center gap-2 shadow-lg"
+                >
+                  <span>▶</span> {trailerLoading ? 'Trailer starten...' : 'Bekijk Grote Trailer'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToggleWatchlist(activeModalMovie)}
+                  className="py-3 px-5 rounded-2xl bg-white/10 hover:bg-white/20 font-bold text-xs sm:text-sm text-white transition flex items-center gap-1.5"
+                >
+                  + Watchlist
+                </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* APARTE GROTE BIOSCOOP TRAILER OVERLAY (THEATER MODUS) */}
+      {cinemaTrailerKey && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setCinemaTrailerKey(null)}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 sm:p-8 animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-5xl rounded-3xl overflow-hidden border border-white/20 bg-black shadow-2xl space-y-2"
+          >
+            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+                Trailer Bioscoopmodus 🍿
+              </span>
+              <button
+                type="button"
+                onClick={() => setCinemaTrailerKey(null)}
+                className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="relative aspect-video w-full bg-black">
+              <iframe
+                src={`https://www.youtube-nocookie.com/embed/${cinemaTrailerKey}?autoplay=1`}
+                title="Bioscoop Trailer"
+                allow="autoplay; encrypted-media; fullscreen"
+                allowFullScreen
+                className="h-full w-full border-0"
+              />
             </div>
           </div>
         </div>

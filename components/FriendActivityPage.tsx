@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import StreamingLogo from './StreamingLogo';
 import type { FriendActivityItem, Movie } from './types';
+import { getMatchColorBand } from '../lib/recommendations/matchScore';
 
 export interface FriendProfile {
   id: string;
@@ -34,6 +35,9 @@ export default function FriendActivityPage({
   activities,
   onToggleWatchlist,
 }: FriendActivityPageProps) {
+  const [selectedFriendFilter, setSelectedFriendFilter] = useState<string>('all');
+  const [sortOrder, setSortOrder] = useState<'recent' | 'rating'>('recent');
+
   const [activeModalMovie, setActiveModalMovie] = useState<Movie | null>(null);
   const [modalDetails, setModalDetails] = useState<{ director?: string; cast?: string[] }>({});
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
@@ -44,6 +48,34 @@ export default function FriendActivityPage({
     if (minutesAgo < 24 * 60) return `${Math.floor(minutesAgo / 60)}u`;
     return `${Math.floor(minutesAgo / (24 * 60))}d`;
   };
+
+  // Unieke lijst van vrienden die activiteit hebben
+  const uniqueFriendsInFeed = useMemo(() => {
+    const map = new Map<string, string>();
+    activities.forEach((item) => {
+      if (!map.has(item.friendId)) {
+        map.set(item.friendId, item.name);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [activities]);
+
+  // Gefilterde en gesorteerde items
+  const displayedActivities = useMemo(() => {
+    let list = [...activities];
+
+    if (selectedFriendFilter !== 'all') {
+      list = list.filter((item) => item.friendId === selectedFriendFilter);
+    }
+
+    if (sortOrder === 'rating') {
+      list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    } else {
+      list.sort((a, b) => a.minutesAgo - b.minutesAgo);
+    }
+
+    return list;
+  }, [activities, selectedFriendFilter, sortOrder]);
 
   const handleOpenMovie = async (movie: Movie) => {
     setActiveModalMovie(movie);
@@ -90,32 +122,75 @@ export default function FriendActivityPage({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Subtiele koptekst in de stijl van het dashboard */}
-      <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
+      {/* Pagina Header met Filters en Sortering */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
             <span>🎬</span> Vriendenactiviteit
           </h1>
           <p className="text-xs text-neutral-400 mt-0.5">
-            Films die onlangs zijn gekeken en beoordeeld door je vrienden
+            Wat kijken je vrienden en wat vinden ze ervan?
           </p>
         </div>
-        <span className="text-xs text-neutral-400 font-semibold">
-          {activities.length} {activities.length === 1 ? 'film' : 'films'}
-        </span>
+
+        {/* Filters en Knoppen */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Vrienden filter */}
+          {uniqueFriendsInFeed.length > 1 && (
+            <select
+              value={selectedFriendFilter}
+              onChange={(e) => setSelectedFriendFilter(e.target.value)}
+              className="bg-neutral-900 border border-white/10 text-xs font-semibold text-neutral-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-rose-500 transition"
+            >
+              <option value="all">Alle vrienden</option>
+              {uniqueFriendsInFeed.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Sortering toggle */}
+          <div className="flex items-center gap-1 bg-neutral-900/90 p-1 rounded-xl border border-white/10 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setSortOrder('recent')}
+              className={`px-3 py-1 text-xs rounded-lg font-medium transition ${
+                sortOrder === 'recent'
+                  ? 'bg-white/15 text-white font-bold shadow-sm'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              Recent
+            </button>
+            <button
+              type="button"
+              onClick={() => setSortOrder('rating')}
+              className={`px-3 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
+                sortOrder === 'rating'
+                  ? 'bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30 shadow-sm'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <span>★</span> Hoogste cijfer
+            </button>
+          </div>
+        </div>
       </div>
 
-      {activities.length === 0 ? (
+      {displayedActivities.length === 0 ? (
         <div className="py-28 text-center space-y-2">
-          <p className="text-sm font-bold text-white">Nog geen activiteit van vrienden</p>
+          <p className="text-sm font-bold text-white">Geen activiteit gevonden</p>
           <p className="text-xs text-neutral-400">
-            Zodra vrienden films markeren als gezien of beoordelen, zie je ze direct in dit overzicht.
+            {selectedFriendFilter !== 'all'
+              ? 'Deze vriend heeft nog geen films beoordeeld.'
+              : 'Zodra vrienden films beoordelen, zie je ze hier direct.'}
           </p>
         </div>
       ) : (
-        /* Het vertrouwde MovieCard-raster */
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {activities.map((item) => {
+          {displayedActivities.map((item) => {
             const matchedMovie = allMovies.find((m) => m.id === item.movieId) || {
               id: item.movieId,
               title: item.recentFilm,
@@ -125,9 +200,12 @@ export default function FriendActivityPage({
               genres: [],
               providers: [],
               rating: undefined,
+              match_percentage: 85,
             };
 
             const isWatchlisted = myWatchlistIds.includes(item.movieId);
+            const matchPercentage = matchedMovie.match_percentage ?? 85;
+            const matchBand = getMatchColorBand(matchPercentage);
 
             return (
               <article
@@ -153,38 +231,41 @@ export default function FriendActivityPage({
                     </div>
                   )}
 
-                  {/* Vriend Avatar + Score Badge bovenaan de poster */}
+                  {/* BOVENIN: Linksboven Filmmatch - Rechtsboven IMDb */}
                   <div className="absolute inset-x-2 top-2 flex items-center justify-between gap-1">
-                    <div className="flex items-center gap-1.5 rounded-full bg-black/80 pl-1 pr-2 py-0.5 backdrop-blur-md border border-white/10 shadow-md">
-                      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${item.avatarGradient} text-[8px] font-black text-white`}>
-                        {item.initial}
-                      </span>
-                      <span className="text-[10px] font-bold text-white truncate max-w-[65px]">
-                        {item.name.split(' ')[0]}
-                      </span>
-                    </div>
-
-                    <span className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-black bg-amber-300 text-slate-950 shadow-md">
-                      ★ {item.rating ? item.rating.toFixed(1) : '✓'}
+                    {/* Linksboven: Jouw eigen FilmMatch */}
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-black backdrop-blur-md shadow-md ${
+                        matchBand === 'strong'
+                          ? 'bg-emerald-300 text-[#07110d]'
+                          : matchBand === 'medium'
+                            ? 'bg-amber-300 text-[#1f1605]'
+                            : 'bg-rose-400 text-[#2b080d]'
+                      }`}
+                      title={`Jouw matchscore: ${matchPercentage}%`}
+                    >
+                      {matchPercentage}%
                     </span>
-                  </div>
 
-                  {/* IMDb Badge onderaan de poster */}
-                  {matchedMovie.rating && (
-                    <div className="absolute bottom-2 left-2">
-                      <span className="inline-flex items-center gap-1 rounded bg-black/80 px-1.5 py-0.5 backdrop-blur-md border border-white/10 text-[9px] font-bold text-amber-200">
-                        <span className="rounded-sm bg-[#f5c518] px-1 text-[7px] font-black text-black leading-3">IMDb</span>
-                        {matchedMovie.rating}
+                    {/* Rechtsboven: IMDb cijfer */}
+                    {matchedMovie.rating ? (
+                      <span className="inline-flex items-center gap-1 rounded bg-black/80 px-1.5 py-0.5 backdrop-blur-md border border-white/10 shadow-md">
+                        <span className="rounded-sm bg-[#f5c518] px-1 text-[8px] font-black text-black leading-3">
+                          IMDb
+                        </span>
+                        <span className="text-[10px] font-bold text-amber-200">
+                          {matchedMovie.rating}
+                        </span>
                       </span>
-                    </div>
-                  )}
-
-                  <div className="absolute bottom-2 right-2 text-[9px] font-semibold text-neutral-300 bg-black/70 px-1.5 py-0.5 rounded backdrop-blur-md">
-                    {formatElapsedTime(item.minutesAgo)}
+                    ) : (
+                      <span className="text-[9px] font-semibold text-neutral-300 bg-black/70 px-1.5 py-0.5 rounded backdrop-blur-md">
+                        {formatElapsedTime(item.minutesAgo)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Info & Watchlist Actie */}
+                {/* Info & Details onder de poster */}
                 <div className="flex flex-1 flex-col justify-between p-3">
                   <div>
                     <h3 className="truncate text-xs font-bold text-white transition group-hover:text-rose-200" title={item.recentFilm}>
@@ -201,31 +282,53 @@ export default function FriendActivityPage({
                     </p>
                   </div>
 
-                  {/* Streamingdiensten + Watchlist knop */}
-                  <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/[0.08] pt-2">
-                    <div className="flex items-center gap-1 overflow-hidden">
-                      {matchedMovie.providers?.slice(0, 2).map((provider) => (
-                        <StreamingLogo
-                          key={provider.provider_id}
-                          name={provider.provider_name}
-                          logoPath={provider.logo_path}
-                          className="h-5 w-5 rounded"
-                        />
-                      ))}
+                  {/* ONDERIN: Vriend naam + cijfer, streamingdienst en watchlist knop */}
+                  <div className="mt-2.5 space-y-2 border-t border-white/[0.08] pt-2">
+                    {/* Naam van de vriend + Cijfer */}
+                    <div className="flex items-center justify-between gap-1 text-[11px]">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${item.avatarGradient} text-[8px] font-black text-white`}>
+                          {item.initial}
+                        </span>
+                        <span className="truncate font-semibold text-neutral-300" title={item.name}>
+                          {item.name.split(' ')[0]}
+                        </span>
+                      </div>
+                      <span className="font-black text-amber-300 shrink-0 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 text-[10px]">
+                        ★ {item.rating ? item.rating.toFixed(1) : '✓'}
+                      </span>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => onToggleWatchlist(matchedMovie)}
-                      title={isWatchlisted ? 'Verwijder uit watchlist' : 'Voeg toe aan watchlist'}
-                      className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold transition ${
-                        isWatchlisted
-                          ? 'bg-amber-300 text-slate-950'
-                          : 'bg-amber-300/15 text-amber-100 hover:bg-amber-300/30'
-                      }`}
-                    >
-                      {isWatchlisted ? '✓' : '+'}
-                    </button>
+                    {/* Streamingdiensten + Watchlist knop */}
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/[0.04]">
+                      <div className="flex items-center gap-1 overflow-hidden">
+                        {matchedMovie.providers && matchedMovie.providers.length > 0 ? (
+                          matchedMovie.providers.slice(0, 2).map((provider) => (
+                            <StreamingLogo
+                              key={provider.provider_id}
+                              name={provider.provider_name}
+                              logoPath={provider.logo_path}
+                              className="h-5 w-5 rounded"
+                            />
+                          ))
+                        ) : (
+                          <span className="text-[9px] text-neutral-500">Stream onbekend</span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => onToggleWatchlist(matchedMovie)}
+                        title={isWatchlisted ? 'Verwijder uit watchlist' : 'Voeg toe aan watchlist'}
+                        className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold transition ${
+                          isWatchlisted
+                            ? 'bg-amber-300 text-slate-950'
+                            : 'bg-amber-300/15 text-amber-100 hover:bg-amber-300/30'
+                        }`}
+                      >
+                        {isWatchlisted ? '✓' : '+'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -234,7 +337,7 @@ export default function FriendActivityPage({
         </div>
       )}
 
-      {/* Uitgebreide Film Modal bij het openklikken van een kaartje */}
+      {/* Grote Film Detail Modal */}
       {activeModalMovie && (
         <div
           role="dialog"
@@ -246,7 +349,6 @@ export default function FriendActivityPage({
             onClick={(e) => e.stopPropagation()}
             className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-white/15 bg-neutral-950 shadow-2xl flex flex-col md:flex-row"
           >
-            {/* Grote poster links */}
             <div className="relative w-full md:w-5/12 aspect-[2/3] md:aspect-auto bg-neutral-900 shrink-0">
               {activeModalMovie.poster_path && (
                 <Image
@@ -259,7 +361,6 @@ export default function FriendActivityPage({
               )}
             </div>
 
-            {/* Alle film details rechts */}
             <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between space-y-6">
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-3">
@@ -287,7 +388,6 @@ export default function FriendActivityPage({
                   </button>
                 </div>
 
-                {/* Streamingdiensten */}
                 {activeModalMovie.providers && activeModalMovie.providers.length > 0 && (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-neutral-400 font-medium">Te zien op:</span>
@@ -306,7 +406,6 @@ export default function FriendActivityPage({
                   </div>
                 )}
 
-                {/* Genres */}
                 {activeModalMovie.genres && (
                   <div className="flex flex-wrap gap-1.5">
                     {activeModalMovie.genres.map((g) => (
@@ -317,7 +416,6 @@ export default function FriendActivityPage({
                   </div>
                 )}
 
-                {/* Regisseur & Cast */}
                 <div className="space-y-1.5 pt-2 border-t border-white/10 text-xs">
                   {modalDetails.director && (
                     <p className="text-neutral-300">
@@ -333,13 +431,11 @@ export default function FriendActivityPage({
                   )}
                 </div>
 
-                {/* Samenvatting */}
                 <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed pt-2">
                   {activeModalMovie.overview || 'Geen beschrijving beschikbaar voor deze titel.'}
                 </p>
               </div>
 
-              {/* Trailer of Trailerknop + Watchlist */}
               <div className="space-y-3 pt-4 border-t border-white/10">
                 {trailerKey ? (
                   <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black shadow-inner">

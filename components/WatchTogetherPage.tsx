@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
+import StreamingLogo from './StreamingLogo';
 import type { Movie, StreamingPlatform } from './types';
 import { createSupabaseBrowserClient } from '../lib/supabase/client';
 import { calculateMatchScore, type MatchPreferences } from '../lib/recommendations/matchScore';
@@ -37,7 +38,6 @@ export default function WatchTogetherPage({
   onSelectMovieSpotlight,
   onToggleWatchlist,
 }: WatchTogetherPageProps) {
-  // Begint leeg zodat de gebruiker zelf bewust een vriend kiest
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
 
@@ -48,20 +48,23 @@ export default function WatchTogetherPage({
   const [loading, setLoading] = useState(false);
   const [candidateMovies, setCandidateMovies] = useState<Movie[]>([]);
 
+  // Paginering voor de refresh knop
+  const [refreshPageOffset, setRefreshPageOffset] = useState(0);
+
   // Modal states voor opengeklikte film
   const [activeModalMovie, setActiveModalMovie] = useState<Movie | null>(null);
   const [modalDetails, setModalDetails] = useState<{ director?: string; cast?: string[] }>({});
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
   const [trailerLoading, setTrailerLoading] = useState(false);
 
-  // Filter vriendenlijst op basis van zoekbalk
+  // Zoeken in vrienden
   const filteredFriends = useMemo(() => {
     const q = friendSearchQuery.trim().toLowerCase();
     if (!q) return friends;
     return friends.filter((f) => f.display_name.toLowerCase().includes(q));
   }, [friends, friendSearchQuery]);
 
-  // Laad profielen en bekeken films zodra een vriend geselecteerd is
+  // Laad profielen en bekeken films
   useEffect(() => {
     if (!selectedFriendId || !currentUserId) return;
 
@@ -105,42 +108,64 @@ export default function WatchTogetherPage({
     };
   }, [selectedFriendId, currentUserId]);
 
-  // Gecombineerde platforms achter de schermen
+  // Gecombineerde platforms
   const combinedPlatforms = useMemo(() => {
     const friendServices = friendProfile?.streaming_services || [];
     const combined = Array.from(new Set([...myStreamingServices, ...friendServices]));
     return combined.length > 0 ? combined : ['Netflix', 'Prime Video', 'Disney+', 'HBO Max', 'Videoland'];
   }, [myStreamingServices, friendProfile]);
 
-  // Haal films op voor de gezamenlijke smaak
+  // Films ophalen (haalt 2 pagina's tegelijk op zodat we altijd ruim boven de 20 unieke geschikte films zitten)
   useEffect(() => {
     if (!selectedFriendId) return;
 
     let active = true;
+    setLoading(true);
+
     const fetchRecommendations = async () => {
       try {
         const myGenres = myProfile?.preferred_genres || [];
         const friendGenres = friendProfile?.preferred_genres || [];
         const topSharedGenres = Array.from(new Set([...myGenres, ...friendGenres])).slice(0, 3);
 
-        const params = new URLSearchParams({
-          page: '1',
-          providers: combinedPlatforms.join(','),
+        const page1 = refreshPageOffset * 2 + 1;
+        const page2 = refreshPageOffset * 2 + 2;
+
+        const makeUrl = (pageNum: number) => {
+          const p = new URLSearchParams({
+            page: String(pageNum),
+            providers: combinedPlatforms.join(','),
+          });
+          if (topSharedGenres.length > 0) {
+            p.set('genre', topSharedGenres[refreshPageOffset % topSharedGenres.length]);
+          }
+          return `/api/movies?${p.toString()}`;
+        };
+
+        const [res1, res2] = await Promise.all([fetch(makeUrl(page1)), fetch(makeUrl(page2))]);
+        const [data1, data2] = await Promise.all([
+          res1.ok ? res1.json() : { movies: [] },
+          res2.ok ? res2.json() : { movies: [] },
+        ]);
+
+        if (!active) return;
+
+        const combinedList = [
+          ...(Array.isArray(data1.movies) ? data1.movies : []),
+          ...(Array.isArray(data2.movies) ? data2.movies : []),
+        ];
+
+        // Ontdubbelen op film-ID
+        const uniqueMap = new Map<number, Movie>();
+        combinedList.forEach((m: Movie) => {
+          if (!uniqueMap.has(m.id)) uniqueMap.set(m.id, m);
         });
 
-        if (topSharedGenres.length > 0) {
-          params.set('genre', topSharedGenres[0]);
-        }
-
-        const res = await fetch(`/api/movies?${params.toString()}`);
-        if (!res.ok) return;
-
-        const data = await res.json();
-        if (active && Array.isArray(data.movies)) {
-          setCandidateMovies(data.movies as Movie[]);
-        }
+        setCandidateMovies(Array.from(uniqueMap.values()));
       } catch (err) {
-        console.error('Fout bij ophalen aanbevelingen:', err);
+        console.error('Fout bij ophalen samen-kijken films:', err);
+      } finally {
+        if (active) setLoading(false);
       }
     };
 
@@ -149,7 +174,7 @@ export default function WatchTogetherPage({
     return () => {
       active = false;
     };
-  }, [selectedFriendId, combinedPlatforms, myProfile, friendProfile]);
+  }, [selectedFriendId, combinedPlatforms, myProfile, friendProfile, refreshPageOffset]);
 
   // Bereken de Top 20
   const topSamenMatches = useMemo(() => {
@@ -208,7 +233,7 @@ export default function WatchTogetherPage({
 
   const selectedFriend = friends.find((f) => f.id === selectedFriendId);
 
-  // Open modal en haal zo nodig extra metadata (regisseur & cast) op
+  // Open modal en haal zo nodig regisseur en cast op
   const handleOpenModal = async (movie: Movie) => {
     setActiveModalMovie(movie);
     setTrailerKey(null);
@@ -271,20 +296,35 @@ export default function WatchTogetherPage({
         </div>
 
         {selectedFriend && (
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedFriendId(null);
-              setCandidateMovies([]);
-            }}
-            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition self-start md:self-auto"
-          >
-            ← Andere vriend kiezen
-          </button>
+          <div className="flex items-center gap-2 self-start md:self-auto">
+            {/* Refresh knop */}
+            <button
+              type="button"
+              onClick={() => setRefreshPageOffset((prev) => prev + 1)}
+              disabled={loading}
+              title="Haal 20 nieuwe films op"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition disabled:opacity-50"
+            >
+              <span className={loading ? 'animate-spin' : ''}>🔄</span>
+              <span>Nieuwe films</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedFriendId(null);
+                setCandidateMovies([]);
+                setRefreshPageOffset(0);
+              }}
+              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/15 text-xs font-bold text-neutral-300 hover:text-white transition"
+            >
+              ← Andere vriend
+            </button>
+          </div>
         )}
       </div>
 
-      {/* STAP 1: VRIEND SELECTEREN ALS ER NOG NIEMAND GEKOZEN IS */}
+      {/* STAP 1: VRIEND SELECTEREN */}
       {!selectedFriend ? (
         <div className="space-y-6 max-w-2xl mx-auto py-8">
           <div className="relative">
@@ -313,7 +353,10 @@ export default function WatchTogetherPage({
                   <button
                     key={friend.id}
                     type="button"
-                    onClick={() => setSelectedFriendId(friend.id)}
+                    onClick={() => {
+                      setSelectedFriendId(friend.id);
+                      setRefreshPageOffset(0);
+                    }}
                     className="flex items-center gap-3 p-3 rounded-2xl border border-white/10 bg-neutral-900/60 hover:bg-neutral-800/80 hover:border-rose-500/40 text-left transition group shadow-lg"
                   >
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 text-sm font-black text-slate-950">
@@ -343,13 +386,20 @@ export default function WatchTogetherPage({
           </div>
 
           {loading ? (
-            <div className="py-28 text-center text-xs text-neutral-400">Profielen en films berekenen...</div>
+            <div className="py-28 text-center text-xs text-neutral-400">
+              <span className="inline-block animate-spin mr-2">🔄</span>
+              20 films op maat berekenen...
+            </div>
           ) : topSamenMatches.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-12 text-center bg-white/[0.02]">
-              <p className="text-sm font-bold text-white mb-1">Geen gezamenlijke matches gevonden</p>
-              <p className="text-xs text-neutral-400 max-w-md mx-auto">
-                Zorg dat er voldoende streamingdiensten aanstaan of probeer een andere vriend.
-              </p>
+              <p className="text-sm font-bold text-white mb-1">Geen matches gevonden op deze pagina</p>
+              <button
+                type="button"
+                onClick={() => setRefreshPageOffset((prev) => prev + 1)}
+                className="mt-3 px-4 py-2 rounded-xl bg-rose-600 text-xs font-bold text-white shadow-lg"
+              >
+                Probeer andere films 🔄
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -374,21 +424,52 @@ export default function WatchTogetherPage({
                       </div>
                     )}
 
+                    {/* Rank nummer */}
                     <span className="absolute top-2 left-2 px-2 py-0.5 rounded-lg bg-black/80 backdrop-blur-md text-[11px] font-black text-rose-400 border border-white/10">
                       #{index + 1}
                     </span>
-                    <span className="absolute top-2 right-2 px-2 py-0.5 rounded-lg bg-emerald-500 text-[10px] font-black text-black shadow-md">
-                      {movie.match_percentage}% MATCH
-                    </span>
+
+                    {/* IMDb Score & Match Score Badge */}
+                    <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
+                      <span className="px-1.5 py-0.5 rounded-lg bg-emerald-500 text-[10px] font-black text-black shadow-md">
+                        {movie.match_percentage}% MATCH
+                      </span>
+                      {movie.rating && (
+                        <span className="inline-flex items-center gap-1 rounded bg-black/80 px-1.5 py-0.5 backdrop-blur-md border border-white/10">
+                          <span className="rounded-sm bg-[#f5c518] px-1 text-[7px] font-black text-black leading-3">
+                            IMDb
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-200">
+                            {movie.rating}
+                          </span>
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="p-3 space-y-1">
-                    <p className="text-xs font-bold text-white truncate group-hover:text-rose-300 transition">
-                      {movie.title}
-                    </p>
-                    <p className="text-[10px] text-neutral-400 truncate">
-                      {movie.release_date?.slice(0, 4)} &bull; {movie.genres?.[0] || 'Film'}
-                    </p>
+                  <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-white truncate group-hover:text-rose-300 transition">
+                        {movie.title}
+                      </p>
+                      <p className="text-[10px] text-neutral-400 truncate">
+                        {movie.release_date?.slice(0, 4)} &bull; {movie.genres?.[0] || 'Film'}
+                      </p>
+                    </div>
+
+                    {/* Direct zichtbare streamingdiensten op het kaartje */}
+                    {movie.providers && movie.providers.length > 0 && (
+                      <div className="flex items-center gap-1 pt-1.5 border-t border-white/[0.08]">
+                        {movie.providers.slice(0, 3).map((provider) => (
+                          <StreamingLogo
+                            key={provider.provider_id}
+                            name={provider.provider_name}
+                            logoPath={provider.logo_path}
+                            className="h-5 w-5 rounded"
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -397,7 +478,7 @@ export default function WatchTogetherPage({
         </div>
       )}
 
-      {/* GROTE UITGEBREIDE FILM DETAIL MODAL */}
+      {/* GROTE FILM DETAIL MODAL */}
       {activeModalMovie && (
         <div
           role="dialog"
@@ -437,8 +518,9 @@ export default function WatchTogetherPage({
                       <span>{activeModalMovie.release_date?.slice(0, 4)}</span>
                       {activeModalMovie.runtime && <span>&bull; {activeModalMovie.runtime}</span>}
                       {activeModalMovie.rating && (
-                        <span className="text-amber-300 font-bold bg-amber-400/10 px-2 py-0.5 rounded-md">
-                          ★ {activeModalMovie.rating}
+                        <span className="text-amber-300 font-bold bg-amber-400/10 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <span className="bg-[#f5c518] text-black px-1 rounded text-[9px] font-black">IMDb</span>
+                          {activeModalMovie.rating}
                         </span>
                       )}
                     </div>
@@ -451,6 +533,25 @@ export default function WatchTogetherPage({
                     ✕
                   </button>
                 </div>
+
+                {/* Beschikbare streamingdiensten in de modal */}
+                {activeModalMovie.providers && activeModalMovie.providers.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-neutral-400 font-medium">Te zien op:</span>
+                    <div className="flex items-center gap-1.5">
+                      {activeModalMovie.providers.map((provider) => (
+                        <span key={provider.provider_id} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.08] border border-white/10 text-xs font-semibold text-white">
+                          <StreamingLogo
+                            name={provider.provider_name}
+                            logoPath={provider.logo_path}
+                            className="h-4 w-4 rounded"
+                          />
+                          <span>{provider.provider_name}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Genres */}
                 {activeModalMovie.genres && (
@@ -485,7 +586,7 @@ export default function WatchTogetherPage({
                 </p>
               </div>
 
-              {/* Knoppen & Trailer weergave */}
+              {/* Knoppen & Trailer */}
               <div className="space-y-3 pt-4 border-t border-white/10">
                 {trailerKey ? (
                   <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black shadow-inner">

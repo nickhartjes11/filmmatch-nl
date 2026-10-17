@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
 import Image from 'next/image';
+import StreamingLogo from './StreamingLogo';
 import type { FriendActivityItem, Movie } from './types';
-import { createSupabaseBrowserClient } from '../lib/supabase/client';
 
 export interface FriendProfile {
   id: string;
@@ -29,399 +28,209 @@ interface FriendActivityPageProps {
 }
 
 export default function FriendActivityPage({
-  currentUserId,
-  currentUserName,
   allMovies,
   myWatchlistIds,
   activities,
-  friends,
-  onFriendshipChanged,
   onSelectMovieSpotlight,
   onToggleWatchlist,
 }: FriendActivityPageProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [globalSearchResults, setGlobalSearchResults] = useState<FriendProfile[]>([]);
-  const [searchingGlobal, setSearchingGlobal] = useState(false);
-  const [searchError, setSearchError] = useState('');
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
-
-  // Deelbare link kopiëren
-  const handleCopyInviteLink = () => {
-    const inviteUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}?invite=${encodeURIComponent(currentUserName)}`;
-    void navigator.clipboard.writeText(inviteUrl);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
+  const formatElapsedTime = (minutesAgo: number) => {
+    if (minutesAgo < 60) return `${minutesAgo}m geleden`;
+    if (minutesAgo < 24 * 60) return `${Math.floor(minutesAgo / 60)}u geleden`;
+    return `${Math.floor(minutesAgo / (24 * 60))}d geleden`;
   };
-
-  // Zoeken naar nieuwe gebruikers in Supabase
-  const handleGlobalSearch = async () => {
-    const query = searchQuery.trim();
-    if (query.length < 2) return;
-
-    setSearchingGlobal(true);
-    setSearchError('');
-
-    try {
-      const supabase = createSupabaseBrowserClient();
-      if (!supabase) return;
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, display_name, streaming_services, preferred_genres')
-        .ilike('display_name', `%${query}%`)
-        .neq('id', currentUserId || '')
-        .limit(10);
-
-      if (error) throw error;
-      setGlobalSearchResults(data || []);
-    } catch {
-      setSearchError('Kon geen gebruikers zoeken.');
-    } finally {
-      setSearchingGlobal(false);
-    }
-  };
-
-  // Vriend toevoegen
-  const handleFollow = async (friendId: string) => {
-    if (!currentUserId) return;
-    setActionLoadingId(friendId);
-
-    try {
-      const supabase = createSupabaseBrowserClient();
-      if (!supabase) return;
-
-      await supabase.from('friendships').insert({
-        user_id: currentUserId,
-        friend_id: friendId,
-      });
-
-      onFriendshipChanged();
-      setGlobalSearchResults((prev) => prev.filter((u) => u.id !== friendId));
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
-  // Vriend ontvolgen
-  const handleUnfollow = async (friendId: string) => {
-    if (!currentUserId) return;
-    setActionLoadingId(friendId);
-
-    try {
-      const supabase = createSupabaseBrowserClient();
-      if (!supabase) return;
-
-      await supabase
-        .from('friendships')
-        .delete()
-        .match({ user_id: currentUserId, friend_id: friendId });
-
-      onFriendshipChanged();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
-  // Filter huidige vrienden op zoekterm
-  const filteredFriends = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return friends;
-    return friends.filter((f) => f.display_name.toLowerCase().includes(q));
-  }, [friends, searchQuery]);
-
-  // Smaakmatch indicatie
-  const calculateTasteMatch = (friend: FriendProfile) => {
-    let hash = 0;
-    const combined = `${currentUserId || 'user'}_${friend.id}`;
-    for (let i = 0; i < combined.length; i++) {
-      hash = combined.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return 78 + (Math.abs(hash) % 20);
-  };
-
-  const friendIdSet = new Set(friends.map((f) => f.id));
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-fade-in">
       {/* Pagina Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white">Mijn vrienden</h1>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-bold uppercase tracking-wider mb-2">
+            <span>🎬</span> Feed
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-white">Vriendenactiviteit</h1>
           <p className="text-xs text-neutral-400 mt-1">
-            Volg wat je vrienden kijken, bekijk hun beoordelingen en ontdek nieuwe filmtips.
+            Bekijk wat je vrienden recent hebben gekeken, hoe ze films beoordelen en waar je ze direct streamt.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleCopyInviteLink}
-          className="px-3.5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white font-bold text-xs transition flex items-center gap-2 shadow-sm"
-        >
-          <span>🔗</span>
-          <span>{copiedLink ? 'Link gekopieerd!' : 'Vrienden uitnodigen'}</span>
-        </button>
+        <span className="text-xs font-bold text-neutral-300 bg-white/[0.06] px-3.5 py-1.5 rounded-full border border-white/10">
+          {activities.length} {activities.length === 1 ? 'beoordeling' : 'beoordelingen'}
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* LINKERKOLOM (4 COLS): Vriendenlijst & Zoeken */}
-        <div className="lg:col-span-4 space-y-6">
-          <section className="rounded-3xl bg-neutral-900/60 border border-white/[0.08] p-5 sm:p-6 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">👥</span>
-                  <h2 className="text-base font-black text-white">Vrienden ({friends.length})</h2>
-                </div>
-                <span className="text-[10px] text-neutral-400 uppercase tracking-wider font-semibold">Smaakmatch</span>
-              </div>
+      {/* Volledige paginabrede Activiteitenfeed */}
+      <section className="rounded-3xl bg-neutral-900/60 border border-white/[0.08] p-5 sm:p-7 shadow-xl">
+        {activities.length === 0 ? (
+          <div className="py-32 text-center rounded-2xl border border-dashed border-white/10 bg-black/20 space-y-3">
+            <span className="text-4xl">🍿</span>
+            <p className="text-sm font-bold text-neutral-200">Nog geen vriendenactiviteit</p>
+            <p className="text-xs text-neutral-500 max-w-sm mx-auto leading-relaxed">
+              Zodra jouw vrienden films bekijken en een beoordeling geven, verschijnen hun films en cijfers hier live in beeld.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {activities.map((item) => {
+              const matchedMovie = allMovies.find((m) => m.id === item.movieId) || {
+                id: item.movieId,
+                title: item.recentFilm,
+                poster_path: item.poster_path,
+                overview: '',
+                release_date: '',
+                genres: [],
+                providers: [],
+                rating: undefined,
+              };
+              const isInWatchlist = myWatchlistIds.includes(item.movieId);
+              const imdbScore = matchedMovie.rating;
 
-              {/* Zoekbalk */}
-              <div className="relative flex gap-2 mb-3">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    if (globalSearchResults.length > 0) setGlobalSearchResults([]);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      void handleGlobalSearch();
-                    }
-                  }}
-                  placeholder="Zoek in vrienden of typ een naam..."
-                  className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-rose-500 transition"
-                />
-                {searchQuery.trim().length >= 2 && (
-                  <button
-                    type="button"
-                    onClick={handleGlobalSearch}
-                    disabled={searchingGlobal}
-                    className="px-3 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] text-white text-xs font-bold transition shrink-0"
-                    title="Zoek nieuwe gebruikers op FilmMatch"
+              return (
+                <div
+                  key={item.id}
+                  className="rounded-3xl bg-neutral-950/70 border border-white/[0.08] p-4 sm:p-6 hover:border-white/20 transition duration-300 shadow-xl flex flex-col sm:flex-row gap-5 items-stretch"
+                >
+                  {/* Grote Filmposter */}
+                  <div
+                    className="relative w-32 h-48 sm:w-40 sm:h-56 rounded-2xl overflow-hidden shrink-0 border border-white/10 cursor-pointer mx-auto sm:mx-0 shadow-2xl group"
+                    onClick={() => onSelectMovieSpotlight && onSelectMovieSpotlight(item.movieId)}
+                    title={`Bekijk ${item.recentFilm} in spotlight`}
                   >
-                    {searchingGlobal ? '...' : 'Zoek nieuw'}
-                  </button>
-                )}
-              </div>
-
-              {searchError && <p className="text-xs text-rose-300 mb-2">{searchError}</p>}
-
-              {/* Nieuwe gebruikers zoekresultaten */}
-              {globalSearchResults.length > 0 && (
-                <div className="mb-4 p-3 rounded-2xl bg-black/50 border border-rose-500/20">
-                  <p className="text-[10px] font-bold text-rose-300 uppercase tracking-wider mb-2">
-                    Nieuwe mensen op FilmMatch
-                  </p>
-                  <div className="divide-y divide-white/[0.06] max-h-40 overflow-y-auto pr-1">
-                    {globalSearchResults.map((user) => {
-                      const isFollowing = friendIdSet.has(user.id);
-                      return (
-                        <div key={user.id} className="py-2 flex items-center justify-between">
-                          <span className="text-xs font-semibold text-white truncate max-w-[140px]">{user.display_name}</span>
-                          {isFollowing ? (
-                            <span className="text-[10px] text-neutral-400 font-semibold">Volg je al</span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleFollow(user.id)}
-                              disabled={actionLoadingId === user.id}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition"
-                            >
-                              + Volgen
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {item.poster_path ? (
+                      <Image
+                        src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
+                        alt={item.recentFilm}
+                        fill
+                        unoptimized
+                        className="object-cover group-hover:scale-105 transition duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-neutral-800 flex items-center justify-center text-xs text-neutral-500 font-bold">
+                        Geen poster
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition duration-300 flex items-end p-2.5">
+                      <span className="text-[10px] font-bold text-white bg-black/70 px-2 py-1 rounded-lg backdrop-blur-md">
+                        Bekijk details ↗
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
 
-              {/* Vriendenlijst */}
-              {friends.length === 0 ? (
-                <div className="py-12 text-center rounded-2xl border border-dashed border-white/10 bg-black/20">
-                  <p className="text-xs font-bold text-neutral-300">Je volgt nog niemand</p>
-                  <p className="text-[11px] text-neutral-500 mt-1 max-w-xs mx-auto">
-                    Typ hierboven een naam en klik op &ldquo;Zoek nieuw&rdquo; om vrienden toe te voegen.
-                  </p>
-                </div>
-              ) : filteredFriends.length === 0 ? (
-                <div className="py-8 text-center text-xs text-neutral-500">
-                  Geen vriend gevonden met &ldquo;{searchQuery}&rdquo;.
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                  {filteredFriends.map((friend) => {
-                    const matchScore = calculateTasteMatch(friend);
-
-                    return (
-                      <div
-                        key={friend.id}
-                        className="p-3 rounded-2xl border border-white/[0.06] bg-black/30 hover:border-white/15 transition flex items-center justify-between gap-2"
-                      >
+                  {/* Details, Vriendenscore & Badges */}
+                  <div className="flex-1 flex flex-col justify-between min-w-0 py-1">
+                    <div className="space-y-3.5">
+                      {/* Wie keek & prominente vriendenscore */}
+                      <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-sm">
-                            {friend.display_name.slice(0, 1).toUpperCase()}
+                          <div className={`w-9 h-9 rounded-full bg-gradient-to-tr ${item.avatarGradient} flex items-center justify-center text-xs font-black text-white shrink-0 shadow-md`}>
+                            {item.initial}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-white truncate">{friend.display_name}</p>
-                            <span className="text-[10px] font-black text-rose-300">
-                              🔥 {matchScore}% Smaakmatch
+                            <p className="text-xs text-neutral-200 truncate">
+                              <span className="font-bold text-white text-sm">{item.name}</span> heeft gekeken
+                            </p>
+                            <span className="text-[10px] text-neutral-400">
+                              {formatElapsedTime(item.minutesAgo)}
                             </span>
                           </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleUnfollow(friend.id)}
-                          className="text-neutral-500 hover:text-rose-300 text-sm px-1.5 py-0.5 rounded transition"
-                          title="Ontvolgen"
-                        >
-                          &times;
-                        </button>
+                        {/* HÉT CIJFER VAN DE PERSOON: Groot & Uitgelicht */}
+                        <div className="flex flex-col items-end shrink-0">
+                          <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl bg-gradient-to-r from-amber-400/20 to-rose-500/20 border border-amber-400/30 shadow-lg">
+                            <span className="text-amber-300 text-sm">★</span>
+                            <span className="text-white text-base sm:text-lg font-black tracking-tight">
+                              {item.rating ? item.rating.toFixed(1) : 'Gezien'}
+                            </span>
+                          </div>
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 mt-1">
+                            Score van {item.name.split(' ')[0]}
+                          </span>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
 
-            <p className="text-[10px] text-neutral-500 pt-3 border-t border-white/[0.06] mt-4">
-              Vrienden toevoegen verrijkt ook direct je Samen Kijken-overzicht.
-            </p>
-          </section>
-        </div>
-
-        {/* RECHTERKOLOM (8 COLS): Volwaardige Activiteitenfeed */}
-        <div className="lg:col-span-8">
-          <section className="rounded-3xl bg-neutral-900/60 border border-white/[0.08] p-5 sm:p-6 flex flex-col justify-between min-h-[640px]">
-            <div>
-              <div className="flex items-center justify-between border-b border-white/[0.08] pb-4 mb-5">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🎬</span>
-                    <h2 className="text-lg font-black text-white">Activiteitenfeed</h2>
-                  </div>
-                  <p className="text-xs text-neutral-400 mt-0.5">
-                    Wat kijken je vrienden en wat vinden ze ervan?
-                  </p>
-                </div>
-                <span className="text-xs font-semibold text-neutral-400 bg-white/[0.04] px-3 py-1 rounded-full border border-white/[0.06]">
-                  {activities.length} beoordelingen
-                </span>
-              </div>
-
-              {activities.length === 0 ? (
-                <div className="py-32 text-center rounded-2xl border border-dashed border-white/10 bg-black/20 space-y-3">
-                  <span className="text-3xl">🍿</span>
-                  <p className="text-sm font-bold text-neutral-200">Nog geen vriendenactiviteit</p>
-                  <p className="text-xs text-neutral-500 max-w-sm mx-auto leading-relaxed">
-                    Zodra jouw vrienden films bekijken en beoordelen, verschijnen hun filmposters en cijfers hier live in beeld.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4 max-h-[720px] overflow-y-auto pr-2">
-                  {activities.map((item) => {
-                    const matchedMovie = allMovies.find((m) => m.id === item.movieId) || {
-                      id: item.movieId,
-                      title: item.recentFilm,
-                      poster_path: item.poster_path,
-                      overview: '',
-                      release_date: '',
-                      genres: [],
-                      providers: [],
-                    };
-                    const isInWatchlist = myWatchlistIds.includes(item.movieId);
-
-                    return (
-                      <div
-                        key={item.id}
-                        className="rounded-2xl bg-black/40 border border-white/[0.08] p-4 hover:border-white/20 transition shadow-lg flex flex-col sm:flex-row gap-4"
-                      >
-                        {/* Filmposter */}
-                        <div
-                          className="relative w-24 h-36 rounded-xl overflow-hidden shrink-0 border border-white/10 cursor-pointer mx-auto sm:mx-0 shadow-md"
+                      {/* Filmtitel */}
+                      <div>
+                        <h3
                           onClick={() => onSelectMovieSpotlight && onSelectMovieSpotlight(item.movieId)}
+                          className="text-lg sm:text-2xl font-black text-white hover:text-rose-400 cursor-pointer transition leading-snug line-clamp-1"
                         >
-                          {item.poster_path ? (
-                            <Image
-                              src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
-                              alt={item.recentFilm}
-                              fill
-                              unoptimized
-                              className="object-cover hover:scale-105 transition duration-300"
-                            />
-                          ) : (
-                            <div className="w-full h-full bg-neutral-800 flex items-center justify-center text-xs text-neutral-500">
-                              Geen poster
-                            </div>
+                          {item.recentFilm}
+                        </h3>
+
+                        {/* IMDb badge & Jaar/Genre */}
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          {imdbScore && (
+                            <span className="inline-flex items-center gap-1 rounded bg-black/80 px-2 py-0.5 backdrop-blur-md border border-white/10 shadow-sm">
+                              <span className="rounded bg-[#f5c518] px-1 text-[8px] font-black text-black leading-3">
+                                IMDb
+                              </span>
+                              <span className="text-xs font-bold text-amber-200">
+                                {imdbScore}
+                              </span>
+                            </span>
+                          )}
+                          {matchedMovie.release_date && (
+                            <span className="text-xs text-neutral-400">
+                              {matchedMovie.release_date.slice(0, 4)}
+                            </span>
+                          )}
+                          {matchedMovie.genres && matchedMovie.genres[0] && (
+                            <span className="text-xs text-neutral-400">
+                              &bull; {matchedMovie.genres[0]}
+                            </span>
                           )}
                         </div>
+                      </div>
 
-                        {/* Info & Watchlist actie */}
-                        <div className="flex-1 flex flex-col justify-between min-w-0">
-                          <div>
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className={`w-7 h-7 rounded-full bg-gradient-to-tr ${item.avatarGradient} flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm`}>
-                                  {item.initial}
-                                </div>
-                                <p className="text-xs text-neutral-300 truncate">
-                                  <span className="font-bold text-white">{item.name}</span> heeft gekeken
-                                </p>
-                              </div>
-
-                              <span className="px-2.5 py-1 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 font-black text-xs tabular-nums shrink-0">
-                                ★ {item.rating ? item.rating.toFixed(1) : 'Gezien'}
+                      {/* Streamingdiensten direct in beeld */}
+                      {matchedMovie.providers && matchedMovie.providers.length > 0 && (
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                            Te zien op:
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {matchedMovie.providers.slice(0, 4).map((provider) => (
+                              <span
+                                key={provider.provider_id}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.08] border border-white/10 text-xs font-medium text-white shadow-sm"
+                              >
+                                <StreamingLogo
+                                  name={provider.provider_name}
+                                  logoPath={provider.logo_path}
+                                  className="h-4 w-4 rounded"
+                                />
+                                <span className="hidden sm:inline">{provider.provider_name}</span>
                               </span>
-                            </div>
-
-                            <h3
-                              onClick={() => onSelectMovieSpotlight && onSelectMovieSpotlight(item.movieId)}
-                              className="text-base font-black text-white hover:text-rose-400 cursor-pointer transition mt-2 truncate"
-                            >
-                              {item.recentFilm}
-                            </h3>
-
-                            <p className="text-xs text-neutral-400 italic mt-1 line-clamp-2">
-                              &ldquo;Beoordeeld met een {item.rating.toFixed(1)} &bull; {item.minutesAgo} minuten geleden&rdquo;
-                            </p>
-                          </div>
-
-                          <div className="pt-3 border-t border-white/[0.04] flex items-center justify-between mt-3">
-                            <span className="text-[10px] text-neutral-500">Tip van vriend</span>
-                            <button
-                              type="button"
-                              onClick={() => onToggleWatchlist(matchedMovie)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                                isInWatchlist
-                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                                  : 'bg-white/10 hover:bg-white/20 text-white'
-                              }`}
-                            >
-                              {isInWatchlist ? '✓ Op watchlist' : '+ Zet op watchlist'}
-                            </button>
+                            ))}
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                      )}
+                    </div>
 
-            <p className="text-[10px] text-neutral-500 pt-3 border-t border-white/[0.06] mt-4">
-              Klik op een filmposter om de details en trailer direct in de spotlight te bekijken.
-            </p>
-          </section>
-        </div>
-      </div>
+                    {/* Actiebalk onderaan */}
+                    <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between mt-4">
+                      <span className="text-[11px] font-medium text-neutral-400">
+                        Aanbevolen door je vriendenkring
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onToggleWatchlist(matchedMovie)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md ${
+                          isInWatchlist
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                            : 'bg-white/10 hover:bg-white/20 text-white'
+                        }`}
+                      >
+                        {isInWatchlist ? '✓ Op watchlist' : '+ Zet op watchlist'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

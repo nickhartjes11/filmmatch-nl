@@ -156,21 +156,20 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onOpenFriends}
-            title="Mijn vrienden"
-            aria-label="Mijn vrienden"
+            title="Vriendenactiviteit"
+            aria-label="Vriendenactiviteit"
             aria-pressed={friendsActive}
             className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${friendsActive ? 'bg-rose-400/20 text-rose-50' : 'text-neutral-200 hover:bg-white/10 hover:text-white'}`}
           >
             <span className="w-4 text-center text-sm" aria-hidden="true">👥</span>
-            <span className="hidden xl:inline">Mijn vrienden</span>
+            <span className="hidden xl:inline">Vriendenactiviteit</span>
           </button>
 
-          {/* Samen Kijken Knop (onder Mijn vrienden) */}
           <button
             type="button"
             onClick={onOpenWatchTogether}
-            title="Samen Kijken met een vriend"
-            aria-label="Samen Kijken met een vriend"
+            title="Samen Kijken"
+            aria-label="Samen Kijken"
             aria-pressed={watchTogetherActive}
             className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${watchTogetherActive ? 'bg-rose-600 text-white shadow-md' : 'text-neutral-200 hover:bg-white/10 hover:text-white'}`}
           >

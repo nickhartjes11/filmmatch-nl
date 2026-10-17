@@ -16,15 +16,15 @@ export interface FriendProfile {
 }
 
 interface FriendActivityPageProps {
-  currentUserId: string | null;
-  currentUserName: string;
-  myStreamingServices: string[];
+  currentUserId?: string | null;
+  currentUserName?: string;
+  myStreamingServices?: string[];
   allMovies: Movie[];
-  myWatchedIds: number[];
+  myWatchedIds?: number[];
   myWatchlistIds: number[];
   activities: FriendActivityItem[];
-  friends: FriendProfile[];
-  onFriendshipChanged: () => void;
+  friends?: FriendProfile[];
+  onFriendshipChanged?: () => void;
   onSelectMovieSpotlight?: (movieId: number) => void;
   onToggleWatchlist: (movie: Movie) => void;
 }
@@ -49,7 +49,7 @@ export default function FriendActivityPage({
     return `${Math.floor(minutesAgo / (24 * 60))}d`;
   };
 
-  // Unieke lijst van vrienden die activiteit hebben
+  // Unieke lijst van vrienden die in de activiteit voorkomen
   const uniqueFriendsInFeed = useMemo(() => {
     const map = new Map<string, string>();
     activities.forEach((item) => {
@@ -60,7 +60,7 @@ export default function FriendActivityPage({
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [activities]);
 
-  // Gefilterde en gesorteerde items
+  // Gefilterde en gesorteerde lijst
   const displayedActivities = useMemo(() => {
     let list = [...activities];
 
@@ -122,7 +122,7 @@ export default function FriendActivityPage({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Pagina Header met Filters en Sortering */}
+      {/* Header met filteren op vriend en sorteren */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
@@ -133,9 +133,7 @@ export default function FriendActivityPage({
           </p>
         </div>
 
-        {/* Filters en Knoppen */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Vrienden filter */}
           {uniqueFriendsInFeed.length > 1 && (
             <select
               value={selectedFriendFilter}
@@ -151,7 +149,6 @@ export default function FriendActivityPage({
             </select>
           )}
 
-          {/* Sortering toggle */}
           <div className="flex items-center gap-1 bg-neutral-900/90 p-1 rounded-xl border border-white/10 shadow-sm">
             <button
               type="button"
@@ -231,9 +228,8 @@ export default function FriendActivityPage({
                     </div>
                   )}
 
-                  {/* BOVENIN: Linksboven Filmmatch - Rechtsboven IMDb */}
+                  {/* BOVENIN: Linksboven FilmMatch - Rechtsboven IMDb */}
                   <div className="absolute inset-x-2 top-2 flex items-center justify-between gap-1">
-                    {/* Linksboven: Jouw eigen FilmMatch */}
                     <span
                       className={`rounded px-1.5 py-0.5 text-[10px] font-black backdrop-blur-md shadow-md ${
                         matchBand === 'strong'
@@ -247,7 +243,6 @@ export default function FriendActivityPage({
                       {matchPercentage}%
                     </span>
 
-                    {/* Rechtsboven: IMDb cijfer */}
                     {matchedMovie.rating ? (
                       <span className="inline-flex items-center gap-1 rounded bg-black/80 px-1.5 py-0.5 backdrop-blur-md border border-white/10 shadow-md">
                         <span className="rounded-sm bg-[#f5c518] px-1 text-[8px] font-black text-black leading-3">
@@ -282,9 +277,8 @@ export default function FriendActivityPage({
                     </p>
                   </div>
 
-                  {/* ONDERIN: Vriend naam + cijfer, streamingdienst en watchlist knop */}
+                  {/* ONDERIN: Vriendnaam + cijfer, streamingdiensten en watchlist-knop */}
                   <div className="mt-2.5 space-y-2 border-t border-white/[0.08] pt-2">
-                    {/* Naam van de vriend + Cijfer */}
                     <div className="flex items-center justify-between gap-1 text-[11px]">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${item.avatarGradient} text-[8px] font-black text-white`}>
@@ -299,7 +293,6 @@ export default function FriendActivityPage({
                       </span>
                     </div>
 
-                    {/* Streamingdiensten + Watchlist knop */}
                     <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/[0.04]">
                       <div className="flex items-center gap-1 overflow-hidden">
                         {matchedMovie.providers && matchedMovie.providers.length > 0 ? (

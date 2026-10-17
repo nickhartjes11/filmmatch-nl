@@ -49,12 +49,14 @@ export default function FriendActivityPage({
     return `${Math.floor(minutesAgo / (24 * 60))}d`;
   };
 
-  // Unieke lijst van vrienden die in de activiteit voorkomen
+  // Unieke lijst van vrienden in de feed (ondersteunt zowel number als string friendId)
   const uniqueFriendsInFeed = useMemo(() => {
     const map = new Map<string, string>();
     activities.forEach((item) => {
-      if (!map.has(item.friendId)) {
-        map.set(item.friendId, item.name);
+      const rawId = (item as { friendId?: string | number }).friendId;
+      const friendKey = rawId !== undefined ? String(rawId) : item.name;
+      if (!map.has(friendKey)) {
+        map.set(friendKey, item.name);
       }
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
@@ -65,7 +67,11 @@ export default function FriendActivityPage({
     let list = [...activities];
 
     if (selectedFriendFilter !== 'all') {
-      list = list.filter((item) => item.friendId === selectedFriendFilter);
+      list = list.filter((item) => {
+        const rawId = (item as { friendId?: string | number }).friendId;
+        const friendKey = rawId !== undefined ? String(rawId) : item.name;
+        return friendKey === selectedFriendFilter;
+      });
     }
 
     if (sortOrder === 'rating') {

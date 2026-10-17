@@ -31,9 +31,7 @@ interface FriendActivityPageProps {
 export default function FriendActivityPage({
   currentUserId,
   currentUserName,
-  myStreamingServices,
   allMovies,
-  myWatchedIds,
   myWatchlistIds,
   activities,
   friends,
@@ -48,9 +46,6 @@ export default function FriendActivityPage({
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Geselecteerde vriend voor Samen Kijken
-  const [selectedFriendForMovieNight, setSelectedFriendForMovieNight] = useState<FriendProfile | null>(null);
-
   // Deelbare link kopiëren
   const handleCopyInviteLink = () => {
     const inviteUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}?invite=${encodeURIComponent(currentUserName)}`;
@@ -59,7 +54,7 @@ export default function FriendActivityPage({
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
-  // Zoeken naar NIEUWE gebruikers in Supabase
+  // Zoeken naar nieuwe gebruikers in Supabase
   const handleGlobalSearch = async () => {
     const query = searchQuery.trim();
     if (query.length < 2) return;
@@ -124,10 +119,6 @@ export default function FriendActivityPage({
         .delete()
         .match({ user_id: currentUserId, friend_id: friendId });
 
-      if (selectedFriendForMovieNight?.id === friendId) {
-        setSelectedFriendForMovieNight(null);
-      }
-
       onFriendshipChanged();
     } catch (err) {
       console.error(err);
@@ -143,7 +134,7 @@ export default function FriendActivityPage({
     return friends.filter((f) => f.display_name.toLowerCase().includes(q));
   }, [friends, searchQuery]);
 
-  // Smaakmatch berekening
+  // Smaakmatch indicatie
   const calculateTasteMatch = (friend: FriendProfile) => {
     let hash = 0;
     const combined = `${currentUserId || 'user'}_${friend.id}`;
@@ -153,60 +144,31 @@ export default function FriendActivityPage({
     return 78 + (Math.abs(hash) % 20);
   };
 
-  // Samen kijken Top 10
-  const movieNightTop10 = useMemo(() => {
-    if (!selectedFriendForMovieNight) return [];
-
-    const combinedServices = Array.from(new Set([
-      ...(myStreamingServices || []),
-      ...(selectedFriendForMovieNight.streaming_services || []),
-    ]));
-
-    return allMovies
-      .filter((movie) => {
-        const isWatchedByMe = myWatchedIds.includes(movie.id);
-        if (isWatchedByMe) return false;
-
-        if (combinedServices.length === 0) return true;
-        return movie.providers?.some((p) => combinedServices.includes(p.provider_name));
-      })
-      .sort((a, b) => (b.match_percentage || 0) - (a.match_percentage || 0))
-      .slice(0, 10);
-  }, [selectedFriendForMovieNight, myStreamingServices, allMovies, myWatchedIds]);
-
   const friendIdSet = new Set(friends.map((f) => f.id));
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
       {/* Pagina Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white">Mijn vrienden</h1>
           <p className="text-xs text-neutral-400 mt-1">
-            Bekijk elkaars beoordelingen, match je smaak en kies samen een film voor vanavond.
+            Volg wat je vrienden kijken, bekijk hun beoordelingen en ontdek nieuwe filmtips.
           </p>
         </div>
         <button
           type="button"
           onClick={handleCopyInviteLink}
-          className="px-3.5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white font-bold text-xs transition flex items-center gap-2"
+          className="px-3.5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white font-bold text-xs transition flex items-center gap-2 shadow-sm"
         >
           <span>🔗</span>
           <span>{copiedLink ? 'Link gekopieerd!' : 'Vrienden uitnodigen'}</span>
         </button>
       </div>
 
-      {/* TWEELUIK: LINKS (HUB & SAMEN KIJKEN) | RECHTS (GROTE ACTIVITEITENFEED) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* =========================================================================
-            LINKERKOLOM (5 COLS): 
-            Boven: Vrienden & Zoeken gecombineerd
-            Onder: Samen Kijken Top 10
-            ========================================================================= */}
-        <div className="lg:col-span-5 space-y-6">
-
-          {/* BOX 1: VRIENDENHUB & ZOEKEN (GECOMBINEERD) */}
+        {/* LINKERKOLOM (4 COLS): Vriendenlijst & Zoeken */}
+        <div className="lg:col-span-4 space-y-6">
           <section className="rounded-3xl bg-neutral-900/60 border border-white/[0.08] p-5 sm:p-6 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-3">
@@ -217,7 +179,7 @@ export default function FriendActivityPage({
                 <span className="text-[10px] text-neutral-400 uppercase tracking-wider font-semibold">Smaakmatch</span>
               </div>
 
-              {/* Slimme Zoekbalk voor zowel filteren als nieuwe vrienden zoeken */}
+              {/* Zoekbalk */}
               <div className="relative flex gap-2 mb-3">
                 <input
                   type="text"
@@ -250,13 +212,13 @@ export default function FriendActivityPage({
 
               {searchError && <p className="text-xs text-rose-300 mb-2">{searchError}</p>}
 
-              {/* Gevonden nieuwe gebruikers (Global search) */}
+              {/* Nieuwe gebruikers zoekresultaten */}
               {globalSearchResults.length > 0 && (
                 <div className="mb-4 p-3 rounded-2xl bg-black/50 border border-rose-500/20">
                   <p className="text-[10px] font-bold text-rose-300 uppercase tracking-wider mb-2">
                     Nieuwe mensen op FilmMatch
                   </p>
-                  <div className="divide-y divide-white/[0.06] max-h-36 overflow-y-auto pr-1">
+                  <div className="divide-y divide-white/[0.06] max-h-40 overflow-y-auto pr-1">
                     {globalSearchResults.map((user) => {
                       const isFollowing = friendIdSet.has(user.id);
                       return (
@@ -281,9 +243,9 @@ export default function FriendActivityPage({
                 </div>
               )}
 
-              {/* Huidige Vriendenlijst met Smaakmatch badges */}
+              {/* Vriendenlijst */}
               {friends.length === 0 ? (
-                <div className="py-10 text-center rounded-2xl border border-dashed border-white/10 bg-black/20">
+                <div className="py-12 text-center rounded-2xl border border-dashed border-white/10 bg-black/20">
                   <p className="text-xs font-bold text-neutral-300">Je volgt nog niemand</p>
                   <p className="text-[11px] text-neutral-500 mt-1 max-w-xs mx-auto">
                     Typ hierboven een naam en klik op &ldquo;Zoek nieuw&rdquo; om vrienden toe te voegen.
@@ -294,141 +256,35 @@ export default function FriendActivityPage({
                   Geen vriend gevonden met &ldquo;{searchQuery}&rdquo;.
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
                   {filteredFriends.map((friend) => {
                     const matchScore = calculateTasteMatch(friend);
-                    const isSelectedForNight = selectedFriendForMovieNight?.id === friend.id;
 
                     return (
                       <div
                         key={friend.id}
-                        className={`p-3 rounded-2xl border transition flex items-center justify-between gap-2 ${
-                          isSelectedForNight
-                            ? 'bg-rose-950/40 border-rose-500/50 shadow-md'
-                            : 'bg-black/30 border-white/[0.06] hover:border-white/15'
-                        }`}
+                        className="p-3 rounded-2xl border border-white/[0.06] bg-black/30 hover:border-white/15 transition flex items-center justify-between gap-2"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-sm">
                             {friend.display_name.slice(0, 1).toUpperCase()}
                           </div>
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-white truncate">{friend.display_name}</p>
                             <span className="text-[10px] font-black text-rose-300">
-                              🔥 {matchScore}% Match
+                              🔥 {matchScore}% Smaakmatch
                             </span>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedFriendForMovieNight(isSelectedForNight ? null : friend)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
-                              isSelectedForNight
-                                ? 'bg-rose-600 text-white'
-                                : 'bg-white/[0.08] hover:bg-white/[0.15] text-neutral-300'
-                            }`}
-                          >
-                            {isSelectedForNight ? 'Gekozen ✓' : 'Samen kijken'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleUnfollow(friend.id)}
-                            className="text-neutral-500 hover:text-rose-300 text-sm px-1 transition"
-                            title="Ontvolgen"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <p className="text-[10px] text-neutral-500 pt-3 border-t border-white/[0.06] mt-3">
-              Klik op &ldquo;Samen kijken&rdquo; om hieronder direct jullie gezamenlijke Top 10 te laden.
-            </p>
-          </section>
-
-          {/* BOX 2: SAMEN KIJKEN (TOP 10 MOVIE NIGHT) */}
-          <section className="rounded-3xl bg-neutral-900/60 border border-white/[0.08] p-5 sm:p-6 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🍿</span>
-                  <h2 className="text-base font-black text-white">Samen Kijken (Top 10)</h2>
-                </div>
-                {selectedFriendForMovieNight && (
-                  <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
-                    met {selectedFriendForMovieNight.display_name}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-neutral-400 mb-4">
-                Films die jullie allebei tof vinden en beschikbaar zijn via elkaars diensten.
-              </p>
-
-              {!selectedFriendForMovieNight ? (
-                <div className="py-14 text-center rounded-2xl border border-dashed border-white/10 bg-black/20 space-y-2">
-                  <span className="text-2xl">🛋️</span>
-                  <p className="text-xs font-bold text-neutral-300">Geen vriend geselecteerd</p>
-                  <p className="text-[11px] text-neutral-500 max-w-xs mx-auto">
-                    Kies hierboven een vriend uit je lijst om jullie gezamenlijke filmavond samen te stellen.
-                  </p>
-                </div>
-              ) : movieNightTop10.length === 0 ? (
-                <div className="py-14 text-center text-xs text-neutral-500">
-                  Geen onbekeken films gevonden op jullie gezamenlijke streamingdiensten.
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 max-h-[300px] overflow-y-auto pr-1">
-                  {movieNightTop10.map((movie, index) => {
-                    const isInWatchlist = myWatchlistIds.includes(movie.id);
-
-                    return (
-                      <div
-                        key={movie.id}
-                        className="group relative rounded-xl bg-black/40 border border-white/[0.08] overflow-hidden flex flex-col justify-between hover:border-rose-500/40 transition"
-                      >
-                        <div
-                          className="relative aspect-[2/3] w-full overflow-hidden cursor-pointer"
-                          onClick={() => onSelectMovieSpotlight && onSelectMovieSpotlight(movie.id)}
+                        <button
+                          type="button"
+                          onClick={() => handleUnfollow(friend.id)}
+                          className="text-neutral-500 hover:text-rose-300 text-sm px-1.5 py-0.5 rounded transition"
+                          title="Ontvolgen"
                         >
-                          {movie.poster_path ? (
-                            <Image
-                              src={`https://image.tmdb.org/t/p/w185${movie.poster_path}`}
-                              alt={movie.title}
-                              fill
-                              unoptimized
-                              className="object-cover group-hover:scale-105 transition duration-300"
-                            />
-                          ) : (
-                            <div className="w-full h-full bg-neutral-800 flex items-center justify-center text-[9px] text-neutral-500">
-                              Geen poster
-                            </div>
-                          )}
-                          <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-black/80 flex items-center justify-center text-[9px] font-black text-white">
-                            #{index + 1}
-                          </div>
-                        </div>
-
-                        <div className="p-1.5 bg-neutral-950/80 border-t border-white/[0.06] space-y-1">
-                          <p className="text-[10px] font-bold text-white truncate">{movie.title}</p>
-                          <button
-                            type="button"
-                            onClick={() => onToggleWatchlist(movie)}
-                            className={`w-full py-1 rounded text-[9px] font-bold transition ${
-                              isInWatchlist
-                                ? 'bg-rose-500/20 text-rose-300'
-                                : 'bg-white/10 hover:bg-white/20 text-white'
-                            }`}
-                          >
-                            {isInWatchlist ? '✓ Lijst' : '+ Watchlist'}
-                          </button>
-                        </div>
+                          &times;
+                        </button>
                       </div>
                     );
                   })}
@@ -436,18 +292,15 @@ export default function FriendActivityPage({
               )}
             </div>
 
-            <p className="text-[10px] text-neutral-500 pt-3 border-t border-white/[0.06] mt-3">
-              Sluit automatisch films uit die jij al hebt gezien.
+            <p className="text-[10px] text-neutral-500 pt-3 border-t border-white/[0.06] mt-4">
+              Vrienden toevoegen verrijkt ook direct je Samen Kijken-overzicht.
             </p>
           </section>
-
         </div>
 
-        {/* =========================================================================
-            RECHTERKOLOM (7 COLS): GROTE, VOLWAARDIGE ACTIVITEITENFEED
-            ========================================================================= */}
-        <div className="lg:col-span-7">
-          <section className="rounded-3xl bg-neutral-900/60 border border-white/[0.08] p-5 sm:p-6 flex flex-col justify-between min-h-[760px]">
+        {/* RECHTERKOLOM (8 COLS): Volwaardige Activiteitenfeed */}
+        <div className="lg:col-span-8">
+          <section className="rounded-3xl bg-neutral-900/60 border border-white/[0.08] p-5 sm:p-6 flex flex-col justify-between min-h-[640px]">
             <div>
               <div className="flex items-center justify-between border-b border-white/[0.08] pb-4 mb-5">
                 <div>
@@ -460,7 +313,7 @@ export default function FriendActivityPage({
                   </p>
                 </div>
                 <span className="text-xs font-semibold text-neutral-400 bg-white/[0.04] px-3 py-1 rounded-full border border-white/[0.06]">
-                  {activities.length} recensies
+                  {activities.length} beoordelingen
                 </span>
               </div>
 
@@ -469,11 +322,11 @@ export default function FriendActivityPage({
                   <span className="text-3xl">🍿</span>
                   <p className="text-sm font-bold text-neutral-200">Nog geen vriendenactiviteit</p>
                   <p className="text-xs text-neutral-500 max-w-sm mx-auto leading-relaxed">
-                    Zodra jouw vrienden films als gezien markeren en beoordelen, verschijnen hun grote filmposters en recensies hier live in beeld.
+                    Zodra jouw vrienden films bekijken en beoordelen, verschijnen hun filmposters en cijfers hier live in beeld.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4 max-h-[640px] overflow-y-auto pr-2">
+                <div className="space-y-4 max-h-[720px] overflow-y-auto pr-2">
                   {activities.map((item) => {
                     const matchedMovie = allMovies.find((m) => m.id === item.movieId) || {
                       id: item.movieId,
@@ -491,7 +344,7 @@ export default function FriendActivityPage({
                         key={item.id}
                         className="rounded-2xl bg-black/40 border border-white/[0.08] p-4 hover:border-white/20 transition shadow-lg flex flex-col sm:flex-row gap-4"
                       >
-                        {/* Grote, duidelijke filmposter */}
+                        {/* Filmposter */}
                         <div
                           className="relative w-24 h-36 rounded-xl overflow-hidden shrink-0 border border-white/10 cursor-pointer mx-auto sm:mx-0 shadow-md"
                           onClick={() => onSelectMovieSpotlight && onSelectMovieSpotlight(item.movieId)}
@@ -511,13 +364,12 @@ export default function FriendActivityPage({
                           )}
                         </div>
 
-                        {/* Recensie, vriend-info & Watchlist knop */}
+                        {/* Info & Watchlist actie */}
                         <div className="flex-1 flex flex-col justify-between min-w-0">
                           <div>
-                            {/* Wie keek het & cijfer */}
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
-                                <div className={`w-7 h-7 rounded-full bg-gradient-to-tr ${item.avatarGradient} flex items-center justify-center text-xs font-black text-white shrink-0`}>
+                                <div className={`w-7 h-7 rounded-full bg-gradient-to-tr ${item.avatarGradient} flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm`}>
                                   {item.initial}
                                 </div>
                                 <p className="text-xs text-neutral-300 truncate">
@@ -526,11 +378,10 @@ export default function FriendActivityPage({
                               </div>
 
                               <span className="px-2.5 py-1 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 font-black text-xs tabular-nums shrink-0">
-                                ★ {item.rating.toFixed(1)}
+                                ★ {item.rating ? item.rating.toFixed(1) : 'Gezien'}
                               </span>
                             </div>
 
-                            {/* Filmtitel */}
                             <h3
                               onClick={() => onSelectMovieSpotlight && onSelectMovieSpotlight(item.movieId)}
                               className="text-base font-black text-white hover:text-rose-400 cursor-pointer transition mt-2 truncate"
@@ -543,7 +394,6 @@ export default function FriendActivityPage({
                             </p>
                           </div>
 
-                          {/* Actiebalk onderaan kaartje */}
                           <div className="pt-3 border-t border-white/[0.04] flex items-center justify-between mt-3">
                             <span className="text-[10px] text-neutral-500">Tip van vriend</span>
                             <button
@@ -567,11 +417,10 @@ export default function FriendActivityPage({
             </div>
 
             <p className="text-[10px] text-neutral-500 pt-3 border-t border-white/[0.06] mt-4">
-              Klik op een poster om de trailer en streamopties direct in de banner te bekijken.
+              Klik op een filmposter om de details en trailer direct in de spotlight te bekijken.
             </p>
           </section>
         </div>
-
       </div>
     </div>
   );

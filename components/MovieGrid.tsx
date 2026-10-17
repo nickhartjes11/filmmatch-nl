@@ -31,9 +31,10 @@ interface MovieGridProps {
   onEditRating: (movie: Movie) => void;
   onToggleWatchlist: (movie: Movie) => void;
   onToggleWatched: (movie: Movie) => void;
+  onSelectPerson?: (name: string, department: 'Acting' | 'Directing') => void;
 }
 
-interface MovieCardProps extends Pick<MovieGridProps, 'watchlistIds' | 'watchedIds' | 'onSelectMovie' | 'ratings' | 'onEditRating' | 'onToggleWatchlist' | 'onToggleWatched'> {
+interface MovieCardProps extends Pick<MovieGridProps, 'watchlistIds' | 'watchedIds' | 'onSelectMovie' | 'ratings' | 'onEditRating' | 'onToggleWatchlist' | 'onToggleWatched' | 'onSelectPerson'> {
   movie: Movie;
   railCard?: boolean;
   highlightUserRating?: boolean;
@@ -68,7 +69,20 @@ function RatingBadge({ rating, source }: { rating?: string | null; source?: Movi
   );
 }
 
-function MovieCard({ movie, watchlistIds, watchedIds, onSelectMovie, ratings, onEditRating, onToggleWatchlist, onToggleWatched, railCard = false, highlightUserRating = false, compactPoster = false }: MovieCardProps) {
+function MovieCard({
+  movie,
+  watchlistIds,
+  watchedIds,
+  onSelectMovie,
+  ratings,
+  onEditRating,
+  onToggleWatchlist,
+  onToggleWatched,
+  onSelectPerson,
+  railCard = false,
+  highlightUserRating = false,
+  compactPoster = false,
+}: MovieCardProps) {
   const isWatchlisted = watchlistIds.includes(movie.id);
   const isWatched = watchedIds.includes(movie.id);
   const userRating = ratings[movie.id];
@@ -111,9 +125,52 @@ function MovieCard({ movie, watchlistIds, watchedIds, onSelectMovie, ratings, on
               {movie.title}
             </button>
           </h3>
-          <p className="mt-0.5 text-[10px] text-neutral-200">
+          <p className="mt-0.5 text-[10px] text-neutral-300 truncate">
             {movie.release_date?.split('-')[0]} &bull; {movie.genres?.[0] || 'Film'}
           </p>
+
+          {/* Klikbare Regisseur & Cast */}
+          {(movie.director || (movie.cast && movie.cast.length > 0)) && (
+            <div className="mt-1.5 space-y-0.5 text-[10px] leading-tight text-neutral-400">
+              {movie.director && (
+                <p className="truncate">
+                  <span className="text-neutral-500 font-medium">Regie: </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onSelectPerson && movie.director) onSelectPerson(movie.director, 'Directing');
+                    }}
+                    className="hover:text-rose-400 hover:underline transition font-medium"
+                    title={`Bekijk alle films van ${movie.director}`}
+                  >
+                    {movie.director}
+                  </button>
+                </p>
+              )}
+              {movie.cast && movie.cast.length > 0 && (
+                <p className="truncate">
+                  <span className="text-neutral-500 font-medium">Cast: </span>
+                  {movie.cast.slice(0, 2).map((actor, idx) => (
+                    <span key={actor}>
+                      {idx > 0 && <span className="text-neutral-500">, </span>}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onSelectPerson) onSelectPerson(actor, 'Acting');
+                        }}
+                        className="hover:text-rose-400 hover:underline transition font-medium"
+                        title={`Bekijk alle films met ${actor}`}
+                      >
+                        {actor}
+                      </button>
+                    </span>
+                  ))}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/[0.12] pt-2">
@@ -158,7 +215,18 @@ function MovieCard({ movie, watchlistIds, watchedIds, onSelectMovie, ratings, on
   );
 }
 
-function MovieRail({ title, movies, watchlistIds, watchedIds, onSelectMovie, ratings, onEditRating, onToggleWatchlist, onToggleWatched }: MovieRailProps) {
+function MovieRail({
+  title,
+  movies,
+  watchlistIds,
+  watchedIds,
+  onSelectMovie,
+  ratings,
+  onEditRating,
+  onToggleWatchlist,
+  onToggleWatched,
+  onSelectPerson,
+}: MovieRailProps) {
   const railRef = useRef<HTMLDivElement>(null);
   const drag = useRef({ active: false, dragged: false, startX: 0, startScroll: 0 });
 
@@ -226,6 +294,7 @@ function MovieRail({ title, movies, watchlistIds, watchedIds, onSelectMovie, rat
             onEditRating={onEditRating}
             onToggleWatchlist={onToggleWatchlist}
             onToggleWatched={onToggleWatched}
+            onSelectPerson={onSelectPerson}
           />
         ))}
       </div>
@@ -249,6 +318,7 @@ export default function MovieGrid({
   onEditRating,
   onToggleWatchlist,
   onToggleWatched,
+  onSelectPerson,
   recentlyWatchedMovies,
   preferredGenres,
   selectedPlatforms,
@@ -299,7 +369,6 @@ export default function MovieGrid({
       }
     : null;
 
-  // Maak een lookup map zodat films overal exact dezelfde matchscore krijgen
   const baseMatchMap = useMemo(() => {
     const map = new Map<number, number>();
     movies.forEach((movie) => {
@@ -525,6 +594,7 @@ export default function MovieGrid({
               onEditRating={onEditRating}
               onToggleWatchlist={onToggleWatchlist}
               onToggleWatched={onToggleWatched}
+              onSelectPerson={onSelectPerson}
             />
           ) : (
             <section key={rail.id} className="space-y-3" aria-label={rail.title}>
@@ -569,6 +639,7 @@ export default function MovieGrid({
             onEditRating={onEditRating}
             onToggleWatchlist={onToggleWatchlist}
             onToggleWatched={onToggleWatched}
+            onSelectPerson={onSelectPerson}
             highlightUserRating={libraryView === 'watched'}
             compactPoster={libraryView === 'watched' || libraryView === 'watchlist'}
           />

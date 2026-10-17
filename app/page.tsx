@@ -208,6 +208,29 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleSelectPerson = async (name: string, _department: 'Acting' | 'Directing') => {
+    setCurrentView('dashboard');
+    setLibraryView('discover');
+    setSpotlightMovieId(null);
+
+    try {
+      const res = await fetch(`/api/movies?people=${encodeURIComponent(name)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const match = data.people?.[0];
+        if (match) {
+          selectPerson(match);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setSearchQuery(name);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const favoriteMovies = useMemo<MovieTasteSignals[]>(
     () => ONBOARDING_FAVORITES
       .filter((film) => selectedFavorites.includes(film.id))
@@ -1121,24 +1144,7 @@ export default function Home() {
                       isWatchlisted={library.watchlist.some((m) => m.id === topMatch.id)}
                       isWatched={library.watched.some((m) => m.id === topMatch.id)}
                       userRating={ratingsByMovieId[topMatch.id]}
-                      onSelectPerson={async (name: string, department: 'Acting' | 'Directing') => {
-                        try {
-                          const res = await fetch(`/api/movies?people=${encodeURIComponent(name)}`);
-                          if (res.ok) {
-                            const data = await res.json();
-                            const match = data.people?.[0];
-                            if (match) {
-                              selectPerson(match);
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                              return;
-                            }
-                          }
-                        } catch (err) {
-                          console.error(err);
-                        }
-                        setSearchQuery(name);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
+                      onSelectPerson={handleSelectPerson}
                       onSelectFeatured={(idx) => {
                         setSpotlightMovieId(null);
                         setFeaturedIndex(idx);
@@ -1218,6 +1224,7 @@ export default function Home() {
                     onEditRating={openMovieRating}
                     onToggleWatchlist={toggleWatchlist}
                     onToggleWatched={openMovieRating}
+                    onSelectPerson={handleSelectPerson}
                   />
                 </>
               )}

@@ -130,19 +130,6 @@ export default function Sidebar({
             );
           })}
 
-          {/* Samen Kijken Knop */}
-          <button
-            type="button"
-            onClick={onOpenWatchTogether}
-            title="Samen Kijken met een vriend"
-            aria-label="Samen Kijken met een vriend"
-            aria-pressed={watchTogetherActive}
-            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${watchTogetherActive ? 'bg-rose-600 text-white shadow-md' : 'text-neutral-200 hover:bg-white/10 hover:text-white'}`}
-          >
-            <span className="w-4 text-center text-sm" aria-hidden="true">🛋️</span>
-            <span className="hidden xl:inline">Samen Kijken</span>
-          </button>
-
           <button
             onClick={() => onNavigate('watchlist')}
             title="Watchlist"
@@ -176,6 +163,19 @@ export default function Sidebar({
           >
             <span className="w-4 text-center text-sm" aria-hidden="true">👥</span>
             <span className="hidden xl:inline">Mijn vrienden</span>
+          </button>
+
+          {/* Samen Kijken Knop (onder Mijn vrienden) */}
+          <button
+            type="button"
+            onClick={onOpenWatchTogether}
+            title="Samen Kijken met een vriend"
+            aria-label="Samen Kijken met een vriend"
+            aria-pressed={watchTogetherActive}
+            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${watchTogetherActive ? 'bg-rose-600 text-white shadow-md' : 'text-neutral-200 hover:bg-white/10 hover:text-white'}`}
+          >
+            <span className="w-4 text-center text-sm" aria-hidden="true">🛋️</span>
+            <span className="hidden xl:inline">Samen Kijken</span>
           </button>
         </nav>
 

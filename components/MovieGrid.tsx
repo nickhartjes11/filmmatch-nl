@@ -285,14 +285,27 @@ export default function MovieGrid({
   const [similarIndex, setSimilarIndex] = useState(0);
   const [dynamicRailMovies, setDynamicRailMovies] = useState<Record<string, Movie[]>>({});
   const [loadingRailKeys, setLoadingRailKeys] = useState<Record<string, boolean>>({});
-  const recentMovies = recentlyWatchedMovies.slice(0, 3);
-  const recentMovieKey = recentMovies.map((movie) => movie.id).join(',');
+
+  // FILTER: Alleen films die de gebruiker een 7 of hoger heeft gegeven
+  const positiveRecentMovies = useMemo(() => {
+    return recentlyWatchedMovies
+      .filter((movie) => {
+        const userScore = ratings[movie.id];
+        return typeof userScore === 'number' && userScore >= 7;
+      })
+      .slice(0, 3);
+  }, [recentlyWatchedMovies, ratings]);
+
+  const recentMovieKey = positiveRecentMovies.map((movie) => movie.id).join(',');
   const genreNames = preferredGenres.slice(0, 2);
   const selectedPlatformKey = selectedPlatforms.join(',');
   const watchedMovieKey = watchedIds.join(',');
-  const selectedSimilarMovie = recentMovies.length
-    ? recentMovies[similarIndex % recentMovies.length]
+
+  // ROULEER tussen de maximaal 3 positief beoordeelde films
+  const selectedSimilarMovie = positiveRecentMovies.length > 0
+    ? positiveRecentMovies[similarIndex % positiveRecentMovies.length]
     : undefined;
+
   const railFilterKey = [
     selectedPlatformKey,
     minimumImdbRating,
@@ -300,6 +313,7 @@ export default function MovieGrid({
     maxRuntimeMinutes ?? '',
     watchedMovieKey,
   ].join('|');
+
   const genreRailRequests: DynamicMovieRailRequest[] = genreNames.map((genre) => ({
     key: `genre:${genre}:${railFilterKey}`,
     title: `Meer ${genre} films`,
@@ -307,6 +321,7 @@ export default function MovieGrid({
     value: genre,
     genre,
   }));
+
   const imdbRailRequest: DynamicMovieRailRequest = {
     key: `imdb:${railFilterKey}`,
     title: 'Best beoordeelde IMDb-films',
@@ -314,6 +329,7 @@ export default function MovieGrid({
     value: 'imdbCandidates',
     minimumRating: Math.max(7, minimumImdbRating),
   };
+
   const similarRailRequest: DynamicMovieRailRequest | null = selectedSimilarMovie
     ? {
         key: `similar:${selectedSimilarMovie.id}:${railFilterKey}`,
@@ -358,14 +374,15 @@ export default function MovieGrid({
     }));
   }, [movies, baseMatchMap, matchPreferences]);
 
+  // Wissel elke minuut tussen de beschikbare goed beoordeelde films
   useEffect(() => {
     setSimilarIndex(0);
-    if (recentMovies.length < 2) return;
+    if (positiveRecentMovies.length < 2) return;
     const timer = window.setInterval(() => {
-      setSimilarIndex((current) => (current + 1) % recentMovies.length);
+      setSimilarIndex((current) => (current + 1) % positiveRecentMovies.length);
     }, 60_000);
     return () => window.clearInterval(timer);
-  }, [recentMovieKey, recentMovies.length]);
+  }, [recentMovieKey, positiveRecentMovies.length]);
 
   useEffect(() => {
     if (libraryView !== 'discover' || searchQuery.trim()) return;

@@ -52,7 +52,7 @@ function formatTmdbRating(value: unknown): string | null {
   return Number.isFinite(rating) && rating > 0 ? rating.toFixed(1) : null;
 }
 
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 3000): Promise<Response> {
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 3500): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -128,7 +128,6 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
 
-  // 1. Trailer opvragen
   const trailerMovieId = searchParams.get('trailerMovieId');
   if (trailerMovieId) {
     try {
@@ -152,6 +151,7 @@ export async function GET(request: Request) {
         ytVideos.find((v) => v.type === 'Trailer' && v.official && v.iso_639_1 === 'nl') ||
         ytVideos.find((v) => v.type === 'Trailer' && v.official) ||
         ytVideos.find((v) => v.type === 'Trailer') ||
+        ytVideos.find((v) => v.type === 'Teaser') ||
         ytVideos[0];
 
       return NextResponse.json({ youtubeKey: trailer?.key ?? null });
@@ -191,7 +191,6 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 2. Zoeken naar personen (acteurs/regisseurs)
     if (peopleQuery) {
       const peopleUrl = `https://api.themoviedb.org/3/search/person?api_key=${apiKey}&language=nl-NL&query=${encodeURIComponent(peopleQuery)}&include_adult=false`;
       const peopleResponse = await fetchWithTimeout(peopleUrl, { next: { revalidate: 3600 } });
@@ -213,7 +212,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ people });
     }
 
-    // 3. Metadata opvragen voor specifieke ID's
     const metadataIds = searchParams.get('metadataIds');
     if (metadataIds) {
       const ids = Array.from(new Set(metadataIds.split(',')
@@ -226,10 +224,12 @@ export async function GET(request: Request) {
         try {
           const { data } = await supabase.from('cached_movies').select('*').in('id', ids);
           (data || []).forEach((row: any) => {
-            cachedMap.set(row.id, {
-              ...row,
-              cast: row.cast_members || [],
-            });
+            if (row.imdb_id) {
+              cachedMap.set(row.id, {
+                ...row,
+                cast: row.cast_members || [],
+              });
+            }
           });
         } catch {}
       }
@@ -243,7 +243,7 @@ export async function GET(request: Request) {
           if (!response.ok) return null;
           const details = await response.json();
           const director = details.credits?.crew?.find((person: any) => person.job === 'Director')?.name;
-          const imdbId = details.external_ids?.imdb_id || details.imdb_id;
+          const imdbId = details.external_ids?.imdb_id || details.imdb_id || null;
           const imdbRating = imdbId && omdbKey ? await getImdbRating(imdbId, omdbKey) : null;
           const rating = imdbRating || formatTmdbRating(details.vote_average);
           const cast = (details.credits?.cast || []).slice(0, 8).map((person: any) => person.name);
@@ -292,7 +292,6 @@ export async function GET(request: Request) {
         }
       }));
 
-      // Type-safe opslag in cachedMap zonder null-fouten
       fetchedMovies
         .filter((m): m is NonNullable<typeof m> => m !== null)
         .forEach((m) => cachedMap.set(m.id, m));
@@ -307,7 +306,6 @@ export async function GET(request: Request) {
     let rawMovies: any[] = [];
     let totalPages = 1;
 
-    // 4. Lijst met basisfilms ophalen van TMDb
     if (nowPlaying) {
       const cinemaUrl = `https://api.themoviedb.org/3/movie/now_playing?api_key=${apiKey}&language=nl-NL&region=NL&page=${page}`;
       const cinemaRes = await fetchWithTimeout(cinemaUrl, { next: { revalidate: 1800 } });
@@ -376,7 +374,6 @@ export async function GET(request: Request) {
       totalPages = discoverData.total_pages || 1;
     }
 
-    // 5. SUPABASE BATCH LOOKUP (Kijk welke films al in cached_movies staan)
     const movieIds = rawMovies.map((m: any) => m.id);
     const cachedMoviesMap = new Map<number, any>();
 
@@ -388,29 +385,32 @@ export async function GET(request: Request) {
           .in('id', movieIds);
 
         (dbMovies || []).forEach((row: any) => {
-          cachedMoviesMap.set(row.id, {
-            id: row.id,
-            imdb_id: row.imdb_id,
-            title: row.title,
-            overview: row.overview || '',
-            poster_path: row.poster_path || '',
-            backdrop_path: row.backdrop_path || '',
-            release_date: row.release_date || '',
-            runtime_minutes: row.runtime_minutes,
-            genres: row.genres || [],
-            director: row.director,
-            cast: row.cast_members || [],
-            rating: row.rating,
-            rating_source: row.rating_source,
-            providers: Array.isArray(row.providers) ? row.providers : [],
-          });
+          // Gebruik alleen cache als imdb_id aanwezig is én er providers zijn
+          const providersList = Array.isArray(row.providers) ? row.providers : [];
+          if (row.imdb_id && (nowPlaying || providersList.length > 0)) {
+            cachedMoviesMap.set(row.id, {
+              id: row.id,
+              imdb_id: row.imdb_id,
+              title: row.title,
+              overview: row.overview || '',
+              poster_path: row.poster_path || '',
+              backdrop_path: row.backdrop_path || '',
+              release_date: row.release_date || '',
+              runtime_minutes: row.runtime_minutes,
+              genres: row.genres || [],
+              director: row.director,
+              cast: row.cast_members || [],
+              rating: row.rating,
+              rating_source: row.rating_source,
+              providers: providersList,
+            });
+          }
         });
       } catch (err) {
         console.warn('Fout bij het uitlezen van cached_movies:', err);
       }
     }
 
-    // 6. Verrijk alleen films die NOG NIET in Supabase staan
     const enrichedMovies = await Promise.all(
       rawMovies.map(async (movie: any) => {
         if (cachedMoviesMap.has(movie.id)) {
@@ -418,20 +418,26 @@ export async function GET(request: Request) {
         }
 
         try {
-          const [providerRes, detailsRes] = await Promise.all([
+          const [providerRes, externalIdsRes, detailsRes] = await Promise.all([
             fetchWithTimeout(
               `https://api.themoviedb.org/3/movie/${movie.id}/watch/providers?api_key=${apiKey}`,
               { next: { revalidate: 86400 } },
               2500
             ).catch(() => null),
             fetchWithTimeout(
-              `https://api.themoviedb.org/3/movie/${movie.id}?api_key=${apiKey}&language=nl-NL&append_to_response=credits,external_ids`,
+              `https://api.themoviedb.org/3/movie/${movie.id}/external_ids?api_key=${apiKey}`,
+              { next: { revalidate: 86400 } },
+              2500
+            ).catch(() => null),
+            fetchWithTimeout(
+              `https://api.themoviedb.org/3/movie/${movie.id}?api_key=${apiKey}&language=nl-NL&append_to_response=credits`,
               { next: { revalidate: 3600 } },
               2500
             ).catch(() => null),
           ]);
 
           const providerData = providerRes?.ok ? await providerRes.json() : null;
+          const externalIdsData = externalIdsRes?.ok ? await externalIdsRes.json() : null;
           const detailsData = detailsRes?.ok ? await detailsRes.json() : null;
 
           const nlFlatrate: any[] = providerData?.results?.NL?.flatrate || [];
@@ -447,7 +453,7 @@ export async function GET(request: Request) {
             }
           });
 
-          const imdbId = detailsData?.external_ids?.imdb_id || detailsData?.imdb_id;
+          const imdbId = externalIdsData?.imdb_id || detailsData?.imdb_id || null;
           let realImdbRating: string | null = null;
           if (imdbId && omdbKey) {
             realImdbRating = await getImdbRating(imdbId, omdbKey);
@@ -461,7 +467,7 @@ export async function GET(request: Request) {
 
           const newMovie = {
             id: movie.id,
-            imdb_id: imdbId || null,
+            imdb_id: imdbId,
             title: detailsData?.title || movie.title,
             overview: detailsData?.overview || movie.overview || '',
             poster_path: detailsData?.poster_path || movie.poster_path || '',

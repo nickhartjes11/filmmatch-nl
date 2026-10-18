@@ -322,79 +322,31 @@ export async function GET(request: Request) {
       totalPages = discoverData.total_pages || 1;
     }
 
-    if (isRailRequest) {
-      const railMovies = await Promise.all(rawMovies.slice(0, 16).map(async (movie: any) => {
-        try {
-          const providerRes = await fetchWithTimeout(
-            `https://api.themoviedb.org/3/movie/${movie.id}/watch/providers?api_key=${apiKey}`,
-            { next: { revalidate: 86400 } },
-            2000
-          );
-          const providerData = providerRes.ok ? await providerRes.json() : null;
-          const providerMap = new Map<string, Provider>();
-          (providerData?.results?.NL?.flatrate || []).forEach((provider: any) => {
-            const providerName = TARGET_PROVIDERS[provider.provider_id];
-            if (providerName && (!selectedProviderNames || selectedProviderNames.has(providerName)) && !providerMap.has(providerName)) {
-              providerMap.set(providerName, {
-                provider_id: provider.provider_id,
-                provider_name: providerName,
-                logo_path: provider.logo_path,
-              });
-            }
-          });
-
-          const rating = formatTmdbRating(movie.vote_average);
-
-          return {
-            id: movie.id,
-            title: movie.title,
-            overview: movie.overview || '',
-            poster_path: movie.poster_path || '',
-            backdrop_path: movie.backdrop_path || '',
-            release_date: movie.release_date || '',
-            genres: (movie.genre_ids || []).map((id: number) => TMDB_GENRES[id]).filter(Boolean),
-            rating,
-            rating_source: rating ? 'TMDb' : null,
-            providers: Array.from(providerMap.values()),
-          };
-        } catch {
-          return null;
-        }
-      }));
-
-      const validRailMovies = railMovies.filter(Boolean) as any[];
-
-      return NextResponse.json({
-        page: Number(page),
-        totalPages,
-        movies: nowPlaying ? validRailMovies : validRailMovies.filter((movie) => movie.providers.length > 0),
-      });
-    }
-
+    // Haal films op inclusief providers en IMDb-rating uit de database cache
     const moviesWithDetails = await Promise.all(
-      rawMovies.slice(0, 16).map(async (movie: any) => {
+      rawMovies.slice(0, 20).map(async (movie: any) => {
         try {
-          const [providerRes, detailsRes] = await Promise.all([
+          const [providerRes, externalIdsRes] = await Promise.all([
             fetchWithTimeout(
               `https://api.themoviedb.org/3/movie/${movie.id}/watch/providers?api_key=${apiKey}`,
               { next: { revalidate: 86400 } },
               2500
             ).catch(() => null),
             fetchWithTimeout(
-              `https://api.themoviedb.org/3/movie/${movie.id}?api_key=${apiKey}&language=nl-NL&append_to_response=credits,external_ids`,
-              { next: { revalidate: 3600 } },
+              `https://api.themoviedb.org/3/movie/${movie.id}/external_ids?api_key=${apiKey}`,
+              { next: { revalidate: 86400 } },
               2500
             ).catch(() => null),
           ]);
 
           const providerData = providerRes?.ok ? await providerRes.json() : null;
-          const detailsData = detailsRes?.ok ? await detailsRes.json() : null;
+          const externalIdsData = externalIdsRes?.ok ? await externalIdsRes.json() : null;
 
           const nlFlatrate: any[] = providerData?.results?.NL?.flatrate || [];
           const providerMap = new Map<string, Provider>();
           nlFlatrate.forEach((p) => {
             const canonicalName = TARGET_PROVIDERS[p.provider_id];
-            if (canonicalName && !providerMap.has(canonicalName)) {
+            if (canonicalName && (!selectedProviderNames || selectedProviderNames.has(canonicalName)) && !providerMap.has(canonicalName)) {
               providerMap.set(canonicalName, {
                 provider_id: p.provider_id,
                 provider_name: canonicalName,
@@ -403,22 +355,23 @@ export async function GET(request: Request) {
             }
           });
 
-          const imdbId = detailsData?.external_ids?.imdb_id || detailsData?.imdb_id;
+          const imdbId = externalIdsData?.imdb_id;
           let realImdbRating: string | null = null;
-          if (imdbId && omdbKey) realImdbRating = await getImdbRating(imdbId, omdbKey);
-          const rating = realImdbRating || formatTmdbRating(detailsData?.vote_average ?? movie.vote_average);
+          if (imdbId && omdbKey) {
+            realImdbRating = await getImdbRating(imdbId, omdbKey);
+          }
+
+          const rating = realImdbRating || formatTmdbRating(movie.vote_average);
 
           return {
             id: movie.id,
             imdb_id: imdbId,
             title: movie.title,
-            overview: movie.overview,
-            poster_path: movie.poster_path,
-            release_date: detailsData?.release_date || movie.release_date,
-            genres: detailsData?.genres?.map((genre: any) => genre.name) || (movie.genre_ids || []).map((id: number) => TMDB_GENRES[id]).filter(Boolean),
-            director: detailsData?.credits?.crew?.find((person: any) => person.job === 'Director')?.name,
-            cast: (detailsData?.credits?.cast || []).slice(0, 8).map((person: any) => person.name),
-            runtime_minutes: detailsData?.runtime || null,
+            overview: movie.overview || '',
+            poster_path: movie.poster_path || '',
+            backdrop_path: movie.backdrop_path || '',
+            release_date: movie.release_date || '',
+            genres: (movie.genre_ids || []).map((id: number) => TMDB_GENRES[id]).filter(Boolean),
             rating,
             rating_source: realImdbRating ? 'IMDb' : rating ? 'TMDb' : null,
             providers: Array.from(providerMap.values()),
@@ -428,9 +381,10 @@ export async function GET(request: Request) {
           return {
             id: movie.id,
             title: movie.title,
-            overview: movie.overview,
-            poster_path: movie.poster_path,
-            release_date: movie.release_date,
+            overview: movie.overview || '',
+            poster_path: movie.poster_path || '',
+            backdrop_path: movie.backdrop_path || '',
+            release_date: movie.release_date || '',
             genres: (movie.genre_ids || []).map((id: number) => TMDB_GENRES[id]).filter(Boolean),
             rating,
             rating_source: rating ? 'TMDb' : null,

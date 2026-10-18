@@ -56,6 +56,8 @@ interface DynamicMovieRailRequest {
   excludedMovieId?: number;
 }
 
+const TARGET_RAIL_COUNT = 25;
+
 function RatingBadge({ rating, source }: { rating?: string | null; source?: Movie['rating_source'] }) {
   if (!rating) return null;
 
@@ -425,10 +427,13 @@ export default function MovieGrid({
       const watchedMovieIds = new Set(watchedMovieKey.split(',').filter(Boolean).map(Number));
 
       try {
-        const pagesToFetch = request.parameter === 'imdb' ? [1, 2] : [1];
-        for (const p of pagesToFetch) {
+        let page = 1;
+        let totalPages = 5;
+
+        // Blijf doorhalen tot we minimaal 25 films hebben of pagina's op zijn
+        while (railMovies.length < TARGET_RAIL_COUNT && page <= totalPages && page <= 6) {
           const params = new URLSearchParams({
-            page: String(p),
+            page: String(page),
             providers: selectedPlatformKey,
             rail: '1',
           });
@@ -440,10 +445,13 @@ export default function MovieGrid({
           }
 
           const response = await fetch(`/api/movies?${params.toString()}`);
-          if (!response.ok) continue;
+          if (!response.ok) break;
 
           const data = await response.json();
+          if (data.totalPages) totalPages = Number(data.totalPages);
           const list = Array.isArray(data.movies) ? (data.movies as Movie[]) : [];
+
+          if (list.length === 0) break;
 
           for (const movie of list) {
             if (seenMovieIds.has(movie.id)) continue;
@@ -467,13 +475,22 @@ export default function MovieGrid({
               ...movie,
               match_percentage: score,
             });
+
+            if (railMovies.length >= TARGET_RAIL_COUNT) break;
           }
+
+          page++;
         }
       } catch (err) {
         console.warn(`Rail load failed for ${request.title}:`, err);
       }
 
-      railMovies.sort((a, b) => (b.match_percentage || 0) - (a.match_percentage || 0));
+      if (request.parameter === 'imdb') {
+        railMovies.sort((a, b) => Number.parseFloat(b.rating || '0') - Number.parseFloat(a.rating || '0'));
+      } else {
+        railMovies.sort((a, b) => (b.match_percentage || 0) - (a.match_percentage || 0));
+      }
+
       return [request.key, railMovies];
     };
 
@@ -529,7 +546,8 @@ export default function MovieGrid({
         title: 'Beste filmhits',
         movies: [...synchronizedMovies]
           .filter((movie) => (movie.match_percentage || 0) >= 68)
-          .sort((first, second) => (second.match_percentage || 0) - (first.match_percentage || 0)),
+          .sort((first, second) => (second.match_percentage || 0) - (first.match_percentage || 0))
+          .slice(0, TARGET_RAIL_COUNT),
         loading: false,
       },
       ...(similarRailRequest ? [{
@@ -552,7 +570,6 @@ export default function MovieGrid({
       },
     ];
 
-    // Toon rails die geladen zijn of nog bezig zijn met inladen
     const visibleRails = rails.filter((rail) => rail.movies.length > 0 || rail.loading);
 
     return (

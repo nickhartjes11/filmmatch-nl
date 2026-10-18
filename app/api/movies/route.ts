@@ -128,6 +128,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
 
+  // 1. Trailer opvragen
   const trailerMovieId = searchParams.get('trailerMovieId');
   if (trailerMovieId) {
     try {
@@ -167,7 +168,6 @@ export async function GET(request: Request) {
   const genreName = searchParams.get('genre')?.trim();
   const similarToParam = searchParams.get('similarTo');
   const similarToId = similarToParam ? Number.parseInt(similarToParam, 10) : null;
-  const isRailRequest = searchParams.get('rail') === '1';
   const nowPlaying = searchParams.get('nowPlaying') === 'true';
 
   const providersParam = searchParams.get('providers');
@@ -192,6 +192,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    // 2. Zoeken naar personen (acteurs/regisseurs)
     if (peopleQuery) {
       const peopleUrl = `https://api.themoviedb.org/3/search/person?api_key=${apiKey}&language=nl-NL&query=${encodeURIComponent(peopleQuery)}&include_adult=false`;
       const peopleResponse = await fetchWithTimeout(peopleUrl, { next: { revalidate: 3600 } });
@@ -213,13 +214,30 @@ export async function GET(request: Request) {
       return NextResponse.json({ people });
     }
 
+    // 3. Metadata opvragen voor specifieke ID's
     const metadataIds = searchParams.get('metadataIds');
     if (metadataIds) {
       const ids = Array.from(new Set(metadataIds.split(',')
         .map((id) => Number.parseInt(id, 10))
         .filter((id) => Number.isSafeInteger(id) && id > 0)))
-        .slice(0, 20);
-      const metadataMovies = await Promise.all(ids.map(async (id) => {
+        .slice(0, 25);
+
+      const cachedMap = new Map<number, any>();
+      if (supabase && ids.length > 0) {
+        try {
+          const { data } = await supabase.from('cached_movies').select('*').in('id', ids);
+          (data || []).forEach((row: any) => {
+            cachedMap.set(row.id, {
+              ...row,
+              cast: row.cast_members || [],
+            });
+          });
+        } catch {}
+      }
+
+      const missingIds = ids.filter((id) => !cachedMap.has(id));
+
+      const fetchedMovies = await Promise.all(missingIds.map(async (id) => {
         try {
           const detailsUrl = `https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}&language=nl-NL&append_to_response=credits,external_ids`;
           const response = await fetchWithTimeout(detailsUrl, { next: { revalidate: 3600 } });
@@ -229,31 +247,62 @@ export async function GET(request: Request) {
           const imdbId = details.external_ids?.imdb_id || details.imdb_id;
           const imdbRating = imdbId && omdbKey ? await getImdbRating(imdbId, omdbKey) : null;
           const rating = imdbRating || formatTmdbRating(details.vote_average);
-          return {
+          const cast = (details.credits?.cast || []).slice(0, 8).map((person: any) => person.name);
+          const genres = (details.genres || []).map((genre: any) => genre.name);
+
+          const movieObj = {
             id: details.id,
+            imdb_id: imdbId,
             title: details.title,
             overview: details.overview || '',
             poster_path: details.poster_path || '',
             backdrop_path: details.backdrop_path || '',
-            genres: (details.genres || []).map((genre: any) => genre.name),
+            genres,
             director,
-            cast: (details.credits?.cast || []).slice(0, 8).map((person: any) => person.name),
+            cast,
             runtime_minutes: details.runtime || null,
             release_date: details.release_date || '',
             rating,
             rating_source: imdbRating ? 'IMDb' : rating ? 'TMDb' : null,
+            providers: [],
           };
+
+          if (supabase) {
+            void supabase.from('cached_movies').upsert({
+              id: movieObj.id,
+              imdb_id: movieObj.imdb_id,
+              title: movieObj.title,
+              overview: movieObj.overview,
+              poster_path: movieObj.poster_path,
+              backdrop_path: movieObj.backdrop_path,
+              release_date: movieObj.release_date,
+              runtime_minutes: movieObj.runtime_minutes,
+              genres: movieObj.genres,
+              director: movieObj.director,
+              cast_members: movieObj.cast,
+              rating: movieObj.rating,
+              rating_source: movieObj.rating_source,
+              providers: movieObj.providers,
+              updated_at: new Date().toISOString(),
+            }).then();
+          }
+
+          return movieObj;
         } catch {
           return null;
         }
       }));
 
-      return NextResponse.json({ movies: metadataMovies.filter(Boolean) });
+      fetchedMovies.filter(Boolean).forEach((m) => cachedMap.set(m.id, m));
+      const resultList = ids.map((id) => cachedMap.get(id)).filter(Boolean);
+
+      return NextResponse.json({ movies: resultList });
     }
 
     let rawMovies: any[] = [];
     let totalPages = 1;
 
+    // 4. Lijst met basisfilms ophalen van TMDb
     if (nowPlaying) {
       const cinemaUrl = `https://api.themoviedb.org/3/movie/now_playing?api_key=${apiKey}&language=nl-NL&region=NL&page=${page}`;
       const cinemaRes = await fetchWithTimeout(cinemaUrl, { next: { revalidate: 1800 } });
@@ -281,7 +330,7 @@ export async function GET(request: Request) {
       });
       rawMovies = Array.from(uniqueCredits.values())
         .sort((first, second) => (second.popularity || 0) - (first.popularity || 0))
-        .slice(0, 20);
+        .slice(0, 25);
     } else if (isSearch) {
       const searchUrl = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&language=nl-NL&query=${encodeURIComponent(
         query!.trim()
@@ -322,31 +371,69 @@ export async function GET(request: Request) {
       totalPages = discoverData.total_pages || 1;
     }
 
-    // Haal films op inclusief providers en IMDb-rating uit de database cache
-    const moviesWithDetails = await Promise.all(
-      rawMovies.slice(0, 20).map(async (movie: any) => {
+    // 5. SUPABASE BATCH LOOKUP (Kijk welke films al in cached_movies staan)
+    const movieIds = rawMovies.map((m: any) => m.id);
+    const cachedMoviesMap = new Map<number, any>();
+
+    if (supabase && movieIds.length > 0) {
+      try {
+        const { data: dbMovies } = await supabase
+          .from('cached_movies')
+          .select('*')
+          .in('id', movieIds);
+
+        (dbMovies || []).forEach((row: any) => {
+          cachedMoviesMap.set(row.id, {
+            id: row.id,
+            imdb_id: row.imdb_id,
+            title: row.title,
+            overview: row.overview || '',
+            poster_path: row.poster_path || '',
+            backdrop_path: row.backdrop_path || '',
+            release_date: row.release_date || '',
+            runtime_minutes: row.runtime_minutes,
+            genres: row.genres || [],
+            director: row.director,
+            cast: row.cast_members || [],
+            rating: row.rating,
+            rating_source: row.rating_source,
+            providers: Array.isArray(row.providers) ? row.providers : [],
+          });
+        });
+      } catch (err) {
+        console.warn('Fout bij het uitlezen van cached_movies:', err);
+      }
+    }
+
+    // 6. Verrijk alleen films die NOG NIET in Supabase staan
+    const enrichedMovies = await Promise.all(
+      rawMovies.map(async (movie: any) => {
+        if (cachedMoviesMap.has(movie.id)) {
+          return cachedMoviesMap.get(movie.id);
+        }
+
         try {
-          const [providerRes, externalIdsRes] = await Promise.all([
+          const [providerRes, detailsRes] = await Promise.all([
             fetchWithTimeout(
               `https://api.themoviedb.org/3/movie/${movie.id}/watch/providers?api_key=${apiKey}`,
               { next: { revalidate: 86400 } },
               2500
             ).catch(() => null),
             fetchWithTimeout(
-              `https://api.themoviedb.org/3/movie/${movie.id}/external_ids?api_key=${apiKey}`,
-              { next: { revalidate: 86400 } },
+              `https://api.themoviedb.org/3/movie/${movie.id}?api_key=${apiKey}&language=nl-NL&append_to_response=credits,external_ids`,
+              { next: { revalidate: 3600 } },
               2500
             ).catch(() => null),
           ]);
 
           const providerData = providerRes?.ok ? await providerRes.json() : null;
-          const externalIdsData = externalIdsRes?.ok ? await externalIdsRes.json() : null;
+          const detailsData = detailsRes?.ok ? await detailsRes.json() : null;
 
           const nlFlatrate: any[] = providerData?.results?.NL?.flatrate || [];
           const providerMap = new Map<string, Provider>();
           nlFlatrate.forEach((p) => {
             const canonicalName = TARGET_PROVIDERS[p.provider_id];
-            if (canonicalName && (!selectedProviderNames || selectedProviderNames.has(canonicalName)) && !providerMap.has(canonicalName)) {
+            if (canonicalName && !providerMap.has(canonicalName)) {
               providerMap.set(canonicalName, {
                 provider_id: p.provider_id,
                 provider_name: canonicalName,
@@ -355,27 +442,57 @@ export async function GET(request: Request) {
             }
           });
 
-          const imdbId = externalIdsData?.imdb_id;
+          const imdbId = detailsData?.external_ids?.imdb_id || detailsData?.imdb_id;
           let realImdbRating: string | null = null;
           if (imdbId && omdbKey) {
             realImdbRating = await getImdbRating(imdbId, omdbKey);
           }
 
-          const rating = realImdbRating || formatTmdbRating(movie.vote_average);
+          const rating = realImdbRating || formatTmdbRating(detailsData?.vote_average ?? movie.vote_average);
+          const genres = detailsData?.genres?.map((g: any) => g.name) || (movie.genre_ids || []).map((id: number) => TMDB_GENRES[id]).filter(Boolean);
+          const director = detailsData?.credits?.crew?.find((person: any) => person.job === 'Director')?.name || null;
+          const cast = (detailsData?.credits?.cast || []).slice(0, 8).map((p: any) => p.name);
+          const providers = Array.from(providerMap.values());
 
-          return {
+          const newMovie = {
             id: movie.id,
-            imdb_id: imdbId,
-            title: movie.title,
-            overview: movie.overview || '',
-            poster_path: movie.poster_path || '',
-            backdrop_path: movie.backdrop_path || '',
-            release_date: movie.release_date || '',
-            genres: (movie.genre_ids || []).map((id: number) => TMDB_GENRES[id]).filter(Boolean),
+            imdb_id: imdbId || null,
+            title: detailsData?.title || movie.title,
+            overview: detailsData?.overview || movie.overview || '',
+            poster_path: detailsData?.poster_path || movie.poster_path || '',
+            backdrop_path: detailsData?.backdrop_path || movie.backdrop_path || '',
+            release_date: detailsData?.release_date || movie.release_date || '',
+            runtime_minutes: detailsData?.runtime || null,
+            genres,
+            director,
+            cast,
             rating,
             rating_source: realImdbRating ? 'IMDb' : rating ? 'TMDb' : null,
-            providers: Array.from(providerMap.values()),
+            providers,
           };
+
+          // Sla direct op in Supabase voor toekomstige aanroepen
+          if (supabase) {
+            void supabase.from('cached_movies').upsert({
+              id: newMovie.id,
+              imdb_id: newMovie.imdb_id,
+              title: newMovie.title,
+              overview: newMovie.overview,
+              poster_path: newMovie.poster_path,
+              backdrop_path: newMovie.backdrop_path,
+              release_date: newMovie.release_date,
+              runtime_minutes: newMovie.runtime_minutes,
+              genres: newMovie.genres,
+              director: newMovie.director,
+              cast_members: newMovie.cast,
+              rating: newMovie.rating,
+              rating_source: newMovie.rating_source,
+              providers: newMovie.providers,
+              updated_at: new Date().toISOString(),
+            }).then();
+          }
+
+          return newMovie;
         } catch {
           const rating = formatTmdbRating(movie.vote_average);
           return {
@@ -383,7 +500,6 @@ export async function GET(request: Request) {
             title: movie.title,
             overview: movie.overview || '',
             poster_path: movie.poster_path || '',
-            backdrop_path: movie.backdrop_path || '',
             release_date: movie.release_date || '',
             genres: (movie.genre_ids || []).map((id: number) => TMDB_GENRES[id]).filter(Boolean),
             rating,
@@ -394,9 +510,15 @@ export async function GET(request: Request) {
       })
     );
 
+    // Filteren op geselecteerde streamingproviders (behalve in bioscoopmodus)
     const finalMovies = nowPlaying
-      ? moviesWithDetails
-      : moviesWithDetails.filter((movie) => movie.providers.length > 0);
+      ? enrichedMovies
+      : enrichedMovies.filter((movie) => {
+          if (!selectedProviderNames || selectedProviderNames.size === 0) {
+            return movie.providers && movie.providers.length > 0;
+          }
+          return movie.providers?.some((p: any) => selectedProviderNames.has(p.provider_name));
+        });
 
     return NextResponse.json({
       page: Number(page),

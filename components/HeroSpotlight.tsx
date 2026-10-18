@@ -51,6 +51,7 @@ export default function HeroSpotlight({
   isWatchlisted,
   isWatched,
   userRating,
+  onSelectPerson,
   onSelectFeatured,
   onToggleRotation,
   onEditRating,
@@ -110,7 +111,6 @@ export default function HeroSpotlight({
         key={movie.id}
         className="dashboard-feature relative overflow-hidden rounded-2xl border border-white/[0.08] bg-neutral-950 p-4 md:p-6 shadow-2xl transition duration-500"
       >
-        {/* Subtielere achtergrond */}
         {movie.backdrop_path ? (
           <div className="absolute inset-0 pointer-events-none">
             <Image
@@ -129,7 +129,6 @@ export default function HeroSpotlight({
         )}
 
         <div className="relative z-10 flex flex-col items-center gap-5 sm:flex-row sm:items-start">
-          {/* Compactere poster */}
           <div className="group relative aspect-[2/3] w-28 sm:w-36 md:w-44 shrink-0 overflow-hidden rounded-xl border border-white/15 bg-neutral-900 shadow-xl">
             {movie.poster_path ? (
               <Image
@@ -147,9 +146,7 @@ export default function HeroSpotlight({
             )}
           </div>
 
-          {/* Filminformatie */}
-          <div className="flex-1 space-y-2.5 text-center sm:text-left min-w-0">
-            {/* Label + optionele bolletjes */}
+          <div className="flex-1 space-y-2 text-center sm:text-left min-w-0">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/25 bg-rose-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-rose-300">
                 {spotlightLabel}
@@ -187,7 +184,6 @@ export default function HeroSpotlight({
               )}
             </div>
 
-            {/* Titel en basisgegevens (geen regie/acteurs hier) */}
             <div>
               <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-tight">
                 {movie.title}
@@ -221,26 +217,49 @@ export default function HeroSpotlight({
                   </>
                 )}
               </div>
+
+              {/* REGIE: Weer terug in de spotlight */}
+              {movie.director && (
+                <p className="mt-1.5 text-xs text-neutral-300 flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
+                  <span className="text-neutral-400 font-semibold">Regisseur:</span>
+                  <button
+                    type="button"
+                    onClick={() => onSelectPerson(movie.director!, 'Directing')}
+                    className="font-bold text-white underline decoration-white/40 underline-offset-2 hover:text-rose-300 hover:decoration-rose-300 transition"
+                  >
+                    {movie.director}
+                  </button>
+                </p>
+              )}
+
+              {/* ACTEURS: Weer terug in de spotlight */}
+              {movie.cast && movie.cast.length > 0 && (
+                <div className="mt-0.5 text-xs text-neutral-300 flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
+                  <span className="text-neutral-400 font-semibold">Acteurs:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {movie.cast.slice(0, 4).map((actor, idx) => (
+                      <span key={actor} className="inline-flex items-center">
+                        <button
+                          type="button"
+                          onClick={() => onSelectPerson(actor, 'Acting')}
+                          className="font-semibold text-white underline decoration-white/40 underline-offset-2 hover:text-rose-300 hover:decoration-rose-300 transition"
+                        >
+                          {actor}
+                        </button>
+                        {idx < Math.min(movie.cast!.length, 4) - 1 && (
+                          <span className="text-neutral-500 ml-1">,</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Korte synopsis (maximaal 2 regels) */}
-            <p className="max-w-3xl text-xs text-neutral-300 line-clamp-2 leading-relaxed">
+            <p className="max-w-3xl text-xs text-neutral-300 line-clamp-2 leading-relaxed pt-0.5">
               {movie.overview || 'Geen omschrijving beschikbaar.'}
             </p>
 
-            {/* Vriendenaanbeveling indien van toepassing */}
-            {movie.friend_recommendation && !isSearch && (
-              <div className="flex max-w-xl items-center gap-2 rounded-xl border border-white/10 bg-black/40 p-2 text-xs backdrop-blur-md">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400/20 text-[10px] font-black text-amber-300">
-                  {movie.friend_recommendation.avatar}
-                </span>
-                <span className="text-neutral-200 text-[11px]">
-                  <strong className="text-white">{movie.friend_recommendation.friend_name}</strong>: &ldquo;{movie.friend_recommendation.quote}&rdquo;
-                </span>
-              </div>
-            )}
-
-            {/* Knoppen & FilmMatch */}
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 pt-2 border-t border-white/[0.08]">
               <div className="mr-2 flex items-center gap-1.5">
                 <span className={`text-xl font-black ${matchColor}`}>
@@ -312,7 +331,6 @@ export default function HeroSpotlight({
         </div>
       </section>
 
-      {/* Trailer modal */}
       {trailerModalOpen && (
         <div
           role="dialog"

@@ -78,7 +78,6 @@ function MovieCard({
   onEditRating,
   onToggleWatchlist,
   onToggleWatched,
-  onSelectPerson,
   railCard = false,
   highlightUserRating = false,
   compactPoster = false,
@@ -89,7 +88,7 @@ function MovieCard({
   const matchBand = getMatchColorBand(movie.match_percentage || 0);
 
   return (
-    <article className={`movie-card-reveal group flex flex-col justify-between overflow-hidden rounded-xl border ${railCard ? 'w-[148px] shrink-0 snap-start sm:w-[170px]' : 'w-full'}`}>
+    <article className={`movie-card-reveal group flex flex-col justify-between overflow-hidden rounded-xl border border-white/10 bg-slate-950/40 hover:border-white/25 transition duration-300 ${railCard ? 'w-[148px] shrink-0 snap-start sm:w-[170px]' : 'w-full'}`}>
       <button
         onClick={() => onSelectMovie(movie)}
         title={`Toon ${movie.title} bovenaan`}
@@ -128,49 +127,6 @@ function MovieCard({
           <p className="mt-0.5 text-[10px] text-neutral-300 truncate">
             {movie.release_date?.split('-')[0]} &bull; {movie.genres?.[0] || 'Film'}
           </p>
-
-          {/* Klikbare Regisseur & Cast */}
-          {(movie.director || (movie.cast && movie.cast.length > 0)) && (
-            <div className="mt-1.5 space-y-0.5 text-[10px] leading-tight text-neutral-400">
-              {movie.director && (
-                <p className="truncate">
-                  <span className="text-neutral-500 font-medium">Regie: </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (onSelectPerson && movie.director) onSelectPerson(movie.director, 'Directing');
-                    }}
-                    className="hover:text-rose-400 hover:underline transition font-medium"
-                    title={`Bekijk alle films van ${movie.director}`}
-                  >
-                    {movie.director}
-                  </button>
-                </p>
-              )}
-              {movie.cast && movie.cast.length > 0 && (
-                <p className="truncate">
-                  <span className="text-neutral-500 font-medium">Cast: </span>
-                  {movie.cast.slice(0, 2).map((actor, idx) => (
-                    <span key={actor}>
-                      {idx > 0 && <span className="text-neutral-500">, </span>}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onSelectPerson) onSelectPerson(actor, 'Acting');
-                        }}
-                        className="hover:text-rose-400 hover:underline transition font-medium"
-                        title={`Bekijk alle films met ${actor}`}
-                      >
-                        {actor}
-                      </button>
-                    </span>
-                  ))}
-                </p>
-              )}
-            </div>
-          )}
         </div>
 
         <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/[0.12] pt-2">
@@ -307,7 +263,6 @@ export default function MovieGrid({
   libraryView,
   discoveryMode,
   searchQuery,
-  referenceMovie,
   watchlistIds,
   watchedIds,
   hasMoreMovies,
@@ -410,7 +365,7 @@ export default function MovieGrid({
       setSimilarIndex((current) => (current + 1) % recentMovies.length);
     }, 60_000);
     return () => window.clearInterval(timer);
-  }, [recentMovieKey]);
+  }, [recentMovieKey, recentMovies.length]);
 
   useEffect(() => {
     if (libraryView !== 'discover' || searchQuery.trim()) return;
@@ -533,7 +488,7 @@ export default function MovieGrid({
     return () => {
       isActive = false;
     };
-  }, [libraryView, searchQuery, railFilterKey, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, matchPreferences, dynamicRailMovies, genreNames.join('|'), similarRailRequest?.key, baseMatchMap]);
+  }, [libraryView, searchQuery, railFilterKey, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, matchPreferences, dynamicRailMovies, genreNames, similarRailRequest, baseMatchMap, selectedPlatformKey, watchedMovieKey, imdbRailRequest, genreRailRequests]);
 
   const displayedMovies = synchronizedMovies;
 
@@ -541,13 +496,15 @@ export default function MovieGrid({
     ? null
     : libraryView === 'watched'
       ? null
-      : searchQuery
-        ? 'Alle resultaten'
-        : discoveryMode === 'new_releases'
-          ? 'Nieuwe releases'
-          : discoveryMode === 'popular'
-            ? 'Populair in NL'
-            : 'Aanbevolen op basis van jouw smaak';
+      : libraryView === 'cinema'
+        ? null
+        : searchQuery
+          ? 'Alle resultaten'
+          : discoveryMode === 'new_releases'
+            ? 'Nieuwe releases'
+            : discoveryMode === 'popular'
+              ? 'Populair in NL'
+              : 'Aanbevolen op basis van jouw smaak';
 
   if (libraryView === 'discover' && !searchQuery.trim()) {
     const rails = [

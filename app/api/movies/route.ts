@@ -228,6 +228,7 @@ export async function GET(request: Request) {
               cachedMap.set(row.id, {
                 ...row,
                 cast: row.cast_members || [],
+                providers: Array.isArray(row.providers) ? row.providers : [],
               });
             }
           });
@@ -238,16 +239,35 @@ export async function GET(request: Request) {
 
       const fetchedMovies = await Promise.all(missingIds.map(async (id) => {
         try {
-          const detailsUrl = `https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}&language=nl-NL&append_to_response=credits,external_ids`;
-          const response = await fetchWithTimeout(detailsUrl, { next: { revalidate: 3600 } });
-          if (!response.ok) return null;
-          const details = await response.json();
+          const [detailsRes, providerRes] = await Promise.all([
+            fetchWithTimeout(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}&language=nl-NL&append_to_response=credits,external_ids`, { next: { revalidate: 3600 } }),
+            fetchWithTimeout(`https://api.themoviedb.org/3/movie/${id}/watch/providers?api_key=${apiKey}`, { next: { revalidate: 86400 } }, 2500).catch(() => null),
+          ]);
+
+          if (!detailsRes.ok) return null;
+          const details = await detailsRes.json();
+          const providerData = providerRes?.ok ? await providerRes.json() : null;
+
+          const nlFlatrate: any[] = providerData?.results?.NL?.flatrate || [];
+          const providerMap = new Map<string, Provider>();
+          nlFlatrate.forEach((p) => {
+            const canonicalName = TARGET_PROVIDERS[p.provider_id];
+            if (canonicalName && !providerMap.has(canonicalName)) {
+              providerMap.set(canonicalName, {
+                provider_id: p.provider_id,
+                provider_name: canonicalName,
+                logo_path: p.logo_path,
+              });
+            }
+          });
+
           const director = details.credits?.crew?.find((person: any) => person.job === 'Director')?.name;
           const imdbId = details.external_ids?.imdb_id || details.imdb_id || null;
           const imdbRating = imdbId && omdbKey ? await getImdbRating(imdbId, omdbKey) : null;
           const rating = imdbRating || formatTmdbRating(details.vote_average);
           const cast = (details.credits?.cast || []).slice(0, 8).map((person: any) => person.name);
           const genres = (details.genres || []).map((genre: any) => genre.name);
+          const providers = Array.from(providerMap.values());
 
           const movieObj = {
             id: details.id,
@@ -263,7 +283,7 @@ export async function GET(request: Request) {
             release_date: details.release_date || '',
             rating,
             rating_source: imdbRating ? 'IMDb' : rating ? 'TMDb' : null,
-            providers: [],
+            providers,
           };
 
           if (supabase) {
@@ -385,7 +405,6 @@ export async function GET(request: Request) {
           .in('id', movieIds);
 
         (dbMovies || []).forEach((row: any) => {
-          // Gebruik alleen cache als imdb_id aanwezig is én er providers zijn
           const providersList = Array.isArray(row.providers) ? row.providers : [];
           if (row.imdb_id && (nowPlaying || providersList.length > 0)) {
             cachedMoviesMap.set(row.id, {

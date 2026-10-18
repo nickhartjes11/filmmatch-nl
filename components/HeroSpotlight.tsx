@@ -41,7 +41,7 @@ export const MONTHLY_TIPS: EditorialTip[] = [
 ];
 
 interface HeroSpotlightProps {
-  movie?: Movie;
+  movie?: Movie | null;
   allMovies?: Movie[];
   watchlistIds?: number[];
   watchedIds?: number[];
@@ -68,7 +68,7 @@ export default function HeroSpotlight({
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [userPausedTips, setUserPausedTips] = useState(false);
 
-  // 1. Haal de 5 films van de maand op via de API
+  // Haal de films van de maand direct op
   useEffect(() => {
     const tipIds = MONTHLY_TIPS.map((tip) => tip.tmdbId);
     let isMounted = true;
@@ -83,14 +83,14 @@ export default function HeroSpotlight({
         });
         setEditorialMovies(map);
       })
-      .catch((err) => console.warn('Kon tips niet laden:', err));
+      .catch((err) => console.warn('Kon tips van de maand niet laden:', err));
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // 2. Automatisch wisselen van de tips alleen als de gebruiker GEEN film beneden heeft aangeklikt
+  // Automatische carrousel (wisselt elke 10s als er geen film handmatig gekozen is)
   useEffect(() => {
     if (activeMovieProp || userPausedTips || MONTHLY_TIPS.length <= 1) return;
 
@@ -101,17 +101,13 @@ export default function HeroSpotlight({
     return () => clearInterval(interval);
   }, [activeMovieProp, userPausedTips]);
 
-  // 3. Welke tip is nu actief?
   const currentTipConfig = MONTHLY_TIPS[tipIndex % MONTHLY_TIPS.length];
   const activeTipMovie = currentTipConfig ? editorialMovies[currentTipConfig.tmdbId] : undefined;
 
-  // 4. Bepaal wat getoond wordt:
-  // - Als er een film beneden is aangeklikt: toon ALTIJD die film.
-  // - Anders: toon de actieve tip van de maand (of fallback naar de eerste film uit de lijst).
+  // Als er handmatig een film is aangeklikt tonen we die, anders de tip van de maand
   const isSelectedByUser = Boolean(activeMovieProp);
   const displayedMovie: Movie | undefined = activeMovieProp || activeTipMovie || allMovies[0];
 
-  // 5. Trailer ophalen voor de getoonde film
   useEffect(() => {
     if (!displayedMovie?.id) {
       setTrailerKey(null);
@@ -179,7 +175,6 @@ export default function HeroSpotlight({
   return (
     <>
       <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-6 md:p-8 shadow-2xl">
-        {/* Achtergrond met poster/backdrop */}
         {backdropSrc && (
           <div className="pointer-events-none absolute inset-0 -z-0 opacity-25">
             <Image
@@ -198,10 +193,8 @@ export default function HeroSpotlight({
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-2xl space-y-4">
             
-            {/* Header badges */}
             <div className="flex flex-wrap items-center gap-2.5">
               {!isSelectedByUser ? (
-                // Weergave in TIP VAN DE MAAND modus
                 <>
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-300 backdrop-blur-md">
                     <span>⭐</span> Tip van de maand
@@ -228,7 +221,6 @@ export default function HeroSpotlight({
                   </div>
                 </>
               ) : (
-                // Weergave wanneer een film beneden is AANGEKLIKT
                 <>
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3 py-1 text-xs font-bold text-rose-300 backdrop-blur-md">
                     <span>🎬</span> Geselecteerde film
@@ -254,12 +246,10 @@ export default function HeroSpotlight({
               )}
             </div>
 
-            {/* Titel */}
             <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl">
               {displayedMovie.title}
             </h1>
 
-            {/* Redactietekst: ALLEEN tonen als we in de tips-modus zitten én de getoonde film overeenkomt met de tip */}
             {!isSelectedByUser && activeTipMovie && activeTipMovie.id === displayedMovie.id && currentTipConfig?.reason && (
               <div className="rounded-2xl border border-amber-300/20 bg-amber-500/[0.08] p-3.5 backdrop-blur-md">
                 <p className="text-xs font-semibold text-amber-200">
@@ -269,12 +259,10 @@ export default function HeroSpotlight({
               </div>
             )}
 
-            {/* Synopsis */}
             <p className="line-clamp-2 text-xs leading-relaxed text-neutral-300 sm:text-sm">
               {displayedMovie.overview || 'Geen beschrijving beschikbaar.'}
             </p>
 
-            {/* Scores & Streaming */}
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <span
                 className={`rounded-lg px-2.5 py-1 text-xs font-black backdrop-blur-md ${
@@ -311,7 +299,6 @@ export default function HeroSpotlight({
               )}
             </div>
 
-            {/* Knoppen */}
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
                 onClick={() => trailerKey && setShowTrailerModal(true)}
@@ -348,7 +335,6 @@ export default function HeroSpotlight({
             </div>
           </div>
 
-          {/* Rechter poster */}
           {displayedMovie.poster_path && (
             <div className="hidden lg:block shrink-0">
               <div className="relative aspect-[2/3] w-48 overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
@@ -365,7 +351,6 @@ export default function HeroSpotlight({
         </div>
       </section>
 
-      {/* Trailer Modal */}
       {showTrailerModal && trailerKey && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
           <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black border border-white/20 shadow-2xl">

@@ -8,7 +8,7 @@ import { calculateMatchScore, getMatchColorBand, type MatchPreferences } from '.
 
 export interface EditorialTip {
   tmdbId: number;
-  reasonTitle?: string;
+  reasonTitle: string;
   reason: string;
 }
 
@@ -26,7 +26,7 @@ export const MONTHLY_TIPS: EditorialTip[] = [
   {
     tmdbId: 438631, // Dune (Part One)
     reasonTitle: 'Het begin van een meesterwerk',
-    reason: 'Fenomenale cinematografie en meeslepende worldbuilding van Denis Villeneuve die je simpelweg gezien moet hebben.',
+    reason: 'Fenomenale cinematografie en meeslepende worldbuilding van Denis Villeneuve die je gezien moet hebben.',
   },
   {
     tmdbId: 693134, // Dune: Part Two
@@ -36,7 +36,7 @@ export const MONTHLY_TIPS: EditorialTip[] = [
   {
     tmdbId: 157336, // Interstellar
     reasonTitle: 'Tijdloze klassieker',
-    reason: 'Christopher Nolans audiovisuele meesterwerk over liefde, zwarte gaten en de relativiteit van tijd blijft onovertroffen.',
+    reason: 'Christopher Nolans audiovisuele meesterwerk over liefde, zwarte gaten en de tijd blijft onovertroffen.',
   },
 ];
 
@@ -48,7 +48,7 @@ interface HeroSpotlightProps {
   matchPreferences?: MatchPreferences;
   onToggleWatchlist: (movie: Movie) => void;
   onToggleWatched: (movie: Movie) => void;
-  onSelectMovie?: (movie: Movie) => void;
+  onSelectMovie?: (movie: Movie | undefined) => void;
 }
 
 export default function HeroSpotlight({
@@ -66,47 +66,52 @@ export default function HeroSpotlight({
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
   const [loadingTrailer, setLoadingTrailer] = useState(false);
   const [showTrailerModal, setShowTrailerModal] = useState(false);
-  const [userInteracted, setUserInteracted] = useState(false);
+  const [userPausedTips, setUserPausedTips] = useState(false);
 
+  // 1. Haal de 5 films van de maand op via de API
   useEffect(() => {
-    const tipIds = MONTHLY_TIPS.map((tip: EditorialTip) => tip.tmdbId);
-    if (tipIds.length === 0) return;
+    const tipIds = MONTHLY_TIPS.map((tip) => tip.tmdbId);
+    let isMounted = true;
 
-    const fetchTips = async () => {
-      try {
-        const res = await fetch(`/api/movies?metadataIds=${tipIds.join(',')}`);
-        if (!res.ok) return;
-        const data = await res.json();
+    fetch(`/api/movies?metadataIds=${tipIds.join(',')}`)
+      .then((res) => (res.ok ? res.json() : { movies: [] }))
+      .then((data) => {
+        if (!isMounted) return;
         const map: Record<number, Movie> = {};
         (data.movies || []).forEach((m: Movie) => {
           map[m.id] = m;
         });
         setEditorialMovies(map);
-      } catch (err) {
-        console.warn('Kon tips van de maand niet ophalen:', err);
-      }
-    };
+      })
+      .catch((err) => console.warn('Kon tips niet laden:', err));
 
-    void fetchTips();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
+  // 2. Automatisch wisselen van de tips alleen als de gebruiker GEEN film beneden heeft aangeklikt
   useEffect(() => {
-    if (userInteracted || MONTHLY_TIPS.length <= 1) return;
+    if (activeMovieProp || userPausedTips || MONTHLY_TIPS.length <= 1) return;
+
     const interval = setInterval(() => {
       setTipIndex((current) => (current + 1) % MONTHLY_TIPS.length);
-    }, 12_000);
+    }, 10_000);
+
     return () => clearInterval(interval);
-  }, [userInteracted]);
+  }, [activeMovieProp, userPausedTips]);
 
+  // 3. Welke tip is nu actief?
   const currentTipConfig = MONTHLY_TIPS[tipIndex % MONTHLY_TIPS.length];
+  const activeTipMovie = currentTipConfig ? editorialMovies[currentTipConfig.tmdbId] : undefined;
 
-  const displayedMovie: Movie | undefined = useMemo(() => {
-    if (activeMovieProp) return activeMovieProp;
-    const tipMovie = currentTipConfig ? editorialMovies[currentTipConfig.tmdbId] : undefined;
-    if (tipMovie) return tipMovie;
-    return allMovies[0];
-  }, [activeMovieProp, currentTipConfig, editorialMovies, allMovies]);
+  // 4. Bepaal wat getoond wordt:
+  // - Als er een film beneden is aangeklikt: toon ALTIJD die film.
+  // - Anders: toon de actieve tip van de maand (of fallback naar de eerste film uit de lijst).
+  const isSelectedByUser = Boolean(activeMovieProp);
+  const displayedMovie: Movie | undefined = activeMovieProp || activeTipMovie || allMovies[0];
 
+  // 5. Trailer ophalen voor de getoonde film
   useEffect(() => {
     if (!displayedMovie?.id) {
       setTrailerKey(null);
@@ -137,7 +142,6 @@ export default function HeroSpotlight({
 
   if (!displayedMovie) return null;
 
-  // Veilig controleren met fallback naar lege array
   const isWatchlisted = Boolean(watchlistIds?.includes(displayedMovie.id));
   const isWatched = Boolean(watchedIds?.includes(displayedMovie.id));
 
@@ -157,12 +161,12 @@ export default function HeroSpotlight({
   const matchBand = getMatchColorBand(matchScore);
 
   const handlePrevTip = () => {
-    setUserInteracted(true);
+    setUserPausedTips(true);
     setTipIndex((current) => (current === 0 ? MONTHLY_TIPS.length - 1 : current - 1));
   };
 
   const handleNextTip = () => {
-    setUserInteracted(true);
+    setUserPausedTips(true);
     setTipIndex((current) => (current + 1) % MONTHLY_TIPS.length);
   };
 
@@ -175,6 +179,7 @@ export default function HeroSpotlight({
   return (
     <>
       <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-6 md:p-8 shadow-2xl">
+        {/* Achtergrond met poster/backdrop */}
         {backdropSrc && (
           <div className="pointer-events-none absolute inset-0 -z-0 opacity-25">
             <Image
@@ -192,31 +197,51 @@ export default function HeroSpotlight({
 
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-2xl space-y-4">
+            
+            {/* Header badges */}
             <div className="flex flex-wrap items-center gap-2.5">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-300 backdrop-blur-md">
-                <span>⭐</span> Tip van de maand
-              </span>
-
-              {MONTHLY_TIPS.length > 1 && (
-                <div className="flex items-center gap-1 bg-black/40 rounded-full px-2 py-0.5 border border-white/10 backdrop-blur-md">
-                  <button
-                    onClick={handlePrevTip}
-                    aria-label="Vorige tip van de maand"
-                    className="text-xs text-neutral-400 hover:text-white px-1 font-bold"
-                  >
-                    ‹
-                  </button>
-                  <span className="text-[11px] font-semibold text-neutral-300">
-                    {tipIndex + 1} / {MONTHLY_TIPS.length}
+              {!isSelectedByUser ? (
+                // Weergave in TIP VAN DE MAAND modus
+                <>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-300 backdrop-blur-md">
+                    <span>⭐</span> Tip van de maand
                   </span>
-                  <button
-                    onClick={handleNextTip}
-                    aria-label="Volgende tip van de maand"
-                    className="text-xs text-neutral-400 hover:text-white px-1 font-bold"
-                  >
-                    ›
-                  </button>
-                </div>
+
+                  <div className="flex items-center gap-1 bg-black/40 rounded-full px-2 py-0.5 border border-white/10 backdrop-blur-md">
+                    <button
+                      onClick={handlePrevTip}
+                      aria-label="Vorige tip"
+                      className="text-xs text-neutral-400 hover:text-white px-1 font-bold"
+                    >
+                      ‹
+                    </button>
+                    <span className="text-[11px] font-semibold text-neutral-300">
+                      {tipIndex + 1} / {MONTHLY_TIPS.length}
+                    </span>
+                    <button
+                      onClick={handleNextTip}
+                      aria-label="Volgende tip"
+                      className="text-xs text-neutral-400 hover:text-white px-1 font-bold"
+                    >
+                      ›
+                    </button>
+                  </div>
+                </>
+              ) : (
+                // Weergave wanneer een film beneden is AANGEKLIKT
+                <>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3 py-1 text-xs font-bold text-rose-300 backdrop-blur-md">
+                    <span>🎬</span> Geselecteerde film
+                  </span>
+                  {onSelectMovie && (
+                    <button
+                      onClick={() => onSelectMovie(undefined)}
+                      className="text-[11px] text-neutral-400 hover:text-white underline underline-offset-2 ml-1"
+                    >
+                      Terug naar tips van de maand
+                    </button>
+                  )}
+                </>
               )}
 
               {displayedMovie.release_date && (
@@ -229,11 +254,13 @@ export default function HeroSpotlight({
               )}
             </div>
 
+            {/* Titel */}
             <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl">
               {displayedMovie.title}
             </h1>
 
-            {currentTipConfig?.reason && (
+            {/* Redactietekst: ALLEEN tonen als we in de tips-modus zitten én de getoonde film overeenkomt met de tip */}
+            {!isSelectedByUser && activeTipMovie && activeTipMovie.id === displayedMovie.id && currentTipConfig?.reason && (
               <div className="rounded-2xl border border-amber-300/20 bg-amber-500/[0.08] p-3.5 backdrop-blur-md">
                 <p className="text-xs font-semibold text-amber-200">
                   {currentTipConfig.reasonTitle ? `${currentTipConfig.reasonTitle} — ` : ''}
@@ -242,10 +269,12 @@ export default function HeroSpotlight({
               </div>
             )}
 
+            {/* Synopsis */}
             <p className="line-clamp-2 text-xs leading-relaxed text-neutral-300 sm:text-sm">
               {displayedMovie.overview || 'Geen beschrijving beschikbaar.'}
             </p>
 
+            {/* Scores & Streaming */}
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <span
                 className={`rounded-lg px-2.5 py-1 text-xs font-black backdrop-blur-md ${
@@ -282,6 +311,7 @@ export default function HeroSpotlight({
               )}
             </div>
 
+            {/* Knoppen */}
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
                 onClick={() => trailerKey && setShowTrailerModal(true)}
@@ -318,6 +348,7 @@ export default function HeroSpotlight({
             </div>
           </div>
 
+          {/* Rechter poster */}
           {displayedMovie.poster_path && (
             <div className="hidden lg:block shrink-0">
               <div className="relative aspect-[2/3] w-48 overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
@@ -334,6 +365,7 @@ export default function HeroSpotlight({
         </div>
       </section>
 
+      {/* Trailer Modal */}
       {showTrailerModal && trailerKey && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
           <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black border border-white/20 shadow-2xl">

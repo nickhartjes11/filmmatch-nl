@@ -107,7 +107,7 @@ const ONBOARDING_FAVORITES = [
   { id: 603, title: 'The Matrix', poster_path: '/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg', year: '1999', genres: ['Sciencefiction', 'Actie'] },
   { id: 496243, title: 'Parasite', poster_path: '/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg', year: '2019', genres: ['Misdaad', 'Drama', 'Thriller'] },
   { id: 244786, title: 'Whiplash', poster_path: '/7fn624j5lj3xTme2SgiLCeuedmO.jpg', year: '2014', genres: ['Drama', 'Muziek', 'Thriller'] },
-  { id: 120467, title: 'The Grand Budapest Hotel', poster_path: '/eWdyYQreja6JGCzqHWXpWHDrrPo.jpg', year: '2014', genres: ['Komedie', 'Drama'] },
+  { id: 120467, title: 'The Grand Budapest Hotel', poster_path: '/eWdyYreja6JGCzqHWXpWHDrrPo.jpg', year: '2014', genres: ['Komedie', 'Drama'] },
   { id: 354912, title: 'Coco', poster_path: '/6Ryitt95xrO8KXuqRGm1fUuNwqF.jpg', year: '2017', genres: ['Animatie', 'Avontuur', 'Familie', 'Muziek'] },
   { id: 324857, title: 'Spider-Man: Into the Spider-Verse', poster_path: '/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg', year: '2018', genres: ['Animatie', 'Actie', 'Avontuur', 'Sciencefiction'] },
   { id: 313369, title: 'La La Land', poster_path: '/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg', year: '2016', genres: ['Komedie', 'Drama', 'Romantiek'] },
@@ -160,7 +160,6 @@ export default function Home() {
   const [selectedSpotlightMovie, setSelectedSpotlightMovie] = useState<Movie | null>(null);
 
   const [featuredIndex, setFeaturedIndex] = useState(0);
-  const [rotationPaused, setRotationPaused] = useState(false);
 
   const [chosenPlatforms, setChosenPlatforms] = useState<string[]>([]);
   const [selectedFavorites, setSelectedFavorites] = useState<number[]>([]);
@@ -858,31 +857,6 @@ export default function Home() {
 
   const visibleMovies = filteredMovies.slice(0, visibleMovieLimit);
 
-  const featuredCarrouselMovies = useMemo(() => {
-    return visibleMovies.slice(0, 5);
-  }, [visibleMovies]);
-
-  // Carrousel verspringen: UITGESCHAKELD wanneer libraryView === 'cinema'
-  useEffect(() => {
-    if (
-      currentView !== 'dashboard' ||
-      libraryView !== 'discover' ||
-      spotlightMovieId !== null ||
-      searchQuery.trim() ||
-      rotationPaused
-    ) {
-      return;
-    }
-
-    if (featuredCarrouselMovies.length <= 1) return;
-
-    const timer = setInterval(() => {
-      setFeaturedIndex((current) => (current + 1) % featuredCarrouselMovies.length);
-    }, 6000);
-
-    return () => clearInterval(timer);
-  }, [currentView, libraryView, spotlightMovieId, searchQuery, rotationPaused, featuredCarrouselMovies.length]);
-
   const spotlightMovie = spotlightMovieId
     ? (selectedSpotlightMovie ||
        library.watched.find((m) => m.id === spotlightMovieId) ||
@@ -890,28 +864,15 @@ export default function Home() {
        movies.find((m) => m.id === spotlightMovieId))
     : null;
 
-  // In de bioscoop staat standaard altijd de eerste (populairste) film vast bovenaan
   const topMatch = spotlightMovie || (
     libraryView === 'cinema'
       ? visibleMovies[0]
-      : libraryView === 'discover'
-        ? featuredCarrouselMovies[featuredIndex % Math.max(1, featuredCarrouselMovies.length)] || visibleMovies[0]
-        : null
+      : null
   );
 
   const gridMatches = libraryView === 'watched'
     ? visibleMovies
     : (topMatch ? visibleMovies.filter((m) => m.id !== topMatch.id) : visibleMovies);
-
-  const bannerLabel = libraryView === 'watched'
-    ? 'GEZIENE FILM'
-    : libraryView === 'watchlist'
-      ? 'IN JE WATCHLIST'
-      : libraryView === 'cinema'
-        ? '🎟️ NU IN DE BIOSCOOP'
-        : spotlightMovieId
-          ? 'GEKOZEN FILM'
-          : 'AANBEVELING VAN HET MOMENT';
 
   if (currentView === 'landing') {
     return (
@@ -1227,29 +1188,23 @@ export default function Home() {
                 </div>
               ) : (
                 <>
-                  {topMatch && (
-                    <HeroSpotlight
-                      movie={topMatch}
-                      featuredMovies={featuredCarrouselMovies}
-                      activeFeaturedIndex={featuredIndex % Math.max(1, featuredCarrouselMovies.length)}
-                      rotationPaused={rotationPaused}
-                      isSearch={Boolean(searchQuery.trim())}
-                      spotlightLabel={bannerLabel}
-                      isWatchlisted={library.watchlist.some((m) => m.id === topMatch.id)}
-                      isWatched={library.watched.some((m) => m.id === topMatch.id)}
-                      userRating={ratingsByMovieId[topMatch.id]}
-                      onSelectPerson={handleSelectPerson}
-                      onSelectFeatured={(idx) => {
+                  <HeroSpotlight
+                    movie={selectedSpotlightMovie}
+                    allMovies={visibleMovies}
+                    watchlistIds={library.watchlist.map((m) => m.id)}
+                    watchedIds={library.watched.map((m) => m.id)}
+                    matchPreferences={matchPreferences}
+                    onToggleWatchlist={toggleWatchlist}
+                    onToggleWatched={openMovieRating}
+                    onSelectMovie={(movie) => {
+                      if (!movie) {
                         setSpotlightMovieId(null);
                         setSelectedSpotlightMovie(null);
-                        setFeaturedIndex(idx);
-                      }}
-                      onToggleRotation={() => setRotationPaused((p) => !p)}
-                      onEditRating={openMovieRating}
-                      onToggleWatchlist={toggleWatchlist}
-                      onToggleWatched={openMovieRating}
-                    />
-                  )}
+                      } else {
+                        selectSpotlightMovie(movie);
+                      }
+                    }}
+                  />
 
                   {(libraryView === 'watchlist' || libraryView === 'watched' || libraryView === 'cinema') && (
                     <div className="flex flex-wrap items-center justify-between gap-3 pb-2 pt-2 border-b border-white/[0.08]">

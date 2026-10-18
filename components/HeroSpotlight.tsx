@@ -43,8 +43,8 @@ export const MONTHLY_TIPS: EditorialTip[] = [
 interface HeroSpotlightProps {
   movie?: Movie;
   allMovies?: Movie[];
-  watchlistIds: number[];
-  watchedIds: number[];
+  watchlistIds?: number[];
+  watchedIds?: number[];
   matchPreferences?: MatchPreferences;
   onToggleWatchlist: (movie: Movie) => void;
   onToggleWatched: (movie: Movie) => void;
@@ -54,8 +54,8 @@ interface HeroSpotlightProps {
 export default function HeroSpotlight({
   movie: activeMovieProp,
   allMovies = [],
-  watchlistIds,
-  watchedIds,
+  watchlistIds = [],
+  watchedIds = [],
   matchPreferences,
   onToggleWatchlist,
   onToggleWatched,
@@ -137,8 +137,9 @@ export default function HeroSpotlight({
 
   if (!displayedMovie) return null;
 
-  const isWatchlisted = watchlistIds.includes(displayedMovie.id);
-  const isWatched = watchedIds.includes(displayedMovie.id);
+  // Veilig controleren met fallback naar lege array
+  const isWatchlisted = Boolean(watchlistIds?.includes(displayedMovie.id));
+  const isWatched = Boolean(watchedIds?.includes(displayedMovie.id));
 
   const matchScore = matchPreferences
     ? calculateMatchScore(

@@ -152,7 +152,6 @@ export async function GET(request: Request) {
         ytVideos.find((v) => v.type === 'Trailer' && v.official && v.iso_639_1 === 'nl') ||
         ytVideos.find((v) => v.type === 'Trailer' && v.official) ||
         ytVideos.find((v) => v.type === 'Trailer') ||
-        ytVideos.find((v) => v.type === 'Teaser') ||
         ytVideos[0];
 
       return NextResponse.json({ youtubeKey: trailer?.key ?? null });
@@ -293,8 +292,14 @@ export async function GET(request: Request) {
         }
       }));
 
-      fetchedMovies.filter(Boolean).forEach((m) => cachedMap.set(m.id, m));
-      const resultList = ids.map((id) => cachedMap.get(id)).filter(Boolean);
+      // Type-safe opslag in cachedMap zonder null-fouten
+      fetchedMovies
+        .filter((m): m is NonNullable<typeof m> => m !== null)
+        .forEach((m) => cachedMap.set(m.id, m));
+
+      const resultList = ids
+        .map((id) => cachedMap.get(id))
+        .filter((m): m is NonNullable<typeof m> => m !== undefined && m !== null);
 
       return NextResponse.json({ movies: resultList });
     }
@@ -471,7 +476,6 @@ export async function GET(request: Request) {
             providers,
           };
 
-          // Sla direct op in Supabase voor toekomstige aanroepen
           if (supabase) {
             void supabase.from('cached_movies').upsert({
               id: newMovie.id,
@@ -510,7 +514,6 @@ export async function GET(request: Request) {
       })
     );
 
-    // Filteren op geselecteerde streamingproviders (behalve in bioscoopmodus)
     const finalMovies = nowPlaying
       ? enrichedMovies
       : enrichedMovies.filter((movie) => {

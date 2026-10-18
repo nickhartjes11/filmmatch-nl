@@ -179,7 +179,9 @@ function MovieCard({
             </button>
           </div>
         </div>
-        {(isWatched || userRating !== undefined) && (
+
+        {/* Cijfer en 'Wijzig' worden UITSLUITEND getoond als highlightUserRating aan staat (in het Gezien-overzicht) */}
+        {highlightUserRating && (isWatched || userRating !== undefined) && (
           <div className="mt-2 border-t border-white/[0.08] pt-2">
             <MovieRatingControl rating={userRating} onEdit={() => onEditRating(movie)} prominent={highlightUserRating} />
           </div>
@@ -430,7 +432,6 @@ export default function MovieGrid({
         let page = 1;
         let totalPages = 5;
 
-        // Blijf doorhalen tot we minimaal 25 films hebben of pagina's op zijn
         while (railMovies.length < TARGET_RAIL_COUNT && page <= totalPages && page <= 6) {
           const params = new URLSearchParams({
             page: String(page),

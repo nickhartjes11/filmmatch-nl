@@ -82,10 +82,20 @@ function MovieCard({
   highlightUserRating = false,
   compactPoster = false,
 }: MovieCardProps) {
+  const [imageError, setImageError] = useState(false);
   const isWatchlisted = watchlistIds.includes(movie.id);
   const isWatched = watchedIds.includes(movie.id);
   const userRating = ratings[movie.id];
   const matchBand = getMatchColorBand(movie.match_percentage || 0);
+
+  const hasValidPoster = Boolean(
+    movie.poster_path &&
+    typeof movie.poster_path === 'string' &&
+    movie.poster_path.trim() !== '' &&
+    movie.poster_path !== 'null' &&
+    movie.poster_path !== 'undefined' &&
+    !imageError
+  );
 
   return (
     <article className={`movie-card-reveal group flex flex-col justify-between overflow-hidden rounded-xl border border-white/10 bg-slate-950/40 hover:border-white/25 transition duration-300 ${railCard ? 'w-[148px] shrink-0 snap-start sm:w-[170px]' : 'w-full'}`}>
@@ -93,18 +103,24 @@ function MovieCard({
         onClick={() => onSelectMovie(movie)}
         title={`Toon ${movie.title} bovenaan`}
         aria-label={`Toon ${movie.title} als uitgelichte poster`}
-        className={`relative block aspect-[2/3] overflow-hidden bg-slate-950/40 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 ${compactPoster ? 'mx-auto w-[90%]' : 'w-full'}`}
+        className={`relative block aspect-[2/3] overflow-hidden bg-slate-900 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 ${compactPoster ? 'mx-auto w-[90%]' : 'w-full'}`}
       >
-        {movie.poster_path ? (
+        {hasValidPoster ? (
           <Image
             src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
             alt={movie.title}
             fill
             unoptimized
+            onError={() => setImageError(true)}
             className="object-cover transition duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="h-full w-full bg-slate-900/50" />
+          <div className="flex h-full w-full flex-col items-center justify-center p-3 text-center bg-gradient-to-b from-neutral-800 to-neutral-900">
+            <span className="text-2xl opacity-40 mb-1">🎬</span>
+            <span className="text-[10px] font-bold text-neutral-400 line-clamp-2 leading-tight">
+              {movie.title}
+            </span>
+          </div>
         )}
         <div className="absolute inset-x-2 top-2 flex items-center justify-between gap-1">
           <span className={`rounded px-1.5 py-0.5 text-[10px] font-black backdrop-blur-md ${matchBand === 'strong' ? 'bg-emerald-300 text-[#07110d]' : matchBand === 'medium' ? 'bg-amber-300 text-[#1f1605]' : 'bg-rose-400 text-[#2b080d]'}`}>
@@ -286,7 +302,6 @@ export default function MovieGrid({
   const [dynamicRailMovies, setDynamicRailMovies] = useState<Record<string, Movie[]>>({});
   const [loadingRailKeys, setLoadingRailKeys] = useState<Record<string, boolean>>({});
 
-  // FILTER: Alleen films die de gebruiker een 7 of hoger heeft gegeven
   const positiveRecentMovies = useMemo(() => {
     return recentlyWatchedMovies
       .filter((movie) => {
@@ -301,7 +316,6 @@ export default function MovieGrid({
   const selectedPlatformKey = selectedPlatforms.join(',');
   const watchedMovieKey = watchedIds.join(',');
 
-  // ROULEER tussen de maximaal 3 positief beoordeelde films
   const selectedSimilarMovie = positiveRecentMovies.length > 0
     ? positiveRecentMovies[similarIndex % positiveRecentMovies.length]
     : undefined;
@@ -374,7 +388,6 @@ export default function MovieGrid({
     }));
   }, [movies, baseMatchMap, matchPreferences]);
 
-  // Wissel elke minuut tussen de beschikbare goed beoordeelde films
   useEffect(() => {
     setSimilarIndex(0);
     if (positiveRecentMovies.length < 2) return;
@@ -387,11 +400,20 @@ export default function MovieGrid({
   useEffect(() => {
     if (libraryView !== 'discover' || searchQuery.trim()) return;
 
-    const requests = [imdbRailRequest, ...genreRailRequests, ...(similarRailRequest ? [similarRailRequest] : [])];
-    const missingRequests = requests.filter((request) => !Object.prototype.hasOwnProperty.call(dynamicRailMovies, request.key));
+    const requests = [
+      imdbRailRequest,
+      ...genreRailRequests,
+      ...(similarRailRequest ? [similarRailRequest] : []),
+    ];
+
+    const missingRequests = requests.filter(
+      (request) => !Object.prototype.hasOwnProperty.call(dynamicRailMovies, request.key)
+    );
+
     if (missingRequests.length === 0) return;
 
     let isActive = true;
+
     setLoadingRailKeys((current) => ({
       ...current,
       ...Object.fromEntries(missingRequests.map((request) => [request.key, true])),
@@ -400,101 +422,67 @@ export default function MovieGrid({
     const loadRail = async (request: DynamicMovieRailRequest): Promise<[string, Movie[]]> => {
       const railMovies: Movie[] = [];
       const seenMovieIds = new Set<number>();
-      const selectedProviderNames = new Set(selectedPlatformKey.split(',').filter(Boolean));
       const watchedMovieIds = new Set(watchedMovieKey.split(',').filter(Boolean).map(Number));
 
-      const maximumPages = request.parameter === 'imdb' ? 10 : 5;
-      let totalPages = maximumPages;
-      for (let page = 1; page <= maximumPages && (request.parameter === 'imdb' || railMovies.length < 25);) {
-        const pageNumbers = request.parameter === 'imdb'
-          ? [page, page + 1].filter((pageNumber) => pageNumber <= maximumPages)
-          : [page];
-        const pageResults = await Promise.all(pageNumbers.map(async (pageNumber) => {
+      try {
+        const pagesToFetch = request.parameter === 'imdb' ? [1, 2] : [1];
+        for (const p of pagesToFetch) {
           const params = new URLSearchParams({
-            page: String(pageNumber),
+            page: String(p),
             providers: selectedPlatformKey,
             rail: '1',
           });
-          if (request.parameter === 'imdb') params.set('sortBy', request.value);
-          else params.set(request.parameter, request.value);
 
-          try {
-            const response = await fetch(`/api/movies?${params.toString()}`);
-            if (!response.ok) return null;
-            const data = await response.json();
-            return {
-              page: pageNumber,
-              totalPages: Number(data.totalPages) || 1,
-              movies: Array.isArray(data.movies) ? data.movies as Movie[] : [],
-            };
-          } catch {
-            return null;
+          if (request.parameter === 'imdb') {
+            params.set('sortBy', request.value);
+          } else {
+            params.set(request.parameter, request.value);
           }
-        }));
 
-        const successfulPages = pageResults.filter((result): result is NonNullable<typeof result> => result !== null);
-        if (successfulPages.length === 0) break;
-        totalPages = Math.max(...successfulPages.map((result) => result.totalPages));
+          const response = await fetch(`/api/movies?${params.toString()}`);
+          if (!response.ok) continue;
 
-        for (const pageResult of successfulPages) {
-          const pageMovies = pageResult.movies;
-          const eligibleMovies = pageMovies.filter((movie) => {
-            const year = Number.parseInt(movie.release_date?.slice(0, 4) || '', 10);
-            const matchesPlatform = selectedProviderNames.size > 0 &&
-              movie.providers?.some((provider) => selectedProviderNames.has(provider.provider_name));
-            const minimumScore = request.minimumRating ?? minimumImdbRating;
-            const score = Number.parseFloat(movie.rating || '0');
-            const matchesImdb = request.parameter === 'imdb'
-              ? movie.rating_source === 'IMDb' && score >= minimumScore
-              : minimumImdbRating === 0 || (movie.rating_source === 'IMDb' && score >= minimumImdbRating);
-            const matchesYear = releaseYearBefore === null || !Number.isFinite(year) || year <= releaseYearBefore;
-            const matchesRuntime = maxRuntimeMinutes === null || !movie.runtime_minutes || movie.runtime_minutes <= maxRuntimeMinutes;
-            const matchesGenre = !request.genre || movie.genres?.some((genre) => genre.toLocaleLowerCase() === request.genre?.toLocaleLowerCase());
+          const data = await response.json();
+          const list = Array.isArray(data.movies) ? (data.movies as Movie[]) : [];
 
-            return matchesPlatform && matchesImdb && matchesYear && matchesRuntime && matchesGenre &&
-              !watchedMovieIds.has(movie.id) && movie.id !== request.excludedMovieId && !seenMovieIds.has(movie.id);
-          });
+          for (const movie of list) {
+            if (seenMovieIds.has(movie.id)) continue;
+            if (watchedMovieIds.has(movie.id)) continue;
+            if (request.excludedMovieId && movie.id === request.excludedMovieId) continue;
 
-          eligibleMovies.forEach((movie) => {
             seenMovieIds.add(movie.id);
-            if (request.parameter === 'imdb' || railMovies.length < 25) {
-              const existingScore = baseMatchMap.get(movie.id);
-              const finalScore = existingScore !== undefined
-                ? existingScore
-                : calculateMatchScore(
-                    {
-                      id: movie.id,
-                      genres: movie.genres || [],
-                      director: movie.director,
-                      cast: movie.cast,
-                      rating: movie.rating,
-                    },
-                    matchPreferences
-                  );
 
-              railMovies.push({
-                ...movie,
-                match_percentage: finalScore,
-              });
-            }
-          });
+            const score = baseMatchMap.get(movie.id) ?? calculateMatchScore(
+              {
+                id: movie.id,
+                genres: movie.genres || [],
+                director: movie.director,
+                cast: movie.cast,
+                rating: movie.rating,
+              },
+              matchPreferences
+            );
+
+            railMovies.push({
+              ...movie,
+              match_percentage: score,
+            });
+          }
         }
-        page += pageNumbers.length;
-        if (page > totalPages) break;
+      } catch (err) {
+        console.warn(`Rail load failed for ${request.title}:`, err);
       }
 
-      if (request.parameter === 'imdb') {
-        railMovies.sort((first, second) => Number.parseFloat(second.rating || '0') - Number.parseFloat(first.rating || '0'));
-        railMovies.splice(25);
-      }
-      railMovies.sort((first, second) => (second.match_percentage || 0) - (first.match_percentage || 0));
-
+      railMovies.sort((a, b) => (b.match_percentage || 0) - (a.match_percentage || 0));
       return [request.key, railMovies];
     };
 
     void Promise.all(missingRequests.map(loadRail)).then((results) => {
       if (!isActive) return;
-      setDynamicRailMovies((current) => ({ ...current, ...Object.fromEntries(results) }));
+      setDynamicRailMovies((current) => ({
+        ...current,
+        ...Object.fromEntries(results),
+      }));
       setLoadingRailKeys((current) => {
         const next = { ...current };
         missingRequests.forEach((request) => delete next[request.key]);
@@ -505,7 +493,18 @@ export default function MovieGrid({
     return () => {
       isActive = false;
     };
-  }, [libraryView, searchQuery, railFilterKey, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, matchPreferences, dynamicRailMovies, genreNames, similarRailRequest, baseMatchMap, selectedPlatformKey, watchedMovieKey, imdbRailRequest, genreRailRequests]);
+  }, [
+    libraryView,
+    searchQuery,
+    railFilterKey,
+    selectedPlatformKey,
+    watchedMovieKey,
+    matchPreferences,
+    dynamicRailMovies,
+    baseMatchMap,
+    similarRailRequest?.key,
+    genreNames.join('|'),
+  ]);
 
   const displayedMovies = synchronizedMovies;
 
@@ -531,6 +530,7 @@ export default function MovieGrid({
         movies: [...synchronizedMovies]
           .filter((movie) => (movie.match_percentage || 0) >= 68)
           .sort((first, second) => (second.match_percentage || 0) - (first.match_percentage || 0)),
+        loading: false,
       },
       ...(similarRailRequest ? [{
         id: similarRailRequest.key,
@@ -551,6 +551,8 @@ export default function MovieGrid({
         loading: loadingRailKeys[imdbRailRequest.key] || false,
       },
     ];
+
+    // Toon rails die geladen zijn of nog bezig zijn met inladen
     const visibleRails = rails.filter((rail) => rail.movies.length > 0 || rail.loading);
 
     return (
@@ -570,12 +572,19 @@ export default function MovieGrid({
               onToggleWatched={onToggleWatched}
               onSelectPerson={onSelectPerson}
             />
-          ) : (
+          ) : rail.loading ? (
             <section key={rail.id} className="space-y-3" aria-label={rail.title}>
               <h2 className="text-sm font-bold text-white md:text-base">{rail.title}</h2>
-              <p role="status" className="text-xs text-neutral-300">25 passende films zoeken…</p>
+              <div className="flex gap-3 overflow-hidden py-1">
+                {[1, 2, 3, 4, 5].map((skeletonId) => (
+                  <div
+                    key={skeletonId}
+                    className="w-[148px] sm:w-[170px] aspect-[2/3] shrink-0 rounded-xl bg-white/[0.04] animate-pulse border border-white/5"
+                  />
+                ))}
+              </div>
             </section>
-          )
+          ) : null
         ))}
         {hasMoreMovies && (
           <div className="flex justify-center pt-2">

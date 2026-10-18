@@ -156,7 +156,6 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<PersonSearchResult | null>(null);
   
-  // Spotlight state met direct bewaard filmobject
   const [spotlightMovieId, setSpotlightMovieId] = useState<number | null>(null);
   const [selectedSpotlightMovie, setSelectedSpotlightMovie] = useState<Movie | null>(null);
 
@@ -779,16 +778,41 @@ export default function Home() {
     }
   };
 
-  // Verbeterde spotlight-selectie: bewaart het object en scrollt venster + container direct naar boven
+  // Verbeterde selectie met automatische metadata fetch voor regisseur en cast
   const selectSpotlightMovie = (movie: Movie) => {
     setSpotlightMovieId(movie.id);
     setSelectedSpotlightMovie(movie);
+
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       const mainContent = document.querySelector('.dashboard-content');
       if (mainContent) {
         mainContent.scrollTo({ top: 0, behavior: 'smooth' });
       }
+    }
+
+    // Als regisseur of cast nog ontbreken, direct ophalen via metadataIds
+    if (!movie.director || !movie.cast || movie.cast.length === 0) {
+      fetch(`/api/movies?metadataIds=${movie.id}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          const detail = data?.movies?.[0];
+          if (detail) {
+            setSelectedSpotlightMovie((prev) => {
+              if (!prev || prev.id !== movie.id) return prev;
+              return {
+                ...prev,
+                director: detail.director || prev.director,
+                cast: detail.cast || prev.cast,
+                runtime_minutes: detail.runtime_minutes || prev.runtime_minutes,
+                runtime: detail.runtime || prev.runtime,
+                rating: prev.rating || detail.rating,
+                rating_source: prev.rating_source || detail.rating_source,
+              };
+            });
+          }
+        })
+        .catch((err) => console.warn('Spotlight details load error:', err));
     }
   };
 
@@ -840,6 +864,34 @@ export default function Home() {
     return visibleMovies.slice(0, 5);
   }, [visibleMovies]);
 
+  // Als de eerste featured carousel movie nog geen cast of regisseur heeft, ook ophalen
+  useEffect(() => {
+    const topCarousel = featuredCarrouselMovies[featuredIndex % Math.max(1, featuredCarrouselMovies.length)];
+    if (topCarousel && (!topCarousel.director || !topCarousel.cast || topCarousel.cast.length === 0)) {
+      fetch(`/api/movies?metadataIds=${topCarousel.id}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          const detail = data?.movies?.[0];
+          if (detail) {
+            setMovies((current) =>
+              current.map((m) =>
+                m.id === topCarousel.id
+                  ? {
+                      ...m,
+                      director: detail.director || m.director,
+                      cast: detail.cast || m.cast,
+                      runtime_minutes: detail.runtime_minutes || m.runtime_minutes,
+                      runtime: detail.runtime || m.runtime,
+                    }
+                  : m
+              )
+            );
+          }
+        })
+        .catch(() => {});
+    }
+  }, [featuredIndex, featuredCarrouselMovies]);
+
   useEffect(() => {
     if (currentView !== 'dashboard' || (libraryView !== 'discover' && libraryView !== 'cinema') || spotlightMovieId !== null || searchQuery.trim() || rotationPaused) {
       return;
@@ -854,7 +906,6 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [currentView, libraryView, spotlightMovieId, searchQuery, rotationPaused, featuredCarrouselMovies.length]);
 
-  // Spotlight movie: gebruikt eerst selectedSpotlightMovie als directe match
   const spotlightMovie = spotlightMovieId
     ? (selectedSpotlightMovie ||
        library.watched.find((m) => m.id === spotlightMovieId) ||

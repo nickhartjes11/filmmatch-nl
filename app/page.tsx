@@ -155,7 +155,11 @@ export default function Home() {
   const [minimumImdbRating, setMinimumImdbRating] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<PersonSearchResult | null>(null);
+  
+  // Spotlight state met direct bewaard filmobject
   const [spotlightMovieId, setSpotlightMovieId] = useState<number | null>(null);
+  const [selectedSpotlightMovie, setSelectedSpotlightMovie] = useState<Movie | null>(null);
+
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [rotationPaused, setRotationPaused] = useState(false);
 
@@ -201,18 +205,23 @@ export default function Home() {
     setSearchQuery('');
     setSelectedPerson(null);
     setSpotlightMovieId(null);
+    setSelectedSpotlightMovie(null);
     setFeaturedIndex(0);
     setMinimumImdbRating(0);
     setReleaseYearBefore(null);
     setMaxRuntimeMinutes(null);
     setSelectedPlatforms(FIVE_PLATFORMS.map((p) => p.name));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.querySelector('.dashboard-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleSelectPerson = async (name: string, _department: 'Acting' | 'Directing') => {
     setCurrentView('dashboard');
     setLibraryView('discover');
     setSpotlightMovieId(null);
+    setSelectedSpotlightMovie(null);
 
     try {
       const res = await fetch(`/api/movies?people=${encodeURIComponent(name)}`);
@@ -221,7 +230,10 @@ export default function Home() {
         const match = data.people?.[0];
         if (match) {
           selectPerson(match);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          if (typeof window !== 'undefined') {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.querySelector('.dashboard-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+          }
           return;
         }
       }
@@ -229,7 +241,10 @@ export default function Home() {
       console.error(err);
     }
     setSearchQuery(name);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.querySelector('.dashboard-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const favoriteMovies = useMemo<MovieTasteSignals[]>(
@@ -581,7 +596,7 @@ export default function Home() {
     });
   }, []);
 
-  // Films inladen (zowel discover als bioscoop)
+  // Films inladen (discover & bioscoop)
   useEffect(() => {
     const query = searchQuery.trim();
     if (libraryView !== 'discover' && libraryView !== 'cinema') {
@@ -723,6 +738,7 @@ export default function Home() {
 
     if (spotlightMovieId === movie.id) {
       setSpotlightMovieId(null);
+      setSelectedSpotlightMovie(null);
     }
 
     if (!authUserId) return;
@@ -763,15 +779,24 @@ export default function Home() {
     }
   };
 
+  // Verbeterde spotlight-selectie: bewaart het object en scrollt venster + container direct naar boven
   const selectSpotlightMovie = (movie: Movie) => {
     setSpotlightMovieId(movie.id);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setSelectedSpotlightMovie(movie);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const mainContent = document.querySelector('.dashboard-content');
+      if (mainContent) {
+        mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
   };
 
   const clearSearch = () => {
     setSearchQuery('');
     setSelectedPerson(null);
     setSpotlightMovieId(null);
+    setSelectedSpotlightMovie(null);
   };
 
   const selectPerson = (person: PersonSearchResult) => {
@@ -829,8 +854,10 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [currentView, libraryView, spotlightMovieId, searchQuery, rotationPaused, featuredCarrouselMovies.length]);
 
+  // Spotlight movie: gebruikt eerst selectedSpotlightMovie als directe match
   const spotlightMovie = spotlightMovieId
-    ? (library.watched.find((m) => m.id === spotlightMovieId) ||
+    ? (selectedSpotlightMovie ||
+       library.watched.find((m) => m.id === spotlightMovieId) ||
        library.watchlist.find((m) => m.id === spotlightMovieId) ||
        movies.find((m) => m.id === spotlightMovieId))
     : null;
@@ -965,6 +992,7 @@ export default function Home() {
             setCurrentView('dashboard');
             setLibraryView(view);
             setSpotlightMovieId(null);
+            setSelectedSpotlightMovie(null);
             setSearchQuery('');
           }}
           onSelectDiscoveryMode={(mode) => {
@@ -972,6 +1000,7 @@ export default function Home() {
             setLibraryView('discover');
             setDiscoveryMode(mode);
             setSpotlightMovieId(null);
+            setSelectedSpotlightMovie(null);
             setSearchQuery('');
           }}
           onOpenFriends={() => navigateToView('friends')}
@@ -1052,6 +1081,7 @@ export default function Home() {
           setCurrentView('dashboard');
           setLibraryView(view);
           setSpotlightMovieId(null);
+          setSelectedSpotlightMovie(null);
           setSearchQuery('');
         }}
         onSelectDiscoveryMode={(mode) => {
@@ -1059,6 +1089,7 @@ export default function Home() {
           setLibraryView('discover');
           setDiscoveryMode(mode);
           setSpotlightMovieId(null);
+          setSelectedSpotlightMovie(null);
           setSearchQuery('');
         }}
         onOpenFriends={() => navigateToView('friends')}
@@ -1106,7 +1137,10 @@ export default function Home() {
                 setCurrentView('dashboard');
                 setLibraryView('discover');
                 setSpotlightMovieId(id);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                if (typeof window !== 'undefined') {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  document.querySelector('.dashboard-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+                }
               }}
               onToggleWatchlist={toggleWatchlist}
             />
@@ -1127,7 +1161,10 @@ export default function Home() {
                 setCurrentView('dashboard');
                 setLibraryView('discover');
                 setSpotlightMovieId(id);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                if (typeof window !== 'undefined') {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  document.querySelector('.dashboard-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+                }
               }}
               onToggleWatchlist={toggleWatchlist}
             />
@@ -1173,6 +1210,7 @@ export default function Home() {
                       onSelectPerson={handleSelectPerson}
                       onSelectFeatured={(idx) => {
                         setSpotlightMovieId(null);
+                        setSelectedSpotlightMovie(null);
                         setFeaturedIndex(idx);
                       }}
                       onToggleRotation={() => setRotationPaused((p) => !p)}

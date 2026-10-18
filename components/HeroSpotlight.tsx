@@ -68,7 +68,6 @@ export default function HeroSpotlight({
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [userPausedTips, setUserPausedTips] = useState(false);
 
-  // Haal de films van de maand direct op
   useEffect(() => {
     const tipIds = MONTHLY_TIPS.map((tip) => tip.tmdbId);
     let isMounted = true;
@@ -90,7 +89,6 @@ export default function HeroSpotlight({
     };
   }, []);
 
-  // Automatische carrousel (wisselt elke 10s als er geen film handmatig gekozen is)
   useEffect(() => {
     if (activeMovieProp || userPausedTips || MONTHLY_TIPS.length <= 1) return;
 
@@ -104,7 +102,6 @@ export default function HeroSpotlight({
   const currentTipConfig = MONTHLY_TIPS[tipIndex % MONTHLY_TIPS.length];
   const activeTipMovie = currentTipConfig ? editorialMovies[currentTipConfig.tmdbId] : undefined;
 
-  // Als er handmatig een film is aangeklikt tonen we die, anders de tip van de maand
   const isSelectedByUser = Boolean(activeMovieProp);
   const displayedMovie: Movie | undefined = activeMovieProp || activeTipMovie || allMovies[0];
 
@@ -192,7 +189,6 @@ export default function HeroSpotlight({
 
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-2xl space-y-4">
-            
             <div className="flex flex-wrap items-center gap-2.5">
               {!isSelectedByUser ? (
                 <>

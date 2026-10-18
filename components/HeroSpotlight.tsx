@@ -51,7 +51,6 @@ export default function HeroSpotlight({
   isWatchlisted,
   isWatched,
   userRating,
-  onSelectPerson,
   onSelectFeatured,
   onToggleRotation,
   onEditRating,
@@ -71,7 +70,6 @@ export default function HeroSpotlight({
         ? 'text-amber-400'
         : 'text-rose-400';
 
-  // Sluit modal met de Escape-toets
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setTrailerModalOpen(false);
@@ -110,9 +108,9 @@ export default function HeroSpotlight({
     <>
       <section
         key={movie.id}
-        className="dashboard-feature relative overflow-hidden rounded-3xl border border-white/[0.08] bg-neutral-950 p-6 md:p-8 shadow-2xl transition duration-500"
+        className="dashboard-feature relative overflow-hidden rounded-2xl border border-white/[0.08] bg-neutral-950 p-4 md:p-6 shadow-2xl transition duration-500"
       >
-        {/* Backdrop met donkere overlays voor hoog contrast */}
+        {/* Subtielere achtergrond */}
         {movie.backdrop_path ? (
           <div className="absolute inset-0 pointer-events-none">
             <Image
@@ -121,7 +119,7 @@ export default function HeroSpotlight({
               fill
               unoptimized
               sizes="100vw"
-              className="cinema-backdrop object-cover opacity-25 scale-105 transition duration-700 blur-[1px]"
+              className="cinema-backdrop object-cover opacity-20 scale-105 transition duration-700 blur-[1px]"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-neutral-950 via-neutral-950/90 to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-transparent to-black/40" />
@@ -130,9 +128,9 @@ export default function HeroSpotlight({
           <div className="absolute inset-0 bg-gradient-to-r from-neutral-900/90 to-neutral-950 pointer-events-none" />
         )}
 
-        <div className="relative z-10 flex flex-col items-center gap-7 lg:flex-row lg:items-start">
-          {/* Filmposter */}
-          <div className="group relative aspect-[2/3] w-40 shrink-0 overflow-hidden rounded-2xl border border-white/15 bg-neutral-900 shadow-2xl md:w-52">
+        <div className="relative z-10 flex flex-col items-center gap-5 sm:flex-row sm:items-start">
+          {/* Compactere poster */}
+          <div className="group relative aspect-[2/3] w-28 sm:w-36 md:w-44 shrink-0 overflow-hidden rounded-xl border border-white/15 bg-neutral-900 shadow-xl">
             {movie.poster_path ? (
               <Image
                 src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
@@ -143,17 +141,17 @@ export default function HeroSpotlight({
                 priority
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-xs text-neutral-600 font-bold">
+              <div className="flex h-full w-full items-center justify-center text-[10px] text-neutral-600 font-bold">
                 Geen poster
               </div>
             )}
           </div>
 
-          {/* Filminformatie & acties */}
-          <div className="flex-1 space-y-4 text-center lg:text-left min-w-0">
-            {/* Label + Carrousel navigatie */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="inline-flex items-center gap-2 rounded-full border border-rose-500/25 bg-rose-500/10 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-rose-300">
+          {/* Filminformatie */}
+          <div className="flex-1 space-y-2.5 text-center sm:text-left min-w-0">
+            {/* Label + optionele bolletjes */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/25 bg-rose-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-rose-300">
                 {spotlightLabel}
               </span>
 
@@ -172,7 +170,7 @@ export default function HeroSpotlight({
                       aria-pressed={index === activeFeaturedIndex}
                       className={`h-1.5 rounded-full transition-all ${
                         index === activeFeaturedIndex
-                          ? 'w-5 bg-rose-500'
+                          ? 'w-4 bg-rose-500'
                           : 'w-1.5 bg-white/30 hover:bg-white/60'
                       }`}
                     />
@@ -181,7 +179,7 @@ export default function HeroSpotlight({
                     type="button"
                     onClick={onToggleRotation}
                     title={rotationPaused ? 'Hervat wisselen' : 'Pauzeer wisselen'}
-                    className="ml-1 text-[11px] text-neutral-400 hover:text-white transition"
+                    className="ml-1 text-[10px] text-neutral-400 hover:text-white transition"
                   >
                     {rotationPaused ? '▶' : '⏸'}
                   </button>
@@ -189,13 +187,13 @@ export default function HeroSpotlight({
               )}
             </div>
 
-            {/* Titel en metadata */}
+            {/* Titel en basisgegevens (geen regie/acteurs hier) */}
             <div>
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-tight">
                 {movie.title}
               </h2>
 
-              <div className="mt-2 flex flex-wrap items-center justify-center lg:justify-start gap-2 text-xs text-neutral-300">
+              <div className="mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-neutral-300">
                 <span>{movie.release_date?.split('-')[0] || 'Jaar onbekend'}</span>
                 {movie.runtime && (
                   <>
@@ -206,108 +204,75 @@ export default function HeroSpotlight({
                 {movie.genres?.length ? (
                   <>
                     <span className="text-neutral-500">&bull;</span>
-                    <span>{movie.genres.join(', ')}</span>
+                    <span>{movie.genres.slice(0, 3).join(', ')}</span>
                   </>
                 ) : null}
-                {movie.rating && (
+                {movie.rating ? (
                   <>
                     <span className="text-neutral-500">&bull;</span>
                     <RatingBadge rating={movie.rating} source={movie.rating_source} />
                   </>
+                ) : (
+                  <>
+                    <span className="text-neutral-500">&bull;</span>
+                    <span className="text-[11px] font-semibold text-neutral-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
+                      IMDb: N/A
+                    </span>
+                  </>
                 )}
               </div>
-
-              {/* Klikbare Regisseur */}
-              {movie.director && (
-                <p className="mt-2 text-xs text-neutral-300 flex items-center justify-center lg:justify-start gap-1.5 flex-wrap">
-                  <span className="text-neutral-400">Regisseur:</span>
-                  <button
-                    type="button"
-                    onClick={() => onSelectPerson(movie.director!, 'Directing')}
-                    className="font-bold text-white underline decoration-white/40 underline-offset-2 hover:text-rose-300 hover:decoration-rose-300 transition"
-                  >
-                    {movie.director}
-                  </button>
-                </p>
-              )}
-
-              {/* Klikbare Acteurs */}
-              {movie.cast && movie.cast.length > 0 && (
-                <div className="mt-1 text-xs text-neutral-300 flex items-center justify-center lg:justify-start gap-1.5 flex-wrap">
-                  <span className="text-neutral-400">Acteurs:</span>
-                  <div className="flex flex-wrap gap-1">
-                    {movie.cast.slice(0, 4).map((actor, idx) => (
-                      <span key={actor} className="inline-flex items-center">
-                        <button
-                          type="button"
-                          onClick={() => onSelectPerson(actor, 'Acting')}
-                          className="font-semibold text-white underline decoration-white/40 underline-offset-2 hover:text-rose-300 hover:decoration-rose-300 transition"
-                        >
-                          {actor}
-                        </button>
-                        {idx < Math.min(movie.cast!.length, 4) - 1 && (
-                          <span className="text-neutral-500 ml-1">,</span>
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Synopsis */}
-            <p className="max-w-3xl text-xs sm:text-sm leading-relaxed text-neutral-300 line-clamp-3 lg:line-clamp-4">
+            {/* Korte synopsis (maximaal 2 regels) */}
+            <p className="max-w-3xl text-xs text-neutral-300 line-clamp-2 leading-relaxed">
               {movie.overview || 'Geen omschrijving beschikbaar.'}
             </p>
 
-            {/* Vriendenaanbeveling */}
+            {/* Vriendenaanbeveling indien van toepassing */}
             {movie.friend_recommendation && !isSearch && (
-              <div className="flex max-w-xl items-center gap-3 rounded-2xl border border-white/10 bg-black/40 p-3 text-xs backdrop-blur-md">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400/20 text-xs font-black text-amber-300">
+              <div className="flex max-w-xl items-center gap-2 rounded-xl border border-white/10 bg-black/40 p-2 text-xs backdrop-blur-md">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400/20 text-[10px] font-black text-amber-300">
                   {movie.friend_recommendation.avatar}
                 </span>
-                <span className="text-neutral-200">
+                <span className="text-neutral-200 text-[11px]">
                   <strong className="text-white">{movie.friend_recommendation.friend_name}</strong>: &ldquo;{movie.friend_recommendation.quote}&rdquo;
                 </span>
               </div>
             )}
 
-            {/* Actieknoppen & Streaminglogos */}
-            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 pt-3 border-t border-white/[0.08]">
-              <div className="mr-2 flex items-center gap-2">
-                <span className={`text-2xl font-black ${matchColor}`}>
+            {/* Knoppen & FilmMatch */}
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 pt-2 border-t border-white/[0.08]">
+              <div className="mr-2 flex items-center gap-1.5">
+                <span className={`text-xl font-black ${matchColor}`}>
                   {movie.match_percentage || 85}%
                 </span>
-                <span className="text-[10px] font-bold uppercase leading-tight text-neutral-400 text-left">
-                  Film
-                  <br />
-                  match
+                <span className="text-[9px] font-bold uppercase leading-tight text-neutral-400 text-left">
+                  Film<br />match
                 </span>
               </div>
 
               {movie.providers && movie.providers.length > 0 && (
-                <div className="flex items-center gap-1.5 mr-2">
-                  {movie.providers.slice(0, 4).map((provider) => (
+                <div className="flex items-center gap-1 mr-2">
+                  {movie.providers.slice(0, 3).map((provider) => (
                     <span
                       key={provider.provider_id}
                       title={`Beschikbaar op ${provider.provider_name}`}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/40 overflow-hidden shadow"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-black/40 overflow-hidden shadow"
                     >
                       <StreamingLogo
                         name={provider.provider_name}
                         logoPath={provider.logo_path}
-                        className="h-7 w-7 rounded"
+                        className="h-5 w-5 rounded"
                       />
                     </span>
                   ))}
                 </div>
               )}
 
-              {/* Trailer knop */}
               <button
                 type="button"
                 onClick={handleOpenTrailer}
-                className="flex items-center gap-2 rounded-xl border border-rose-500/40 bg-gradient-to-r from-rose-600 to-rose-700 px-4 py-2 text-xs font-bold text-white shadow-lg transition hover:from-rose-500 hover:to-rose-600 active:scale-95"
+                className="flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-gradient-to-r from-rose-600 to-rose-700 px-3 py-1.5 text-xs font-bold text-white shadow-md transition hover:from-rose-500 hover:to-rose-600 active:scale-95"
               >
                 <span>▶</span>
                 <span>Trailer</span>
@@ -317,7 +282,7 @@ export default function HeroSpotlight({
                 type="button"
                 onClick={() => onToggleWatchlist(movie)}
                 aria-pressed={isWatchlisted}
-                className={`rounded-xl px-4 py-2 text-xs font-bold transition shadow-lg ${
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition shadow-md ${
                   isWatchlisted
                     ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
                     : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
@@ -330,7 +295,7 @@ export default function HeroSpotlight({
                 type="button"
                 onClick={() => onToggleWatched(movie)}
                 aria-pressed={isWatched}
-                className={`rounded-xl px-4 py-2 text-xs font-bold transition shadow-lg ${
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition shadow-md ${
                   isWatched
                     ? 'bg-emerald-600 text-white'
                     : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
@@ -347,7 +312,7 @@ export default function HeroSpotlight({
         </div>
       </section>
 
-      {/* Bioscoop Pop-up Modal voor YouTube Trailer */}
+      {/* Trailer modal */}
       {trailerModalOpen && (
         <div
           role="dialog"
@@ -360,7 +325,6 @@ export default function HeroSpotlight({
             onClick={(e) => e.stopPropagation()}
             className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-white/15 bg-neutral-950 shadow-2xl"
           >
-            {/* Modal Kopbalk */}
             <div className="flex items-center justify-between border-b border-white/10 bg-neutral-900/90 px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="text-rose-500">▶</span>
@@ -379,7 +343,6 @@ export default function HeroSpotlight({
               </button>
             </div>
 
-            {/* Video player scherm */}
             <div className="relative aspect-video w-full bg-black flex items-center justify-center">
               {trailerLoading ? (
                 <div className="flex flex-col items-center gap-2 text-neutral-400">

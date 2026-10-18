@@ -155,7 +155,7 @@ export default function Home() {
   const [minimumImdbRating, setMinimumImdbRating] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<PersonSearchResult | null>(null);
-  
+
   const [spotlightMovieId, setSpotlightMovieId] = useState<number | null>(null);
   const [selectedSpotlightMovie, setSelectedSpotlightMovie] = useState<Movie | null>(null);
 
@@ -778,7 +778,6 @@ export default function Home() {
     }
   };
 
-  // Verbeterde selectie met automatische metadata fetch voor regisseur en cast
   const selectSpotlightMovie = (movie: Movie) => {
     setSpotlightMovieId(movie.id);
     setSelectedSpotlightMovie(movie);
@@ -791,7 +790,6 @@ export default function Home() {
       }
     }
 
-    // Als regisseur of cast nog ontbreken, direct ophalen via metadataIds
     if (!movie.director || !movie.cast || movie.cast.length === 0) {
       fetch(`/api/movies?metadataIds=${movie.id}`)
         .then((res) => (res.ok ? res.json() : null))
@@ -864,36 +862,15 @@ export default function Home() {
     return visibleMovies.slice(0, 5);
   }, [visibleMovies]);
 
-  // Als de eerste featured carousel movie nog geen cast of regisseur heeft, ook ophalen
+  // Carrousel verspringen: UITGESCHAKELD wanneer libraryView === 'cinema'
   useEffect(() => {
-    const topCarousel = featuredCarrouselMovies[featuredIndex % Math.max(1, featuredCarrouselMovies.length)];
-    if (topCarousel && (!topCarousel.director || !topCarousel.cast || topCarousel.cast.length === 0)) {
-      fetch(`/api/movies?metadataIds=${topCarousel.id}`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          const detail = data?.movies?.[0];
-          if (detail) {
-            setMovies((current) =>
-              current.map((m) =>
-                m.id === topCarousel.id
-                  ? {
-                      ...m,
-                      director: detail.director || m.director,
-                      cast: detail.cast || m.cast,
-                      runtime_minutes: detail.runtime_minutes || m.runtime_minutes,
-                      runtime: detail.runtime || m.runtime,
-                    }
-                  : m
-              )
-            );
-          }
-        })
-        .catch(() => {});
-    }
-  }, [featuredIndex, featuredCarrouselMovies]);
-
-  useEffect(() => {
-    if (currentView !== 'dashboard' || (libraryView !== 'discover' && libraryView !== 'cinema') || spotlightMovieId !== null || searchQuery.trim() || rotationPaused) {
+    if (
+      currentView !== 'dashboard' ||
+      libraryView !== 'discover' ||
+      spotlightMovieId !== null ||
+      searchQuery.trim() ||
+      rotationPaused
+    ) {
       return;
     }
 
@@ -913,10 +890,13 @@ export default function Home() {
        movies.find((m) => m.id === spotlightMovieId))
     : null;
 
+  // In de bioscoop staat standaard altijd de eerste (populairste) film vast bovenaan
   const topMatch = spotlightMovie || (
-    (libraryView === 'discover' || libraryView === 'cinema')
-      ? featuredCarrouselMovies[featuredIndex % Math.max(1, featuredCarrouselMovies.length)] || visibleMovies[0]
-      : null
+    libraryView === 'cinema'
+      ? visibleMovies[0]
+      : libraryView === 'discover'
+        ? featuredCarrouselMovies[featuredIndex % Math.max(1, featuredCarrouselMovies.length)] || visibleMovies[0]
+        : null
   );
 
   const gridMatches = libraryView === 'watched'

@@ -174,7 +174,6 @@ export default function HeroSpotlight({
   return (
     <>
       <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-6 md:p-8 shadow-2xl">
-        {/* Subtiele achtergrond overlay */}
         {backdropSrc && (
           <div className="pointer-events-none absolute inset-0 -z-0 opacity-20">
             <Image
@@ -190,7 +189,6 @@ export default function HeroSpotlight({
           </div>
         )}
 
-        {/* Layout: Poster links, content rechts */}
         <div className="relative z-10 flex flex-col md:flex-row items-start gap-6 md:gap-8">
           {/* Filmposter LINKS */}
           {displayedMovie.poster_path && (
@@ -209,7 +207,7 @@ export default function HeroSpotlight({
           )}
 
           {/* Informatie en acties RECHTS */}
-          <div className="flex-1 space-y-3.5 min-w-0">
+          <div className="flex-1 space-y-3 min-w-0">
             {/* Header tags & Navigatie */}
             <div className="flex flex-wrap items-center gap-2.5">
               {!isSelectedByUser ? (
@@ -267,29 +265,29 @@ export default function HeroSpotlight({
               )}
             </div>
 
-            {/* Titel */}
-            <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl">
-              {displayedMovie.title}
-            </h1>
-
-            {/* Redactietip: Geen fel geel vak, maar een stijlvolle geïntegreerde quote-stijl */}
+            {/* Redactietip: Nu direct BOVEN de titel geplaatst met een subtiele accentstreep */}
             {!isSelectedByUser && activeTipMovie && activeTipMovie.id === displayedMovie.id && currentTipConfig?.reason && (
-              <div className="border-l-2 border-amber-400/70 pl-3.5 py-0.5">
-                <p className="text-xs text-neutral-200 leading-relaxed">
-                  <span className="font-semibold text-amber-300">
+              <div className="border-l-2 border-amber-400/80 pl-3 py-0.5 mt-1">
+                <p className="text-xs text-neutral-200 leading-snug">
+                  <span className="font-bold text-amber-300">
                     {currentTipConfig.reasonTitle}:
                   </span>{' '}
-                  {currentTipConfig.reason}
+                  <span className="text-neutral-300">{currentTipConfig.reason}</span>
                 </p>
               </div>
             )}
+
+            {/* Titel van de film */}
+            <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl">
+              {displayedMovie.title}
+            </h1>
 
             {/* Synopsis */}
             <p className="line-clamp-3 text-xs leading-relaxed text-neutral-300 sm:text-sm">
               {displayedMovie.overview || 'Geen beschrijving beschikbaar.'}
             </p>
 
-            {/* Regisseur & Cast (weer klikbaar!) */}
+            {/* Regisseur & Cast (klikbaar) */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs pt-0.5">
               {displayedMovie.director && (
                 <div className="flex items-center gap-1.5">
@@ -325,7 +323,7 @@ export default function HeroSpotlight({
               )}
             </div>
 
-            {/* Match score, Rating & Streaming providers */}
+            {/* Match score, Rating & Streamingdiensten */}
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <span
                 className={`rounded-lg px-2.5 py-1 text-xs font-black backdrop-blur-md ${
@@ -362,7 +360,7 @@ export default function HeroSpotlight({
               )}
             </div>
 
-            {/* Actieknoppen */}
+            {/* Knoppen */}
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
                 onClick={() => trailerKey && setShowTrailerModal(true)}

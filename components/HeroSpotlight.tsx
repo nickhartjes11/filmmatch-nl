@@ -4,8 +4,41 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import StreamingLogo from './StreamingLogo';
 import type { Movie } from './types';
-import { MONTHLY_TIPS } from '../lib/editorialTips';
 import { calculateMatchScore, getMatchColorBand, type MatchPreferences } from '../lib/recommendations/matchScore';
+
+export interface EditorialTip {
+  tmdbId: number;
+  reasonTitle?: string;
+  reason: string;
+}
+
+export const MONTHLY_TIPS: EditorialTip[] = [
+  {
+    tmdbId: 671, // Harry Potter and the Philosopher's Stone
+    reasonTitle: 'Terug naar Hogwarts',
+    reason: 'Omdat de gloednieuwe HBO-serie eraan komt: hét perfecte moment om te herontdekken waar de magie ooit begon.',
+  },
+  {
+    tmdbId: 299534, // Avengers: Endgame
+    reasonTitle: 'Opwarmen voor Doomsday',
+    reason: 'Met Avengers: Doomsday in aantocht in de bioscoop is dit het ideale moment voor de ultieme Marvel-climax.',
+  },
+  {
+    tmdbId: 438631, // Dune (Part One)
+    reasonTitle: 'Het begin van een meesterwerk',
+    reason: 'Fenomenale cinematografie en meeslepende worldbuilding van Denis Villeneuve die je simpelweg gezien moet hebben.',
+  },
+  {
+    tmdbId: 693134, // Dune: Part Two
+    reasonTitle: 'Moderne sci-fi mijlpaal',
+    reason: 'Visueel spektakel van de bovenste plank — een adembenemend vervolg dat alle verwachtingen overtrof.',
+  },
+  {
+    tmdbId: 157336, // Interstellar
+    reasonTitle: 'Tijdloze klassieker',
+    reason: 'Christopher Nolans audiovisuele meesterwerk over liefde, zwarte gaten en de relativiteit van tijd blijft onovertroffen.',
+  },
+];
 
 interface HeroSpotlightProps {
   movie?: Movie;
@@ -35,9 +68,8 @@ export default function HeroSpotlight({
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [userInteracted, setUserInteracted] = useState(false);
 
-  // Haal de data op voor de films die in MONTHLY_TIPS zijn geconfigureerd
   useEffect(() => {
-    const tipIds = MONTHLY_TIPS.map((tip) => tip.tmdbId);
+    const tipIds = MONTHLY_TIPS.map((tip: EditorialTip) => tip.tmdbId);
     if (tipIds.length === 0) return;
 
     const fetchTips = async () => {
@@ -58,7 +90,6 @@ export default function HeroSpotlight({
     void fetchTips();
   }, []);
 
-  // Automatisch wisselen tussen tips als de bezoeker niet handmatig heeft geklikt
   useEffect(() => {
     if (userInteracted || MONTHLY_TIPS.length <= 1) return;
     const interval = setInterval(() => {
@@ -68,8 +99,7 @@ export default function HeroSpotlight({
   }, [userInteracted]);
 
   const currentTipConfig = MONTHLY_TIPS[tipIndex % MONTHLY_TIPS.length];
-  
-  // Selecteer de film: handmatig geselecteerd via prop, anders huidige tip van de maand
+
   const displayedMovie: Movie | undefined = useMemo(() => {
     if (activeMovieProp) return activeMovieProp;
     const tipMovie = currentTipConfig ? editorialMovies[currentTipConfig.tmdbId] : undefined;
@@ -77,7 +107,6 @@ export default function HeroSpotlight({
     return allMovies[0];
   }, [activeMovieProp, currentTipConfig, editorialMovies, allMovies]);
 
-  // Trailer ophalen zodra de film wisselt
   useEffect(() => {
     if (!displayedMovie?.id) {
       setTrailerKey(null);
@@ -145,7 +174,6 @@ export default function HeroSpotlight({
   return (
     <>
       <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-6 md:p-8 shadow-2xl">
-        {/* Achtergrondafbeelding met subtiele gradient overlay */}
         {backdropSrc && (
           <div className="pointer-events-none absolute inset-0 -z-0 opacity-25">
             <Image
@@ -163,13 +191,11 @@ export default function HeroSpotlight({
 
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-2xl space-y-4">
-            {/* Header badges: Tip van de Maand + Navigatie */}
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-300 backdrop-blur-md">
                 <span>⭐</span> Tip van de maand
               </span>
 
-              {/* Indicatordotjes / Navigatieknoppen */}
               {MONTHLY_TIPS.length > 1 && (
                 <div className="flex items-center gap-1 bg-black/40 rounded-full px-2 py-0.5 border border-white/10 backdrop-blur-md">
                   <button
@@ -202,12 +228,10 @@ export default function HeroSpotlight({
               )}
             </div>
 
-            {/* Filmtitel */}
             <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl">
               {displayedMovie.title}
             </h1>
 
-            {/* Redactie Toelichting / Waarom deze maand tip */}
             {currentTipConfig?.reason && (
               <div className="rounded-2xl border border-amber-300/20 bg-amber-500/[0.08] p-3.5 backdrop-blur-md">
                 <p className="text-xs font-semibold text-amber-200">
@@ -217,12 +241,10 @@ export default function HeroSpotlight({
               </div>
             )}
 
-            {/* Korte synopsis */}
             <p className="line-clamp-2 text-xs leading-relaxed text-neutral-300 sm:text-sm">
               {displayedMovie.overview || 'Geen beschrijving beschikbaar.'}
             </p>
 
-            {/* Scores & Streamingdiensten */}
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <span
                 className={`rounded-lg px-2.5 py-1 text-xs font-black backdrop-blur-md ${
@@ -259,7 +281,6 @@ export default function HeroSpotlight({
               )}
             </div>
 
-            {/* Actieknoppen */}
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
                 onClick={() => trailerKey && setShowTrailerModal(true)}
@@ -296,7 +317,6 @@ export default function HeroSpotlight({
             </div>
           </div>
 
-          {/* Poster aan de rechterkant */}
           {displayedMovie.poster_path && (
             <div className="hidden lg:block shrink-0">
               <div className="relative aspect-[2/3] w-48 overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
@@ -313,7 +333,6 @@ export default function HeroSpotlight({
         </div>
       </section>
 
-      {/* Trailer Modal Popup */}
       {showTrailerModal && trailerKey && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
           <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black border border-white/20 shadow-2xl">

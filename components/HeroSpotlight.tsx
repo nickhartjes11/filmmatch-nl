@@ -8,35 +8,29 @@ import { calculateMatchScore, getMatchColorBand, type MatchPreferences } from '.
 
 export interface EditorialTip {
   tmdbId: number;
-  reasonTitle: string;
   reason: string;
 }
 
 export const MONTHLY_TIPS: EditorialTip[] = [
   {
     tmdbId: 671, // Harry Potter and the Philosopher's Stone
-    reasonTitle: 'Terug naar Hogwarts',
-    reason: 'Omdat de gloednieuwe HBO-serie eraan komt: hét perfecte moment om te herontdekken waar de magie ooit begon.',
+    reason: 'Met de nieuwe HBO-serie in aantocht is dit een mooi moment om terug te gaan naar Hogwarts.',
   },
   {
     tmdbId: 299534, // Avengers: Endgame
-    reasonTitle: 'Opwarmen voor Doomsday',
-    reason: 'Met Avengers: Doomsday in aantocht in de bioscoop is dit het ideale moment voor de ultieme Marvel-climax.',
+    reason: 'Herbeleef de ultieme Marvel-climax voordat je aan het volgende hoofdstuk begint.',
   },
   {
     tmdbId: 438631, // Dune (Part One)
-    reasonTitle: 'Het begin van een meesterwerk',
-    reason: 'Fenomenale cinematografie en meeslepende worldbuilding van Denis Villeneuve die je gezien moet hebben.',
+    reason: 'Begin bij het eerste deel voor Villeneuves indrukwekkende wereld en cinematografie.',
   },
   {
     tmdbId: 693134, // Dune: Part Two
-    reasonTitle: 'Moderne sci-fi mijlpaal',
-    reason: 'Visueel spektakel van de bovenste plank — een adembenemend vervolg dat alle verwachtingen overtrof.',
+    reason: 'Een visueel verbluffend vervolg dat Arrakis nog grootser maakt.',
   },
   {
     tmdbId: 157336, // Interstellar
-    reasonTitle: 'Tijdloze klassieker',
-    reason: 'Christopher Nolans audiovisuele meesterwerk over liefde, zwarte gaten en de tijd blijft onovertroffen.',
+    reason: 'Een tijdloos sci-fi-epos over liefde, zwarte gaten en tijd.',
   },
 ];
 
@@ -207,57 +201,33 @@ export default function HeroSpotlight({
 
           {/* Informatie en acties RECHTS */}
           <div className="flex-1 space-y-3 min-w-0">
-            {/* Header tags & Navigatie */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              {!isSelectedByUser && (
-                <>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-300 backdrop-blur-md">
-                    <span>⭐</span> Tip van de maand
-                  </span>
-
-                  <div className="flex items-center gap-1 bg-black/40 rounded-full px-2 py-0.5 border border-white/10 backdrop-blur-md">
-                    <button
-                      onClick={handlePrevTip}
-                      aria-label="Vorige tip"
-                      className="text-xs text-neutral-400 hover:text-white px-1 font-bold"
-                    >
-                      ‹
-                    </button>
-                    <span className="text-[11px] font-semibold text-neutral-300">
-                      {tipIndex + 1} / {MONTHLY_TIPS.length}
-                    </span>
-                    <button
-                      onClick={handleNextTip}
-                      aria-label="Volgende tip"
-                      className="text-xs text-neutral-400 hover:text-white px-1 font-bold"
-                    >
-                      ›
-                    </button>
-                  </div>
-                </>
-              )}
-              {displayedMovie.release_date && (
-                <span className="text-xs text-neutral-400">
-                  {displayedMovie.release_date.split('-')[0]}
+            {/* Compacte bediening voor de maandtips */}
+            {!isSelectedByUser && (
+              <div className="inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-400/[0.08] py-1 pl-3 pr-1">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-200">
+                  <span aria-hidden="true">⭐</span>
+                  Tip van de maand
                 </span>
-              )}
-              {displayedMovie.genres?.[0] && (
-                <span className="text-xs text-neutral-400">&bull; {displayedMovie.genres[0]}</span>
-              )}
-              {displayedMovie.runtime && (
-                <span className="text-xs text-neutral-400">&bull; {displayedMovie.runtime}</span>
-              )}
-            </div>
-
-            {/* Redactietip: Nu direct BOVEN de titel geplaatst met een subtiele accentstreep */}
-            {!isSelectedByUser && activeTipMovie && activeTipMovie.id === displayedMovie.id && currentTipConfig?.reason && (
-              <div className="border-l-2 border-amber-400/80 pl-3 py-0.5 mt-1">
-                <p className="text-xs text-neutral-200 leading-snug">
-                  <span className="font-bold text-amber-300">
-                    {currentTipConfig.reasonTitle}:
-                  </span>{' '}
-                  <span className="text-neutral-300">{currentTipConfig.reason}</span>
-                </p>
+                <span className="mx-1 h-3 w-px bg-amber-200/25" aria-hidden="true" />
+                <button
+                  type="button"
+                  onClick={handlePrevTip}
+                  aria-label="Vorige tip"
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold text-amber-100/75 transition hover:bg-white/10 hover:text-white"
+                >
+                  ‹
+                </button>
+                <span className="min-w-8 text-center text-[10px] font-semibold tabular-nums text-amber-100/80" aria-live="polite">
+                  {tipIndex + 1} / {MONTHLY_TIPS.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleNextTip}
+                  aria-label="Volgende tip"
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold text-amber-100/75 transition hover:bg-white/10 hover:text-white"
+                >
+                  ›
+                </button>
               </div>
             )}
 
@@ -265,6 +235,31 @@ export default function HeroSpotlight({
             <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl">
               {displayedMovie.title}
             </h1>
+
+            {/* Filminformatie */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-400">
+              {displayedMovie.release_date && (
+                <span>{displayedMovie.release_date.split('-')[0]}</span>
+              )}
+              {displayedMovie.genres?.[0] && (
+                <span>{displayedMovie.release_date ? '• ' : ''}{displayedMovie.genres[0]}</span>
+              )}
+              {displayedMovie.runtime && (
+                <span>{displayedMovie.release_date || displayedMovie.genres?.[0] ? '• ' : ''}{displayedMovie.runtime}</span>
+              )}
+            </div>
+
+            {/* Korte reden voor de maandtip */}
+            {!isSelectedByUser && activeTipMovie && activeTipMovie.id === displayedMovie.id && currentTipConfig?.reason && (
+              <div className="max-w-3xl rounded-xl border border-amber-300/15 bg-amber-300/[0.05] px-3 py-2">
+                <p className="text-xs leading-relaxed text-neutral-300">
+                  <span className="mr-2 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                    Waarom nu?
+                  </span>
+                  {currentTipConfig.reason}
+                </p>
+              </div>
+            )}
 
             {/* Synopsis */}
             <p className="line-clamp-3 text-xs leading-relaxed text-neutral-300 sm:text-sm">

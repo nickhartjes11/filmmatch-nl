@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import Image from 'next/image';
 import MovieRatingControl from './MovieRatingControl';
@@ -309,9 +309,9 @@ export default function MovieGrid({
   maxRuntimeMinutes,
   matchPreferences,
 }: MovieGridProps) {
-  const [similarIndex, setSimilarIndex] = useState(0);
   const [dynamicRailMovies, setDynamicRailMovies] = useState<Record<string, Movie[]>>({});
   const [loadingRailKeys, setLoadingRailKeys] = useState<Record<string, boolean>>({});
+  const [selectedGenre, setSelectedGenre] = useState(preferredGenres[0] || '');
 
   const positiveRecentMovies = useMemo(() => {
     return recentlyWatchedMovies
@@ -322,14 +322,21 @@ export default function MovieGrid({
       .slice(0, 3);
   }, [recentlyWatchedMovies, ratings]);
 
-  const recentMovieKey = positiveRecentMovies.map((movie) => movie.id).join(',');
+  const similarSourceMovies = useMemo(() => {
+    const seenIds = new Set<number>();
+    return [...positiveRecentMovies, ...movies]
+      .filter((movie) => {
+        if (seenIds.has(movie.id)) return false;
+        seenIds.add(movie.id);
+        return true;
+      })
+      .slice(0, 2);
+  }, [positiveRecentMovies, movies]);
+
   const genreNames = preferredGenres.slice(0, 2);
+  const genreOptionsKey = genreNames.join('|');
   const selectedPlatformKey = selectedPlatforms.join(',');
   const watchedMovieKey = watchedIds.join(',');
-
-  const selectedSimilarMovie = positiveRecentMovies.length > 0
-    ? positiveRecentMovies[similarIndex % positiveRecentMovies.length]
-    : undefined;
 
   const railFilterKey = [
     selectedPlatformKey,
@@ -339,32 +346,33 @@ export default function MovieGrid({
     watchedMovieKey,
   ].join('|');
 
-  const genreRailRequests: DynamicMovieRailRequest[] = genreNames.map((genre) => ({
-    key: `genre:${genre}:${railFilterKey}`,
-    title: `Meer ${genre} films`,
-    parameter: 'genre',
-    value: genre,
-    genre,
+  const similarRailRequests: DynamicMovieRailRequest[] = similarSourceMovies.map((movie) => ({
+    key: 'similar:' + movie.id + ':' + railFilterKey,
+    title: 'Meer films zoals ' + movie.title,
+    parameter: 'similarTo',
+    value: String(movie.id),
+    excludedMovieId: movie.id,
   }));
 
+  const selectedGenreRailRequest: DynamicMovieRailRequest | null = selectedGenre
+    ? {
+        key: 'genre:' + selectedGenre + ':' + railFilterKey,
+        title: 'Meer ' + selectedGenre + ' films',
+        parameter: 'genre',
+        value: selectedGenre,
+        genre: selectedGenre,
+      }
+    : null;
+
   const imdbRailRequest: DynamicMovieRailRequest = {
-    key: `imdb:${railFilterKey}`,
+    key: 'imdb:' + railFilterKey,
     title: 'Best beoordeelde IMDb-films',
     parameter: 'imdb',
     value: 'imdbCandidates',
     minimumRating: Math.max(7, minimumImdbRating),
   };
 
-  const similarRailRequest: DynamicMovieRailRequest | null = selectedSimilarMovie
-    ? {
-        key: `similar:${selectedSimilarMovie.id}:${railFilterKey}`,
-        title: `Meer films zoals ${selectedSimilarMovie.title}`,
-        parameter: 'similarTo',
-        value: String(selectedSimilarMovie.id),
-        excludedMovieId: selectedSimilarMovie.id,
-      }
-    : null;
-
+  const similarRailKeys = similarRailRequests.map((request) => request.key).join('|');
   const baseMatchMap = useMemo(() => {
     const map = new Map<number, number>();
     movies.forEach((movie) => {
@@ -400,21 +408,18 @@ export default function MovieGrid({
   }, [movies, baseMatchMap, matchPreferences]);
 
   useEffect(() => {
-    setSimilarIndex(0);
-    if (positiveRecentMovies.length < 2) return;
-    const timer = window.setInterval(() => {
-      setSimilarIndex((current) => (current + 1) % positiveRecentMovies.length);
-    }, 60_000);
-    return () => window.clearInterval(timer);
-  }, [recentMovieKey, positiveRecentMovies.length]);
-
+    const availableGenres = genreOptionsKey ? genreOptionsKey.split('|') : [];
+    setSelectedGenre((current) =>
+      availableGenres.includes(current) ? current : availableGenres[0] || ''
+    );
+  }, [genreOptionsKey]);
   useEffect(() => {
     if (libraryView !== 'discover' || searchQuery.trim()) return;
 
     const requests = [
+      ...similarRailRequests,
+      ...(selectedGenreRailRequest ? [selectedGenreRailRequest] : []),
       imdbRailRequest,
-      ...genreRailRequests,
-      ...(similarRailRequest ? [similarRailRequest] : []),
     ];
 
     const missingRequests = requests.filter(
@@ -527,8 +532,8 @@ export default function MovieGrid({
     matchPreferences,
     dynamicRailMovies,
     baseMatchMap,
-    similarRailRequest?.key,
-    genreNames.join('|'),
+    similarRailKeys,
+    selectedGenreRailRequest?.key,
   ]);
 
   const displayedMovies = synchronizedMovies;
@@ -558,18 +563,18 @@ export default function MovieGrid({
           .slice(0, TARGET_RAIL_COUNT),
         loading: false,
       },
-      ...(similarRailRequest ? [{
-        id: similarRailRequest.key,
-        title: similarRailRequest.title,
-        movies: dynamicRailMovies[similarRailRequest.key] || [],
-        loading: loadingRailKeys[similarRailRequest.key] || false,
-      }] : []),
-      ...genreRailRequests.map((request) => ({
+      ...similarRailRequests.map((request) => ({
         id: request.key,
         title: request.title,
         movies: dynamicRailMovies[request.key] || [],
         loading: loadingRailKeys[request.key] || false,
       })),
+      ...(selectedGenreRailRequest ? [{
+        id: selectedGenreRailRequest.key,
+        title: selectedGenreRailRequest.title,
+        movies: dynamicRailMovies[selectedGenreRailRequest.key] || [],
+        loading: loadingRailKeys[selectedGenreRailRequest.key] || false,
+      }] : []),
       {
         id: imdbRailRequest.key,
         title: imdbRailRequest.title,
@@ -577,13 +582,29 @@ export default function MovieGrid({
         loading: loadingRailKeys[imdbRailRequest.key] || false,
       },
     ];
-
     const visibleRails = rails.filter((rail) => rail.movies.length > 0 || rail.loading);
 
     return (
       <div className="space-y-8">
         {visibleRails.map((rail) => (
-          rail.movies.length > 0 ? (
+          <Fragment key={rail.id}>
+            {rail.id === selectedGenreRailRequest?.key && genreNames.length > 0 && (
+              <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Kies een genre">
+                <span className="mr-1 text-[11px] font-semibold text-neutral-300">Kies een genre</span>
+                {genreNames.map((genre) => (
+                  <button
+                    key={genre}
+                    type="button"
+                    onClick={() => setSelectedGenre(genre)}
+                    aria-pressed={selectedGenre === genre}
+                    className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold transition ${selectedGenre === genre ? 'border-amber-200 bg-amber-200 text-slate-950' : 'border-white/15 bg-white/[0.06] text-neutral-200 hover:border-amber-200/60 hover:text-white'}`}
+                  >
+                    {genre}
+                  </button>
+                ))}
+              </div>
+            )}
+            {rail.movies.length > 0 ? (
             <MovieRail
               key={rail.id}
               title={rail.title}
@@ -609,7 +630,8 @@ export default function MovieGrid({
                 ))}
               </div>
             </section>
-          ) : null
+            ) : null}
+          </Fragment>
         ))}
         {hasMoreMovies && (
           <div className="flex justify-center pt-2">

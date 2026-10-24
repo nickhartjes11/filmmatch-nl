@@ -60,7 +60,6 @@ export default function HeroSpotlight({
   matchPreferences,
   onToggleWatchlist,
   onToggleWatched,
-  onSelectMovie,
   onSelectPerson,
 }: HeroSpotlightProps) {
   const [tipIndex, setTipIndex] = useState(0);
@@ -210,7 +209,7 @@ export default function HeroSpotlight({
           <div className="flex-1 space-y-3 min-w-0">
             {/* Header tags & Navigatie */}
             <div className="flex flex-wrap items-center gap-2.5">
-              {!isSelectedByUser ? (
+              {!isSelectedByUser && (
                 <>
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-300 backdrop-blur-md">
                     <span>⭐</span> Tip van de maand
@@ -236,22 +235,7 @@ export default function HeroSpotlight({
                     </button>
                   </div>
                 </>
-              ) : (
-                <>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3 py-1 text-xs font-bold text-rose-300 backdrop-blur-md">
-                    <span>🎬</span> Geselecteerde film
-                  </span>
-                  {onSelectMovie && (
-                    <button
-                      onClick={() => onSelectMovie(undefined)}
-                      className="text-[11px] text-neutral-400 hover:text-white underline underline-offset-2 ml-1"
-                    >
-                      Terug naar tips van de maand
-                    </button>
-                  )}
-                </>
               )}
-
               {displayedMovie.release_date && (
                 <span className="text-xs text-neutral-400">
                   {displayedMovie.release_date.split('-')[0]}

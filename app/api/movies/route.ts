@@ -327,7 +327,7 @@ export async function GET(request: Request) {
     let totalPages = 1;
 
     if (nowPlaying) {
-      const cinemaUrl = `https://api.themoviedb.org/3/movie/now_playing?api_key=${apiKey}&language=nl-NL&region=NL&page=${page}`;
+      const cinemaUrl = `https://api.themoviedb.org/3/movie/now_playing?api_key=${apiKey}&language=en-US&region=NL&page=${page}`;
       const cinemaRes = await fetchWithTimeout(cinemaUrl, { next: { revalidate: 1800 } });
       if (!cinemaRes.ok) {
         return NextResponse.json({ error: 'Bioscoopfilms konden niet worden opgehaald' }, { status: cinemaRes.status });
@@ -336,7 +336,7 @@ export async function GET(request: Request) {
       rawMovies = cinemaData.results || [];
       totalPages = cinemaData.total_pages || 1;
     } else if (personId) {
-      const creditsUrl = `https://api.themoviedb.org/3/person/${encodeURIComponent(personId)}/movie_credits?api_key=${apiKey}&language=nl-NL`;
+      const creditsUrl = `https://api.themoviedb.org/3/person/${encodeURIComponent(personId)}/movie_credits?api_key=${apiKey}&language=en-US`;
       const creditsResponse = await fetchWithTimeout(creditsUrl, { next: { revalidate: 3600 } });
       if (!creditsResponse.ok) {
         return NextResponse.json({ error: 'Films van deze persoon konden niet worden opgehaald' }, { status: creditsResponse.status });
@@ -355,7 +355,7 @@ export async function GET(request: Request) {
         .sort((first, second) => (second.popularity || 0) - (first.popularity || 0))
         .slice(0, 25);
     } else if (isSearch) {
-      const searchUrl = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&language=nl-NL&query=${encodeURIComponent(
+      const searchUrl = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&language=en-US&query=${encodeURIComponent(
         query!.trim()
       )}&page=${page}&include_adult=false`;
       const searchRes = await fetchWithTimeout(searchUrl, { next: { revalidate: 600 } });
@@ -366,7 +366,7 @@ export async function GET(request: Request) {
       rawMovies = searchData.results || [];
       totalPages = searchData.total_pages || 1;
     } else if (genreId) {
-      const discoverUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&language=nl-NL&sort_by=popularity.desc&watch_region=NL&with_watch_providers=${providerIdsQuery}&with_watch_monetization_types=flatrate&with_genres=${genreId}&page=${page}&include_adult=false`;
+      const discoverUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&language=en-US&sort_by=popularity.desc&watch_region=NL&with_watch_providers=${providerIdsQuery}&with_watch_monetization_types=flatrate&with_genres=${genreId}&page=${page}&include_adult=false`;
       const discoverRes = await fetchWithTimeout(discoverUrl, { next: { revalidate: 3600 } });
       if (!discoverRes.ok) {
         return NextResponse.json({ error: 'Films binnen dit genre konden niet worden opgehaald' }, { status: discoverRes.status });
@@ -375,7 +375,7 @@ export async function GET(request: Request) {
       rawMovies = discoverData.results || [];
       totalPages = discoverData.total_pages || 1;
     } else if (similarToId) {
-      const recommendationsUrl = `https://api.themoviedb.org/3/movie/${similarToId}/recommendations?api_key=${apiKey}&language=nl-NL&page=${page}`;
+      const recommendationsUrl = `https://api.themoviedb.org/3/movie/${similarToId}/recommendations?api_key=${apiKey}&language=en-US&page=${page}`;
       const recommendationsRes = await fetchWithTimeout(recommendationsUrl, { next: { revalidate: 3600 } });
       if (!recommendationsRes.ok) {
         return NextResponse.json({ error: 'Vergelijkbare films konden niet worden opgehaald' }, { status: recommendationsRes.status });
@@ -384,7 +384,7 @@ export async function GET(request: Request) {
       rawMovies = recommendationsData.results || [];
       totalPages = recommendationsData.total_pages || 1;
     } else {
-      const discoverUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&language=nl-NL&sort_by=popularity.desc&watch_region=NL&with_watch_providers=${providerIdsQuery}&with_watch_monetization_types=flatrate&page=${page}&include_adult=false`;
+      const discoverUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&language=en-US&sort_by=popularity.desc&watch_region=NL&with_watch_providers=${providerIdsQuery}&with_watch_monetization_types=flatrate&page=${page}&include_adult=false`;
       const discoverRes = await fetchWithTimeout(discoverUrl, { next: { revalidate: 3600 } });
       if (!discoverRes.ok) {
         return NextResponse.json({ error: 'Films konden niet worden opgehaald' }, { status: discoverRes.status });
@@ -433,7 +433,11 @@ export async function GET(request: Request) {
     const enrichedMovies = await Promise.all(
       rawMovies.map(async (movie: any) => {
         if (cachedMoviesMap.has(movie.id)) {
-          return cachedMoviesMap.get(movie.id);
+          const cachedMovie = cachedMoviesMap.get(movie.id);
+          return {
+            ...cachedMovie,
+            title: movie.title || cachedMovie.title,
+          };
         }
 
         try {
@@ -487,7 +491,7 @@ export async function GET(request: Request) {
           const newMovie = {
             id: movie.id,
             imdb_id: imdbId,
-            title: detailsData?.title || movie.title,
+            title: movie.title || detailsData?.title,
             overview: detailsData?.overview || movie.overview || '',
             poster_path: detailsData?.poster_path || movie.poster_path || '',
             backdrop_path: detailsData?.backdrop_path || movie.backdrop_path || '',

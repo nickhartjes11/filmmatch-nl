@@ -1191,6 +1191,10 @@ export default function Home() {
                 </div>
               ) : (
                 <>
+                  {(selectedSpotlightMovie ||
+                    (libraryView === 'discover' &&
+                      discoveryMode === 'recommended' &&
+                      !searchQuery.trim())) && (
                   <HeroSpotlight
   movie={selectedSpotlightMovie}
   allMovies={visibleMovies}
@@ -1209,6 +1213,7 @@ export default function Home() {
     }
   }}
 />
+                  )}
 
                   {(libraryView === 'watchlist' || libraryView === 'watched' || libraryView === 'cinema') && (
                     <div className="flex flex-wrap items-center justify-between gap-3 pb-2 pt-2 border-b border-white/[0.08]">

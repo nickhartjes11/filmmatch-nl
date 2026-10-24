@@ -43,7 +43,6 @@ export default function Sidebar({
   displayName,
   watchlistCount,
   selectedPlatforms,
-  minimumImdbRating,
   platforms,
   onNavigate,
   onSelectDiscoveryMode,
@@ -52,10 +51,8 @@ export default function Sidebar({
   onOpenProfile,
   onLogout,
   onTogglePlatform,
-  onMinimumImdbRatingChange,
   onResetToHome,
 }: SidebarProps) {
-  const [mobileRatingOpen, setMobileRatingOpen] = useState(false);
   const [failedLogos, setFailedLogos] = useState<Record<string, boolean>>({});
   const discoveryItems: { mode: DiscoveryMode; label: string; icon: string }[] = [
     { mode: 'recommended', label: 'Aanbevolen voor jou', icon: '★' },
@@ -68,32 +65,6 @@ export default function Sidebar({
       onNavigate('discover');
     }
   };
-
-  const renderRatingSlider = (id: string) => (
-    <div className="w-full">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <label htmlFor={id} className="text-[10px] font-bold uppercase tracking-wider text-neutral-200">IMDb vanaf</label>
-        <output htmlFor={id} className="text-xs font-bold tabular-nums text-amber-200">
-          {minimumImdbRating === 0 ? 'Alles' : minimumImdbRating.toFixed(1)}
-        </output>
-      </div>
-      <input
-        id={id}
-        type="range"
-        min={0}
-        max={10}
-        step={0.5}
-        value={minimumImdbRating}
-        onChange={(event) => onMinimumImdbRatingChange(Number(event.target.value))}
-        aria-label="Minimum IMDb-score"
-        className="h-2 w-full cursor-pointer accent-amber-300"
-      />
-      <div className="mt-1 flex justify-between text-[9px] tabular-nums text-neutral-400">
-        <span>Geen filter</span>
-        <span>10</span>
-      </div>
-    </div>
-  );
 
   return (
     <aside className="dashboard-sidebar w-[68px] md:w-20 xl:w-60 border-r border-white/[0.1] flex flex-col justify-between items-center xl:items-stretch px-2 xl:px-3 py-4 shrink-0 sticky top-0 h-screen z-30">
@@ -197,7 +168,6 @@ export default function Sidebar({
             {platforms.map((platform) => {
               const active = selectedPlatforms.includes(platform.name);
               const logoPath = platform.logo_path || OFFICIAL_LOGOS[platform.name];
-              const imageUrl = logoPath ? "https://image.tmdb.org/t/p/w92" + logoPath : "";
 
               return (
                 <button
@@ -215,20 +185,15 @@ export default function Sidebar({
                   <span className="relative h-5 w-5 shrink-0 overflow-hidden rounded-[5px] shadow">
                     {logoPath && !failedLogos[platform.name] ? (
                       <Image
-                        src={imageUrl}
-                        alt=""
+                        src={`https://image.tmdb.org/t/p/w92${logoPath}`}
+                        alt={platform.name}
                         fill
                         unoptimized
+                        onError={() => setFailedLogos((current) => ({ ...current, [platform.name]: true }))}
                         className="object-cover"
-                        onError={() => {
-                          setFailedLogos((current) => ({
-                            ...current,
-                            [platform.name]: true,
-                          }));
-                        }}
                       />
                     ) : (
-                      <span className="flex h-full w-full items-center justify-center text-[8px] font-black text-white" style={{ backgroundColor: platform.color }}>
+                      <span className="flex h-full w-full items-center justify-center bg-neutral-800 text-[8px] font-bold text-white">
                         {platform.mark || platform.name.slice(0, 2)}
                       </span>
                     )}
@@ -243,9 +208,7 @@ export default function Sidebar({
               );
             })}
           </div>
-          <div className="mt-5 hidden border-t border-white/[0.1] pt-4 xl:block">
-            {renderRatingSlider('minimum-imdb-score')}
-          </div>
+
         </div>
 
       </div>
@@ -269,23 +232,6 @@ export default function Sidebar({
         </button>
 
         <div className="flex w-full flex-col items-center gap-3 xl:flex-row xl:justify-between">
-          <div className="relative xl:hidden">
-            <button
-              type="button"
-              onClick={() => setMobileRatingOpen((open) => !open)}
-              aria-label={`Minimum IMDb-score ${minimumImdbRating === 0 ? 'geen filter' : minimumImdbRating.toFixed(1)}`}
-              aria-expanded={mobileRatingOpen}
-              title="IMDb-filter"
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.04] text-sm font-black text-amber-200 transition hover:bg-white/10"
-            >
-              ★
-            </button>
-            {mobileRatingOpen && (
-              <div className="absolute bottom-0 left-full z-50 ml-3 w-60 rounded-lg border border-white/10 bg-neutral-950 p-3 shadow-2xl">
-                {renderRatingSlider('minimum-imdb-score-mobile')}
-              </div>
-            )}
-          </div>
           <button
             type="button"
             onClick={onLogout}

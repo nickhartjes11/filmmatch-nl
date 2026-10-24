@@ -182,15 +182,15 @@ export default function Sidebar({
                       : 'border-transparent opacity-35 grayscale hover:opacity-75'
                   }`}
                 >
-                  <span className="relative h-5 w-5 shrink-0 overflow-hidden rounded-[5px] shadow">
+                  <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-900/70 shadow">
                     {logoPath && !failedLogos[platform.name] ? (
                       <Image
-                        src={`https://image.tmdb.org/t/p/w92${logoPath}`}
+                        src={`https://image.tmdb.org/t/p/w185${logoPath}`}
                         alt={platform.name}
                         fill
                         unoptimized
                         onError={() => setFailedLogos((current) => ({ ...current, [platform.name]: true }))}
-                        className="object-cover"
+                        className="object-contain p-1"
                       />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center bg-neutral-800 text-[8px] font-bold text-white">

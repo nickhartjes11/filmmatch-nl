@@ -56,6 +56,7 @@ export default function Sidebar({
   onResetToHome,
 }: SidebarProps) {
   const [mobileRatingOpen, setMobileRatingOpen] = useState(false);
+  const [failedLogos, setFailedLogos] = useState<Record<string, boolean>>({});
   const discoveryItems: { mode: DiscoveryMode; label: string; icon: string }[] = [
     { mode: 'recommended', label: 'Aanbevolen voor jou', icon: '★' },
   ];
@@ -196,6 +197,7 @@ export default function Sidebar({
             {platforms.map((platform) => {
               const active = selectedPlatforms.includes(platform.name);
               const logoPath = platform.logo_path || OFFICIAL_LOGOS[platform.name];
+              const imageUrl = logoPath ? "https://image.tmdb.org/t/p/w92" + logoPath : "";
 
               return (
                 <button
@@ -211,17 +213,23 @@ export default function Sidebar({
                   }`}
                 >
                   <span className="relative h-5 w-5 shrink-0 overflow-hidden rounded-[5px] shadow">
-                    {logoPath ? (
+                    {logoPath && !failedLogos[platform.name] ? (
                       <Image
-                        src={`https://image.tmdb.org/t/p/original${logoPath}`}
-                        alt={platform.name}
+                        src={imageUrl}
+                        alt=""
                         fill
                         unoptimized
                         className="object-cover"
+                        onError={() => {
+                          setFailedLogos((current) => ({
+                            ...current,
+                            [platform.name]: true,
+                          }));
+                        }}
                       />
                     ) : (
-                      <span className="flex h-full w-full items-center justify-center bg-neutral-800 text-[8px] font-bold text-white">
-                        {platform.name.slice(0, 2)}
+                      <span className="flex h-full w-full items-center justify-center text-[8px] font-black text-white" style={{ backgroundColor: platform.color }}>
+                        {platform.mark || platform.name.slice(0, 2)}
                       </span>
                     )}
                     {active && (

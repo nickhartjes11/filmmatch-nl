@@ -128,25 +128,25 @@ export default function FriendActivityPage({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <section className="relative isolate overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-rose-950/40 p-5 shadow-xl shadow-black/20 sm:p-7">
+      <section className="relative isolate overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-rose-950/40 p-4 shadow-xl shadow-black/20 sm:p-5">
         <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-rose-500/15 blur-3xl" />
         <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-amber-300/10 blur-3xl" />
 
-        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+        <div className="relative flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-rose-300/20 bg-rose-300/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-rose-100">
               <span className="h-1.5 w-1.5 rounded-full bg-rose-300 shadow-[0_0_10px_rgba(253,164,175,0.8)]" />
               Jullie filmfeed
             </span>
-            <h1 className="mt-3 flex items-center gap-3 text-2xl font-black tracking-tight text-white sm:text-3xl">
-              <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-xl shadow-inner">🎬</span>
+            <h1 className="mt-2 flex items-center gap-2.5 text-xl font-black tracking-tight text-white sm:text-2xl">
+              <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-xl shadow-inner">🎬</span>
               Vriendenactiviteit
             </h1>
-            <p className="mt-2 max-w-lg text-sm leading-relaxed text-neutral-300">
+            <p className="mt-1.5 max-w-lg text-xs leading-relaxed text-neutral-300">
               Ontdek wat je vrienden kijken, wat ze ervan vinden en welke film jij nog wilt toevoegen.
             </p>
 
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
                 <span className="text-sm" aria-hidden="true">👥</span>
                 <span className="text-xs font-bold text-white">{uniqueFriendsInFeed.length}</span>
@@ -160,7 +160,7 @@ export default function FriendActivityPage({
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/20 p-3 backdrop-blur-sm sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-black/20 p-2.5 backdrop-blur-sm sm:flex-row sm:items-center">
             {uniqueFriendsInFeed.length > 1 && (
               <label className="flex min-w-0 flex-col gap-1">
                 <span className="px-1 text-[9px] font-bold uppercase tracking-wider text-neutral-400">Vriend</span>
@@ -221,7 +221,7 @@ export default function FriendActivityPage({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {displayedActivities.map((item) => {
             const matchedMovie = allMovies.find((m) => m.id === item.movieId) || {
               id: item.movieId,
@@ -242,14 +242,14 @@ export default function FriendActivityPage({
             return (
               <article
                 key={item.id}
-                className="movie-card-reveal group flex flex-col justify-between overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/90 to-slate-950 shadow-lg shadow-black/15 transition duration-300 hover:-translate-y-1 hover:border-rose-300/30 hover:shadow-rose-950/20"
+                className="movie-card-reveal group flex min-h-[210px] flex-row overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/90 to-slate-950 shadow-lg shadow-black/15 transition duration-300 hover:-translate-y-1 hover:border-rose-300/30 hover:shadow-rose-950/20"
               >
                 {/* Poster container */}
                 <button
                   type="button"
                   onClick={() => handleOpenMovie(matchedMovie)}
                   aria-label="Open filmdetails"
-                  className="relative block aspect-[2/3] w-full cursor-pointer overflow-hidden bg-slate-900/60 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400"
+                  className="relative block min-h-[210px] w-24 shrink-0 cursor-pointer overflow-hidden bg-slate-900/60 sm:w-28 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400"
                 >
                   {item.poster_path ? (
                     <Image
@@ -298,7 +298,7 @@ export default function FriendActivityPage({
                 </button>
 
                 {/* Info & Details onder de poster */}
-                <div className="flex flex-1 flex-col justify-between p-3">
+                <div className="flex min-w-0 flex-1 flex-col justify-between p-2.5 sm:p-3">
                   <div>
                     <h3 className="truncate text-xs font-bold text-white transition group-hover:text-rose-200" title={item.recentFilm}>
                       <button
@@ -357,7 +357,7 @@ export default function FriendActivityPage({
                             />
                           ))
                         ) : (
-                          <span className="text-[9px] text-neutral-500">Stream onbekend</span>
+                          <span className="text-[9px] text-neutral-500">Beschikbaarheid niet geladen</span>
                         )}
                       </div>
 

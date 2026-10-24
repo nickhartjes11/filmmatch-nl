@@ -128,63 +128,92 @@ export default function FriendActivityPage({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header met filteren op vriend en sorteren */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-            <span>🎬</span> Vriendenactiviteit
-          </h1>
-          <p className="text-xs text-neutral-400 mt-0.5">
-            Wat kijken je vrienden en wat vinden ze ervan?
-          </p>
-        </div>
+      <section className="relative isolate overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-rose-950/40 p-5 shadow-xl shadow-black/20 sm:p-7">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-rose-500/15 blur-3xl" />
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-amber-300/10 blur-3xl" />
 
-        <div className="flex flex-wrap items-center gap-2">
-          {uniqueFriendsInFeed.length > 1 && (
-            <select
-              value={selectedFriendFilter}
-              onChange={(e) => setSelectedFriendFilter(e.target.value)}
-              className="bg-neutral-900 border border-white/10 text-xs font-semibold text-neutral-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-rose-500 transition"
-            >
-              <option value="all">Alle vrienden</option>
-              {uniqueFriendsInFeed.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          )}
+        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-rose-300/20 bg-rose-300/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-rose-100">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-300 shadow-[0_0_10px_rgba(253,164,175,0.8)]" />
+              Jullie filmfeed
+            </span>
+            <h1 className="mt-3 flex items-center gap-3 text-2xl font-black tracking-tight text-white sm:text-3xl">
+              <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-xl shadow-inner">🎬</span>
+              Vriendenactiviteit
+            </h1>
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-neutral-300">
+              Ontdek wat je vrienden kijken, wat ze ervan vinden en welke film jij nog wilt toevoegen.
+            </p>
 
-          <div className="flex items-center gap-1 bg-neutral-900/90 p-1 rounded-xl border border-white/10 shadow-sm">
-            <button
-              type="button"
-              onClick={() => setSortOrder('recent')}
-              className={`px-3 py-1 text-xs rounded-lg font-medium transition ${
-                sortOrder === 'recent'
-                  ? 'bg-white/15 text-white font-bold shadow-sm'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              Recent
-            </button>
-            <button
-              type="button"
-              onClick={() => setSortOrder('rating')}
-              className={`px-3 py-1 text-xs rounded-lg font-medium transition flex items-center gap-1 ${
-                sortOrder === 'rating'
-                  ? 'bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30 shadow-sm'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              <span>★</span> Hoogste cijfer
-            </button>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                <span className="text-sm" aria-hidden="true">👥</span>
+                <span className="text-xs font-bold text-white">{uniqueFriendsInFeed.length}</span>
+                <span className="text-[10px] text-neutral-400">vrienden</span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                <span className="text-sm" aria-hidden="true">✨</span>
+                <span className="text-xs font-bold text-white">{activities.length}</span>
+                <span className="text-[10px] text-neutral-400">updates</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/20 p-3 backdrop-blur-sm sm:flex-row sm:items-center">
+            {uniqueFriendsInFeed.length > 1 && (
+              <label className="flex min-w-0 flex-col gap-1">
+                <span className="px-1 text-[9px] font-bold uppercase tracking-wider text-neutral-400">Vriend</span>
+                <select
+                  value={selectedFriendFilter}
+                  onChange={(e) => setSelectedFriendFilter(e.target.value)}
+                  aria-label="Filter op vriend"
+                  className="min-w-40 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs font-semibold text-neutral-100 outline-none transition focus:border-rose-400/60"
+                >
+                  <option value="all">Alle vrienden</option>
+                  {uniqueFriendsInFeed.map((friend) => (
+                    <option key={friend.id} value={friend.id}>
+                      {friend.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <div className="flex flex-col gap-1">
+              <span className="px-1 text-[9px] font-bold uppercase tracking-wider text-neutral-400">Sorteren</span>
+              <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-slate-950 p-1">
+                <button
+                  type="button"
+                  onClick={() => setSortOrder('recent')}
+                  aria-pressed={sortOrder === 'recent'}
+                  className={sortOrder === 'recent'
+                    ? 'rounded-lg bg-white/15 px-3 py-2 text-xs font-bold text-white shadow-sm'
+                    : 'rounded-lg px-3 py-2 text-xs font-medium text-neutral-400 transition hover:text-white'}
+                >
+                  Recent
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortOrder('rating')}
+                  aria-pressed={sortOrder === 'rating'}
+                  className={sortOrder === 'rating'
+                    ? 'flex items-center gap-1.5 rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-bold text-amber-200'
+                    : 'flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-neutral-400 transition hover:text-white'}
+                >
+                  <span aria-hidden="true">★</span>
+                  Hoogste cijfer
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {displayedActivities.length === 0 ? (
-        <div className="py-28 text-center space-y-2">
-          <p className="text-sm font-bold text-white">Geen activiteit gevonden</p>
+        <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900/70 to-slate-950/80 px-5 py-16 text-center shadow-inner sm:py-24">
+          <div aria-hidden="true" className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-2xl">🎞️</div>
+          <p className="text-base font-bold text-white">Geen activiteit gevonden</p>
           <p className="text-xs text-neutral-400">
             {selectedFriendFilter !== 'all'
               ? 'Deze vriend heeft nog geen films beoordeeld.'
@@ -192,7 +221,7 @@ export default function FriendActivityPage({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {displayedActivities.map((item) => {
             const matchedMovie = allMovies.find((m) => m.id === item.movieId) || {
               id: item.movieId,
@@ -213,12 +242,14 @@ export default function FriendActivityPage({
             return (
               <article
                 key={item.id}
-                className="movie-card-reveal group flex flex-col justify-between overflow-hidden rounded-xl border border-white/10 bg-slate-950/40 hover:border-white/25 transition duration-300"
+                className="movie-card-reveal group flex flex-col justify-between overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/90 to-slate-950 shadow-lg shadow-black/15 transition duration-300 hover:-translate-y-1 hover:border-rose-300/30 hover:shadow-rose-950/20"
               >
                 {/* Poster container */}
-                <div
+                <button
+                  type="button"
                   onClick={() => handleOpenMovie(matchedMovie)}
-                  className="relative aspect-[2/3] w-full cursor-pointer overflow-hidden bg-slate-900/60"
+                  aria-label="Open filmdetails"
+                  className="relative block aspect-[2/3] w-full cursor-pointer overflow-hidden bg-slate-900/60 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400"
                 >
                   {item.poster_path ? (
                     <Image
@@ -226,7 +257,7 @@ export default function FriendActivityPage({
                       alt={item.recentFilm}
                       fill
                       unoptimized
-                      className="object-cover transition duration-300 group-hover:scale-105"
+                      className="object-cover transition duration-500 group-hover:scale-105"
                     />
                   ) : (
                     <div className="h-full w-full bg-slate-900/80 flex items-center justify-center text-[10px] text-neutral-600 font-bold">
@@ -264,7 +295,7 @@ export default function FriendActivityPage({
                       </span>
                     )}
                   </div>
-                </div>
+                </button>
 
                 {/* Info & Details onder de poster */}
                 <div className="flex flex-1 flex-col justify-between p-3">
@@ -283,19 +314,34 @@ export default function FriendActivityPage({
                     </p>
                   </div>
 
-                  {/* ONDERIN: Vriendnaam + cijfer, streamingdiensten en watchlist-knop */}
-                  <div className="mt-2.5 space-y-2 border-t border-white/[0.08] pt-2">
-                    <div className="flex items-center justify-between gap-1 text-[11px]">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${item.avatarGradient} text-[8px] font-black text-white`}>
+                  {/* Vriend en gegeven cijfer staan centraal in de activiteit */}
+                  <div className="mt-3 space-y-2.5 border-t border-white/[0.08] pt-3">
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-gradient-to-r from-amber-400/[0.12] to-orange-300/[0.06] px-3 py-2.5 shadow-inner shadow-amber-300/[0.04]">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${item.avatarGradient} text-xs font-black text-white ring-2 ring-white/10`}>
                           {item.initial}
                         </span>
-                        <span className="truncate font-semibold text-neutral-300" title={item.name}>
-                          {item.name.split(' ')[0]}
-                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-white" title={item.name}>
+                            {item.name}
+                          </p>
+                          <p className="text-[10px] font-medium text-amber-100/65">
+                            {item.rating ? 'gaf deze film' : 'heeft deze film gezien'}
+                          </p>
+                        </div>
                       </div>
-                      <span className="font-black text-amber-300 shrink-0 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 text-[10px]">
-                        ★ {item.rating ? item.rating.toFixed(1) : '✓'}
+                      <span
+                        className={`inline-flex shrink-0 items-baseline gap-1 rounded-lg px-2.5 py-1.5 ${item.rating ? 'bg-amber-300 text-slate-950 shadow-md shadow-amber-950/20' : 'border border-white/10 bg-white/[0.06] text-neutral-200'}`}
+                        aria-label={item.rating ? `${item.name} gaf ${item.rating.toFixed(1)} van de 10` : `${item.name} heeft de film gezien`}
+                      >
+                        {item.rating ? (
+                          <>
+                            <span className="text-base font-black leading-none">{item.rating.toFixed(1)}</span>
+                            <span className="text-[9px] font-bold opacity-70">/ 10</span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] font-extrabold">✓ Gezien</span>
+                        )}
                       </span>
                     </div>
 

@@ -192,110 +192,69 @@ export default function FriendActivityPage({
 
   return (
     <div className="space-y-4 animate-fade-in">
-      <section className="relative isolate overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-rose-950/40 p-3 shadow-lg shadow-black/15 sm:p-4">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-rose-500/15 blur-3xl"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-amber-300/10 blur-3xl"
-        />
+      <section className="flex flex-col gap-3 border-b border-white/10 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-lg font-bold text-white sm:text-xl">Vriendenactiviteit</h1>
+          <p className="mt-0.5 text-xs text-neutral-400">
+            Ontdek wat je vrienden kijken en wat ze ervan vinden.
+          </p>
+          <p className="mt-1 text-[10px] text-neutral-500">
+            {uniqueFriendsInFeed.length} vrienden <span aria-hidden="true">·</span>{' '}
+            {activities.length} updates
+          </p>
+        </div>
 
-        <div className="relative flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-xl">
-            <span className="inline-flex items-center gap-2 rounded-full border border-rose-300/20 bg-rose-300/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-rose-100">
-              <span className="h-1.5 w-1.5 rounded-full bg-rose-300 shadow-[0_0_10px_rgba(253,164,175,0.8)]" />
-              Jullie filmfeed
-            </span>
-
-            <h1 className="mt-2 flex items-center gap-2.5 text-xl font-black tracking-tight text-white sm:text-2xl">
-              <span
-                aria-hidden="true"
-                className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-xl shadow-inner"
+        <div className="flex flex-wrap items-end gap-2">
+          {uniqueFriendsInFeed.length > 1 && (
+            <label className="flex flex-col gap-1">
+              <span className="px-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
+                Vriend
+              </span>
+              <select
+                value={selectedFriendFilter}
+                onChange={(event) => setSelectedFriendFilter(event.target.value)}
+                aria-label="Filter op vriend"
+                className="min-w-36 rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-xs font-medium text-neutral-100 outline-none focus:border-white/25"
               >
-                🎬
-              </span>
-              Vriendenactiviteit
-            </h1>
+                <option value="all">Alle vrienden</option>
+                {uniqueFriendsInFeed.map((friend) => (
+                  <option key={friend.id} value={friend.id}>
+                    {friend.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
-            <p className="mt-1.5 max-w-lg text-xs leading-relaxed text-neutral-300">
-              Ontdek wat je vrienden kijken, wat ze ervan vinden en welke film jij nog wilt
-              toevoegen.
-            </p>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                <span className="text-sm" aria-hidden="true">
-                  👥
-                </span>
-                <span className="text-xs font-bold text-white">{uniqueFriendsInFeed.length}</span>
-                <span className="text-[10px] text-neutral-400">vrienden</span>
-              </div>
-
-              <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                <span className="text-sm" aria-hidden="true">
-                  ✨
-                </span>
-                <span className="text-xs font-bold text-white">{activities.length}</span>
-                <span className="text-[10px] text-neutral-400">updates</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-black/20 p-2.5 backdrop-blur-sm sm:flex-row sm:items-center">
-            {uniqueFriendsInFeed.length > 1 && (
-              <label className="flex min-w-0 flex-col gap-1">
-                <span className="px-1 text-[9px] font-bold uppercase tracking-wider text-neutral-400">
-                  Vriend
-                </span>
-                <select
-                  value={selectedFriendFilter}
-                  onChange={(event) => setSelectedFriendFilter(event.target.value)}
-                  aria-label="Filter op vriend"
-                  className="min-w-40 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs font-semibold text-neutral-100 outline-none transition focus:border-rose-400/60"
-                >
-                  <option value="all">Alle vrienden</option>
-                  {uniqueFriendsInFeed.map((friend) => (
-                    <option key={friend.id} value={friend.id}>
-                      {friend.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            <div className="flex flex-col gap-1">
-              <span className="px-1 text-[9px] font-bold uppercase tracking-wider text-neutral-400">
-                Sorteren
-              </span>
-              <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-slate-950 p-1">
-                <button
-                  type="button"
-                  onClick={() => setSortOrder('recent')}
-                  aria-pressed={sortOrder === 'recent'}
-                  className={
-                    sortOrder === 'recent'
-                      ? 'rounded-lg bg-white/15 px-3 py-2 text-xs font-bold text-white shadow-sm'
-                      : 'rounded-lg px-3 py-2 text-xs font-medium text-neutral-400 transition hover:text-white'
-                  }
-                >
-                  Recent
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSortOrder('rating')}
-                  aria-pressed={sortOrder === 'rating'}
-                  className={
-                    sortOrder === 'rating'
-                      ? 'flex items-center gap-1.5 rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-bold text-amber-200'
-                      : 'flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-neutral-400 transition hover:text-white'
-                  }
-                >
-                  <span aria-hidden="true">★</span>
-                  Hoogste cijfer
-                </button>
-              </div>
+          <div className="flex flex-col gap-1">
+            <span className="px-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
+              Sorteren
+            </span>
+            <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-slate-950 p-1">
+              <button
+                type="button"
+                onClick={() => setSortOrder('recent')}
+                aria-pressed={sortOrder === 'recent'}
+                className={
+                  sortOrder === 'recent'
+                    ? 'rounded-md bg-white/15 px-3 py-2 text-xs font-semibold text-white'
+                    : 'rounded-md px-3 py-2 text-xs text-neutral-400 transition hover:text-white'
+                }
+              >
+                Recent
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortOrder('rating')}
+                aria-pressed={sortOrder === 'rating'}
+                className={
+                  sortOrder === 'rating'
+                    ? 'rounded-md bg-white/15 px-3 py-2 text-xs font-semibold text-white'
+                    : 'rounded-md px-3 py-2 text-xs text-neutral-400 transition hover:text-white'
+                }
+              >
+                ★ Hoogste cijfer
+              </button>
             </div>
           </div>
         </div>
@@ -317,7 +276,7 @@ export default function FriendActivityPage({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 min-[1700px]:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {displayedActivities.map((item) => {
             const movieFromList = allMovies.find((movie) => movie.id === item.movieId);
             const metadataMovie = activityMovieMetadata[item.movieId];
@@ -556,6 +515,7 @@ export default function FriendActivityPage({
                       )}
                     </div>
                   </div>
+
                   <button
                     type="button"
                     onClick={() => setActiveModalMovie(null)}
@@ -644,6 +604,7 @@ export default function FriendActivityPage({
                       <span aria-hidden="true">▶</span>
                       {trailerLoading ? 'Trailer laden...' : 'Bekijk Trailer'}
                     </button>
+
                     <button
                       type="button"
                       onClick={() => onToggleWatchlist(activeModalMovie)}

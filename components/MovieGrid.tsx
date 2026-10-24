@@ -39,6 +39,7 @@ interface MovieCardProps extends Pick<MovieGridProps, 'watchlistIds' | 'watchedI
   railCard?: boolean;
   highlightUserRating?: boolean;
   compactPoster?: boolean;
+  showWatchedBadge?: boolean;
 }
 
 interface MovieRailProps extends Omit<MovieCardProps, 'movie' | 'railCard'> {
@@ -83,6 +84,7 @@ function MovieCard({
   railCard = false,
   highlightUserRating = false,
   compactPoster = false,
+  showWatchedBadge = false,
 }: MovieCardProps) {
   const [imageError, setImageError] = useState(false);
   const isWatchlisted = watchlistIds.includes(movie.id);
@@ -133,6 +135,11 @@ function MovieCard({
             source={movie.rating_source}
           />
         </div>
+        {showWatchedBadge && isWatched && (
+          <span className="absolute bottom-2 left-2 rounded-full border border-emerald-200/30 bg-emerald-950/90 px-2 py-1 text-[9px] font-bold text-emerald-100 shadow-lg backdrop-blur-sm">
+            Gezien
+          </span>
+        )}
       </button>
 
       <div className="flex flex-1 flex-col justify-between p-3">
@@ -643,6 +650,7 @@ export default function MovieGrid({
             onSelectPerson={onSelectPerson}
             highlightUserRating={libraryView === 'watched'}
             compactPoster={libraryView === 'watched' || libraryView === 'watchlist'}
+            showWatchedBadge={libraryView === 'discover' && Boolean(searchQuery.trim())}
           />
         ))}
       </div>

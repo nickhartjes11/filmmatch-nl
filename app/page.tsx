@@ -850,7 +850,10 @@ export default function Home() {
     return catalog.filter((m) => {
       const matchQuery = selectedPerson || !searchQuery.trim() || `${m.title} ${m.overview}`.toLowerCase().includes(searchQuery.trim().toLowerCase());
       const matchesFilters = (libraryView !== 'discover' && !isCinema) || matchesDiscoveryFilters(m, selectedPlatforms, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, isCinema);
-      const isUnwatched = (libraryView !== 'discover' && !isCinema) || !watchedIds.has(m.id);
+      const isUnwatched =
+        (libraryView !== 'discover' && !isCinema) ||
+        (libraryView === 'discover' && Boolean(searchQuery.trim())) ||
+        !watchedIds.has(m.id);
       return matchQuery && matchesFilters && isUnwatched;
     });
   }, [scoredMovies, library, libraryView, searchQuery, selectedPerson, selectedPlatforms, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, librarySort, ratingsByMovieId]);
@@ -1188,33 +1191,24 @@ export default function Home() {
                 </div>
               ) : (
                 <>
-                  {(
-                    selectedSpotlightMovie ||
-                    (
-                      libraryView === 'discover' &&
-                      discoveryMode === 'recommended' &&
-                      !searchQuery.trim()
-                    )
-                  ) && (
-                    <HeroSpotlight
-                      movie={selectedSpotlightMovie}
-                      allMovies={visibleMovies}
-                      watchlistIds={library.watchlist.map((m) => m.id)}
-                      watchedIds={library.watched.map((m) => m.id)}
-                      matchPreferences={matchPreferences}
-                      onToggleWatchlist={toggleWatchlist}
-                      onToggleWatched={openMovieRating}
-                      onSelectPerson={handleSelectPerson}
-                      onSelectMovie={(movie) => {
-                        if (!movie) {
-                          setSpotlightMovieId(null);
-                          setSelectedSpotlightMovie(null);
-                        } else {
-                          selectSpotlightMovie(movie);
-                        }
-                      }}
-                    />
-                  )}
+                  <HeroSpotlight
+  movie={selectedSpotlightMovie}
+  allMovies={visibleMovies}
+  watchlistIds={library.watchlist.map((m) => m.id)}
+  watchedIds={library.watched.map((m) => m.id)}
+  matchPreferences={matchPreferences}
+  onToggleWatchlist={toggleWatchlist}
+  onToggleWatched={openMovieRating}
+  onSelectPerson={handleSelectPerson}
+  onSelectMovie={(movie) => {
+    if (!movie) {
+      setSpotlightMovieId(null);
+      setSelectedSpotlightMovie(null);
+    } else {
+      selectSpotlightMovie(movie);
+    }
+  }}
+/>
 
                   {(libraryView === 'watchlist' || libraryView === 'watched' || libraryView === 'cinema') && (
                     <div className="flex flex-wrap items-center justify-between gap-3 pb-2 pt-2 border-b border-white/[0.08]">

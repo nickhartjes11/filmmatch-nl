@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import Image from 'next/image';
 import MovieRatingControl from './MovieRatingControl';
 import StreamingLogo from './StreamingLogo';
@@ -45,6 +45,7 @@ interface MovieCardProps extends Pick<MovieGridProps, 'watchlistIds' | 'watchedI
 interface MovieRailProps extends Omit<MovieCardProps, 'movie' | 'railCard'> {
   title: string;
   movies: Movie[];
+  headerAction?: ReactNode;
 }
 
 interface DynamicMovieRailRequest {
@@ -57,7 +58,21 @@ interface DynamicMovieRailRequest {
   excludedMovieId?: number;
 }
 
+interface RecommendationRail {
+  id: string;
+  title: string;
+  movies: Movie[];
+  loading: boolean;
+  headerAction?: ReactNode;
+}
+
 const TARGET_RAIL_COUNT = 25;
+
+const MOVIE_GENRES = [
+  'Actie', 'Avontuur', 'Animatie', 'Komedie', 'Misdaad', 'Documentaire', 'Drama', 'Familie',
+  'Fantasy', 'Historisch', 'Horror', 'Muziek', 'Mysterie', 'Romantiek', 'Sciencefiction',
+  'Thriller', 'Oorlog', 'Western',
+];
 
 function RatingBadge({ rating, source }: { rating?: string | null; source?: Movie['rating_source'] }) {
   if (!rating) return null;
@@ -209,6 +224,7 @@ function MovieRail({
   onToggleWatchlist,
   onToggleWatched,
   onSelectPerson,
+  headerAction,
 }: MovieRailProps) {
   const railRef = useRef<HTMLDivElement>(null);
   const drag = useRef({ active: false, dragged: false, startX: 0, startScroll: 0 });
@@ -247,8 +263,9 @@ function MovieRail({
   return (
     <section className="space-y-3" aria-label={title}>
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-baseline gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h2 className="text-sm font-bold text-white md:text-base">{title}</h2>
+          {headerAction}
           <span className="text-[10px] text-neutral-300">{movies.length}</span>
         </div>
         <div className="hidden gap-1 sm:flex">
@@ -311,7 +328,10 @@ export default function MovieGrid({
 }: MovieGridProps) {
   const [dynamicRailMovies, setDynamicRailMovies] = useState<Record<string, Movie[]>>({});
   const [loadingRailKeys, setLoadingRailKeys] = useState<Record<string, boolean>>({});
-  const [selectedGenre, setSelectedGenre] = useState(preferredGenres[0] || '');
+  const defaultGenre = preferredGenres[0] || 'Drama';
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([defaultGenre]);
+  const [draftGenres, setDraftGenres] = useState<string[]>([defaultGenre]);
+  const [isGenreMenuOpen, setIsGenreMenuOpen] = useState(false);
 
   const positiveRecentMovies = useMemo(() => {
     return recentlyWatchedMovies
@@ -333,8 +353,7 @@ export default function MovieGrid({
       .slice(0, 2);
   }, [positiveRecentMovies, movies]);
 
-  const genreNames = preferredGenres.slice(0, 2);
-  const genreOptionsKey = genreNames.join('|');
+  const selectedGenresKey = selectedGenres.join('|');
   const selectedPlatformKey = selectedPlatforms.join(',');
   const watchedMovieKey = watchedIds.join(',');
 
@@ -354,16 +373,91 @@ export default function MovieGrid({
     excludedMovieId: movie.id,
   }));
 
-  const selectedGenreRailRequest: DynamicMovieRailRequest | null = selectedGenre
+  const selectedGenreRailRequest: DynamicMovieRailRequest | null = selectedGenres.length > 0
     ? {
-        key: 'genre:' + selectedGenre + ':' + railFilterKey,
-        title: 'Meer ' + selectedGenre + ' films',
+        key: 'genre:' + selectedGenresKey + ':' + railFilterKey,
+        title: selectedGenres.length === 1
+          ? 'Meer ' + selectedGenres[0] + ' films'
+          : 'Meer films in ' + selectedGenres.length + ' genres',
         parameter: 'genre',
-        value: selectedGenre,
-        genre: selectedGenre,
+        value: selectedGenres.join('|'),
+        genre: selectedGenres.join('|'),
       }
     : null;
 
+  const toggleGenreMenu = () => {
+    if (!isGenreMenuOpen) setDraftGenres(selectedGenres);
+    setIsGenreMenuOpen((open) => !open);
+  };
+
+  const toggleDraftGenre = (genre: string) => {
+    setDraftGenres((current) =>
+      current.includes(genre)
+        ? current.filter((item) => item !== genre)
+        : [...current, genre]
+    );
+  };
+
+  const applyGenreSelection = () => {
+    setSelectedGenres(draftGenres.length > 0 ? draftGenres : [defaultGenre]);
+    setIsGenreMenuOpen(false);
+  };
+
+  const genreFilterControl = (
+    <div className="relative z-50">
+      <button
+        type="button"
+        onClick={toggleGenreMenu}
+        aria-expanded={isGenreMenuOpen}
+        aria-haspopup="dialog"
+        className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold text-neutral-200 transition hover:border-amber-200/60 hover:text-white"
+      >
+        Genres <span className="text-amber-200">{selectedGenres.length}</span>
+        <span aria-hidden="true">{isGenreMenuOpen ? '⌃' : '⌄'}</span>
+      </button>
+      {isGenreMenuOpen && (
+        <div
+          role="dialog"
+          aria-label="Kies filmgenres"
+          className="absolute left-0 top-full z-50 mt-2 w-64 rounded-xl border border-white/15 bg-slate-950 p-3 shadow-2xl sm:w-72"
+        >
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-white">Kies genres</span>
+            <button
+              type="button"
+              onClick={() => setDraftGenres([defaultGenre])}
+              className="text-[10px] font-semibold text-amber-200 hover:text-amber-100"
+            >
+              Standaard
+            </button>
+          </div>
+          <div className="grid max-h-56 grid-cols-2 gap-x-3 gap-y-1 overflow-y-auto pr-1">
+            {MOVIE_GENRES.map((genre) => (
+              <label key={genre} className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-[11px] text-neutral-200 hover:bg-white/[0.06]">
+                <input
+                  type="checkbox"
+                  checked={draftGenres.includes(genre)}
+                  onChange={() => toggleDraftGenre(genre)}
+                  className="accent-amber-300"
+                />
+                {genre}
+              </label>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2">
+            <span className="text-[10px] text-neutral-400">{draftGenres.length} geselecteerd</span>
+            <button
+              type="button"
+              onClick={applyGenreSelection}
+              className="rounded-full bg-amber-200 px-3 py-1.5 text-[10px] font-bold text-slate-950 transition hover:bg-amber-100"
+            >
+              Toepassen
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
   const imdbRailRequest: DynamicMovieRailRequest = {
     key: 'imdb:' + railFilterKey,
     title: 'Best beoordeelde IMDb-films',
@@ -407,12 +501,6 @@ export default function MovieGrid({
     }));
   }, [movies, baseMatchMap, matchPreferences]);
 
-  useEffect(() => {
-    const availableGenres = genreOptionsKey ? genreOptionsKey.split('|') : [];
-    setSelectedGenre((current) =>
-      availableGenres.includes(current) ? current : availableGenres[0] || ''
-    );
-  }, [genreOptionsKey]);
   useEffect(() => {
     if (libraryView !== 'discover' || searchQuery.trim()) return;
 
@@ -534,6 +622,7 @@ export default function MovieGrid({
     baseMatchMap,
     similarRailKeys,
     selectedGenreRailRequest?.key,
+    selectedGenresKey,
   ]);
 
   const displayedMovies = synchronizedMovies;
@@ -553,7 +642,7 @@ export default function MovieGrid({
               : 'Aanbevolen op basis van jouw smaak';
 
   if (libraryView === 'discover' && !searchQuery.trim()) {
-    const rails = [
+    const rails: RecommendationRail[] = [
       {
         id: 'hits',
         title: 'Beste filmhits',
@@ -574,6 +663,7 @@ export default function MovieGrid({
         title: selectedGenreRailRequest.title,
         movies: dynamicRailMovies[selectedGenreRailRequest.key] || [],
         loading: loadingRailKeys[selectedGenreRailRequest.key] || false,
+        headerAction: genreFilterControl,
       }] : []),
       {
         id: imdbRailRequest.key,
@@ -582,33 +672,20 @@ export default function MovieGrid({
         loading: loadingRailKeys[imdbRailRequest.key] || false,
       },
     ];
-    const visibleRails = rails.filter((rail) => rail.movies.length > 0 || rail.loading);
+    const visibleRails = rails.filter((rail) =>
+      rail.id === selectedGenreRailRequest?.key || rail.movies.length > 0 || rail.loading
+    );
 
     return (
       <div className="space-y-8">
         {visibleRails.map((rail) => (
           <Fragment key={rail.id}>
-            {rail.id === selectedGenreRailRequest?.key && genreNames.length > 0 && (
-              <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Kies een genre">
-                <span className="mr-1 text-[11px] font-semibold text-neutral-300">Kies een genre</span>
-                {genreNames.map((genre) => (
-                  <button
-                    key={genre}
-                    type="button"
-                    onClick={() => setSelectedGenre(genre)}
-                    aria-pressed={selectedGenre === genre}
-                    className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold transition ${selectedGenre === genre ? 'border-amber-200 bg-amber-200 text-slate-950' : 'border-white/15 bg-white/[0.06] text-neutral-200 hover:border-amber-200/60 hover:text-white'}`}
-                  >
-                    {genre}
-                  </button>
-                ))}
-              </div>
-            )}
             {rail.movies.length > 0 ? (
             <MovieRail
               key={rail.id}
               title={rail.title}
               movies={rail.movies}
+              headerAction={rail.headerAction}
               watchlistIds={watchlistIds}
               watchedIds={watchedIds}
               onSelectMovie={onSelectMovie}
@@ -620,7 +697,10 @@ export default function MovieGrid({
             />
           ) : rail.loading ? (
             <section key={rail.id} className="space-y-3" aria-label={rail.title}>
-              <h2 className="text-sm font-bold text-white md:text-base">{rail.title}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-white md:text-base">{rail.title}</h2>
+                {rail.headerAction}
+              </div>
               <div className="flex gap-3 overflow-hidden py-1">
                 {[1, 2, 3, 4, 5].map((skeletonId) => (
                   <div
@@ -630,6 +710,14 @@ export default function MovieGrid({
                 ))}
               </div>
             </section>
+            ) : rail.id === selectedGenreRailRequest?.key ? (
+              <section className="space-y-2" aria-label={rail.title}>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-white md:text-base">{rail.title}</h2>
+                  {rail.headerAction}
+                </div>
+                <p className="text-xs text-neutral-400">Geen films gevonden voor deze selectie. Kies andere genres.</p>
+              </section>
             ) : null}
           </Fragment>
         ))}

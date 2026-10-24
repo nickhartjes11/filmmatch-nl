@@ -1,16 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
-
 interface Provider {
   provider_id: number;
   provider_name: string;
   logo_path: string;
 }
-
 const TARGET_PROVIDERS: Record<number, string> = {
   8: 'Netflix',
   72: 'Videoland',
@@ -20,9 +17,7 @@ const TARGET_PROVIDERS: Record<number, string> = {
   1899: 'HBO Max',
   384: 'HBO Max',
 };
-
 const PROVIDER_IDS_QUERY = '8|72|119|9|337|1899|384';
-
 const TMDB_GENRES: Record<number, string> = {
   28: 'Actie',
   12: 'Avontuur',
@@ -44,14 +39,11 @@ const TMDB_GENRES: Record<number, string> = {
   10752: 'Oorlog',
   37: 'Western',
 };
-
 const pendingImdbRatings = new Map<string, Promise<string | null>>();
-
 function formatTmdbRating(value: unknown): string | null {
   const rating = Number(value);
   return Number.isFinite(rating) && rating > 0 ? rating.toFixed(1) : null;
 }
-
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 3500): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -64,7 +56,6 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
     throw e;
   }
 }
-
 async function getImdbRating(imdbId: string, apiKey: string): Promise<string | null> {
   if (supabase) {
     try {
@@ -73,16 +64,13 @@ async function getImdbRating(imdbId: string, apiKey: string): Promise<string | n
         .select('imdb_rating')
         .eq('imdb_id', imdbId)
         .maybeSingle();
-
       if (data?.imdb_rating) {
         return Number(data.imdb_rating).toFixed(1);
       }
     } catch {}
   }
-
   const pending = pendingImdbRatings.get(imdbId);
   if (pending) return pending;
-
   const request = (async () => {
     try {
       const response = await fetchWithTimeout(
@@ -96,14 +84,12 @@ async function getImdbRating(imdbId: string, apiKey: string): Promise<string | n
       if (data.imdbRating && data.imdbRating !== 'N/A') {
         const ratingStr = String(data.imdbRating);
         const ratingNum = Number.parseFloat(ratingStr);
-
         if (supabase && Number.isFinite(ratingNum)) {
           void supabase
             .from('movie_imdb_cache')
             .upsert({ imdb_id: imdbId, imdb_rating: ratingNum })
             .then();
         }
-
         return ratingStr;
       }
       return null;
@@ -111,30 +97,24 @@ async function getImdbRating(imdbId: string, apiKey: string): Promise<string | n
       return null;
     }
   })();
-
   pendingImdbRatings.set(imdbId, request);
   const rating = await request;
   pendingImdbRatings.delete(imdbId);
   return rating;
 }
-
 export async function GET(request: Request) {
   const apiKey = process.env.TMDB_API_KEY;
   const omdbKey = process.env.OMDB_API_KEY;
-
   if (!apiKey) {
     return NextResponse.json({ error: 'TMDB_API_KEY ontbreekt' }, { status: 500 });
   }
-
   const { searchParams } = new URL(request.url);
-
   const trailerMovieId = searchParams.get('trailerMovieId');
   if (trailerMovieId) {
     try {
       const videosUrl = `https://api.themoviedb.org/3/movie/${encodeURIComponent(trailerMovieId)}/videos?api_key=${apiKey}`;
       const videosRes = await fetchWithTimeout(videosUrl, { next: { revalidate: 3600 } });
       const videosData = videosRes.ok ? await videosRes.json() : null;
-
       const videos = (videosData?.results || []) as Array<{
         site?: string;
         type?: string;
@@ -142,54 +122,59 @@ export async function GET(request: Request) {
         official?: boolean;
         iso_639_1?: string;
       }>;
-
       const ytVideos = videos.filter(
         (v) => v.site?.toLowerCase() === 'youtube' && Boolean(v.key)
       );
-
       const trailer =
         ytVideos.find((v) => v.type === 'Trailer' && v.official && v.iso_639_1 === 'nl') ||
         ytVideos.find((v) => v.type === 'Trailer' && v.official) ||
         ytVideos.find((v) => v.type === 'Trailer') ||
         ytVideos.find((v) => v.type === 'Teaser') ||
         ytVideos[0];
-
       return NextResponse.json({ youtubeKey: trailer?.key ?? null });
     } catch {
       return NextResponse.json({ error: 'Fout bij het ophalen van de trailer' }, { status: 500 });
     }
   }
-
   const page = searchParams.get('page') || '1';
   const query = searchParams.get('query');
   const peopleQuery = searchParams.get('people')?.trim();
   const personId = searchParams.get('personId');
-  const genreName = searchParams.get('genre')?.trim();
   const similarToParam = searchParams.get('similarTo');
   const similarToId = similarToParam ? Number.parseInt(similarToParam, 10) : null;
   const nowPlaying = searchParams.get('nowPlaying') === 'true';
 
   const providersParam = searchParams.get('providers');
-  const selectedProviderNames = providersParam ? new Set(providersParam.split(',').filter(Boolean)) : null;
+  const selectedProviderNames = providersParam
+    ? new Set(providersParam.split(',').filter(Boolean))
+    : null;
   const selectedProviderIds = selectedProviderNames
     ? Object.entries(TARGET_PROVIDERS)
         .filter(([, providerName]) => selectedProviderNames.has(providerName))
         .map(([providerId]) => providerId)
     : [];
-  const providerIdsQuery = selectedProviderIds.length > 0 ? selectedProviderIds.join('|') : PROVIDER_IDS_QUERY;
+  const providerIdsQuery = selectedProviderIds.length > 0
+    ? selectedProviderIds.join('|')
+    : PROVIDER_IDS_QUERY;
   const isSearch = Boolean(query && query.trim() !== '');
-  const genreId = genreName
-    ? Object.entries(TMDB_GENRES).find(([, name]) => name.toLocaleLowerCase() === genreName.toLocaleLowerCase())?.[0]
-    : null;
-
-  if (genreName && !genreId) {
+  const genreNames = (searchParams.get('genre') || '')
+    .split('|')
+    .map((name) => name.trim())
+    .filter(Boolean);
+  const genreNameToId = new Map(
+    Object.entries(TMDB_GENRES).map(([id, name]) => [name.toLocaleLowerCase(), id])
+  );
+  const genreIds = Array.from(new Set(
+    genreNames
+      .map((name) => genreNameToId.get(name.toLocaleLowerCase()))
+      .filter((id): id is string => Boolean(id))
+  ));
+  if (genreIds.length !== new Set(genreNames.map((name) => name.toLocaleLowerCase())).size) {
     return NextResponse.json({ error: 'Onbekend filmgenre' }, { status: 400 });
   }
-
   if (similarToParam && (!Number.isSafeInteger(similarToId) || (similarToId || 0) <= 0)) {
     return NextResponse.json({ error: 'Ongeldig filmnummer' }, { status: 400 });
   }
-
   try {
     if (peopleQuery) {
       const peopleUrl = `https://api.themoviedb.org/3/search/person?api_key=${apiKey}&language=nl-NL&query=${encodeURIComponent(peopleQuery)}&include_adult=false`;
@@ -197,7 +182,6 @@ export async function GET(request: Request) {
       if (!peopleResponse.ok) {
         return NextResponse.json({ error: 'Personen konden niet worden opgehaald' }, { status: peopleResponse.status });
       }
-
       const peopleData = await peopleResponse.json();
       const people = (peopleData.results || [])
         .filter((person: any) => ['Acting', 'Directing'].includes(person.known_for_department))
@@ -208,17 +192,14 @@ export async function GET(request: Request) {
           known_for_department: person.known_for_department,
           profile_path: person.profile_path,
         }));
-
       return NextResponse.json({ people });
     }
-
     const metadataIds = searchParams.get('metadataIds');
     if (metadataIds) {
       const ids = Array.from(new Set(metadataIds.split(',')
         .map((id) => Number.parseInt(id, 10))
         .filter((id) => Number.isSafeInteger(id) && id > 0)))
         .slice(0, 25);
-
       const cachedMap = new Map<number, any>();
       if (supabase && ids.length > 0) {
         try {
@@ -234,20 +215,16 @@ export async function GET(request: Request) {
           });
         } catch {}
       }
-
       const missingIds = ids.filter((id) => !cachedMap.has(id));
-
       const fetchedMovies = await Promise.all(missingIds.map(async (id) => {
         try {
           const [detailsRes, providerRes] = await Promise.all([
             fetchWithTimeout(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}&language=nl-NL&append_to_response=credits,external_ids`, { next: { revalidate: 3600 } }),
             fetchWithTimeout(`https://api.themoviedb.org/3/movie/${id}/watch/providers?api_key=${apiKey}`, { next: { revalidate: 86400 } }, 2500).catch(() => null),
           ]);
-
           if (!detailsRes.ok) return null;
           const details = await detailsRes.json();
           const providerData = providerRes?.ok ? await providerRes.json() : null;
-
           const nlFlatrate: any[] = providerData?.results?.NL?.flatrate || [];
           const providerMap = new Map<string, Provider>();
           nlFlatrate.forEach((p) => {
@@ -260,7 +237,6 @@ export async function GET(request: Request) {
               });
             }
           });
-
           const director = details.credits?.crew?.find((person: any) => person.job === 'Director')?.name;
           const imdbId = details.external_ids?.imdb_id || details.imdb_id || null;
           const imdbRating = imdbId && omdbKey ? await getImdbRating(imdbId, omdbKey) : null;
@@ -268,7 +244,6 @@ export async function GET(request: Request) {
           const cast = (details.credits?.cast || []).slice(0, 8).map((person: any) => person.name);
           const genres = (details.genres || []).map((genre: any) => genre.name);
           const providers = Array.from(providerMap.values());
-
           const movieObj = {
             id: details.id,
             imdb_id: imdbId,
@@ -285,7 +260,6 @@ export async function GET(request: Request) {
             rating_source: imdbRating ? 'IMDb' : rating ? 'TMDb' : null,
             providers,
           };
-
           if (supabase) {
             void supabase.from('cached_movies').upsert({
               id: movieObj.id,
@@ -305,27 +279,21 @@ export async function GET(request: Request) {
               updated_at: new Date().toISOString(),
             }).then();
           }
-
           return movieObj;
         } catch {
           return null;
         }
       }));
-
       fetchedMovies
         .filter((m): m is NonNullable<typeof m> => m !== null)
         .forEach((m) => cachedMap.set(m.id, m));
-
       const resultList = ids
         .map((id) => cachedMap.get(id))
         .filter((m): m is NonNullable<typeof m> => m !== undefined && m !== null);
-
       return NextResponse.json({ movies: resultList });
     }
-
     let rawMovies: any[] = [];
     let totalPages = 1;
-
     if (nowPlaying) {
       const cinemaUrl = `https://api.themoviedb.org/3/movie/now_playing?api_key=${apiKey}&language=en-US&region=NL&page=${page}`;
       const cinemaRes = await fetchWithTimeout(cinemaUrl, { next: { revalidate: 1800 } });
@@ -341,7 +309,6 @@ export async function GET(request: Request) {
       if (!creditsResponse.ok) {
         return NextResponse.json({ error: 'Films van deze persoon konden niet worden opgehaald' }, { status: creditsResponse.status });
       }
-
       const creditsData = await creditsResponse.json();
       const credits = [
         ...(creditsData.cast || []),
@@ -365,8 +332,8 @@ export async function GET(request: Request) {
       const searchData = await searchRes.json();
       rawMovies = searchData.results || [];
       totalPages = searchData.total_pages || 1;
-    } else if (genreId) {
-      const discoverUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&language=en-US&sort_by=popularity.desc&watch_region=NL&with_watch_providers=${providerIdsQuery}&with_watch_monetization_types=flatrate&with_genres=${genreId}&page=${page}&include_adult=false`;
+    } else if (genreIds.length > 0) {
+      const discoverUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&language=en-US&sort_by=popularity.desc&watch_region=NL&with_watch_providers=${providerIdsQuery}&with_watch_monetization_types=flatrate&with_genres=${genreIds.join('|')}&page=${page}&include_adult=false`;
       const discoverRes = await fetchWithTimeout(discoverUrl, { next: { revalidate: 3600 } });
       if (!discoverRes.ok) {
         return NextResponse.json({ error: 'Films binnen dit genre konden niet worden opgehaald' }, { status: discoverRes.status });
@@ -393,17 +360,14 @@ export async function GET(request: Request) {
       rawMovies = discoverData.results || [];
       totalPages = discoverData.total_pages || 1;
     }
-
     const movieIds = rawMovies.map((m: any) => m.id);
     const cachedMoviesMap = new Map<number, any>();
-
     if (supabase && movieIds.length > 0) {
       try {
         const { data: dbMovies } = await supabase
           .from('cached_movies')
           .select('*')
           .in('id', movieIds);
-
         (dbMovies || []).forEach((row: any) => {
           const providersList = Array.isArray(row.providers) ? row.providers : [];
           if (row.imdb_id && (nowPlaying || providersList.length > 0)) {
@@ -429,17 +393,12 @@ export async function GET(request: Request) {
         console.warn('Fout bij het uitlezen van cached_movies:', err);
       }
     }
-
     const enrichedMovies = await Promise.all(
       rawMovies.map(async (movie: any) => {
         if (cachedMoviesMap.has(movie.id)) {
           const cachedMovie = cachedMoviesMap.get(movie.id);
-          return {
-            ...cachedMovie,
-            title: movie.title || cachedMovie.title,
-          };
+          return { ...cachedMovie, title: movie.title || cachedMovie.title };
         }
-
         try {
           const [providerRes, externalIdsRes, detailsRes] = await Promise.all([
             fetchWithTimeout(
@@ -458,11 +417,9 @@ export async function GET(request: Request) {
               2500
             ).catch(() => null),
           ]);
-
           const providerData = providerRes?.ok ? await providerRes.json() : null;
           const externalIdsData = externalIdsRes?.ok ? await externalIdsRes.json() : null;
           const detailsData = detailsRes?.ok ? await detailsRes.json() : null;
-
           const nlFlatrate: any[] = providerData?.results?.NL?.flatrate || [];
           const providerMap = new Map<string, Provider>();
           nlFlatrate.forEach((p) => {
@@ -475,19 +432,16 @@ export async function GET(request: Request) {
               });
             }
           });
-
           const imdbId = externalIdsData?.imdb_id || detailsData?.imdb_id || null;
           let realImdbRating: string | null = null;
           if (imdbId && omdbKey) {
             realImdbRating = await getImdbRating(imdbId, omdbKey);
           }
-
           const rating = realImdbRating || formatTmdbRating(detailsData?.vote_average ?? movie.vote_average);
           const genres = detailsData?.genres?.map((g: any) => g.name) || (movie.genre_ids || []).map((id: number) => TMDB_GENRES[id]).filter(Boolean);
           const director = detailsData?.credits?.crew?.find((person: any) => person.job === 'Director')?.name || null;
           const cast = (detailsData?.credits?.cast || []).slice(0, 8).map((p: any) => p.name);
           const providers = Array.from(providerMap.values());
-
           const newMovie = {
             id: movie.id,
             imdb_id: imdbId,
@@ -504,7 +458,6 @@ export async function GET(request: Request) {
             rating_source: realImdbRating ? 'IMDb' : rating ? 'TMDb' : null,
             providers,
           };
-
           if (supabase) {
             void supabase.from('cached_movies').upsert({
               id: newMovie.id,
@@ -524,7 +477,6 @@ export async function GET(request: Request) {
               updated_at: new Date().toISOString(),
             }).then();
           }
-
           return newMovie;
         } catch {
           const rating = formatTmdbRating(movie.vote_average);
@@ -542,7 +494,6 @@ export async function GET(request: Request) {
         }
       })
     );
-
     const finalMovies = nowPlaying
       ? enrichedMovies
       : enrichedMovies.filter((movie) => {
@@ -551,7 +502,6 @@ export async function GET(request: Request) {
           }
           return movie.providers?.some((p: any) => selectedProviderNames.has(p.provider_name));
         });
-
     return NextResponse.json({
       page: Number(page),
       totalPages,

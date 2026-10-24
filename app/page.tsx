@@ -1188,24 +1188,33 @@ export default function Home() {
                 </div>
               ) : (
                 <>
-                  <HeroSpotlight
-  movie={selectedSpotlightMovie}
-  allMovies={visibleMovies}
-  watchlistIds={library.watchlist.map((m) => m.id)}
-  watchedIds={library.watched.map((m) => m.id)}
-  matchPreferences={matchPreferences}
-  onToggleWatchlist={toggleWatchlist}
-  onToggleWatched={openMovieRating}
-  onSelectPerson={handleSelectPerson}
-  onSelectMovie={(movie) => {
-    if (!movie) {
-      setSpotlightMovieId(null);
-      setSelectedSpotlightMovie(null);
-    } else {
-      selectSpotlightMovie(movie);
-    }
-  }}
-/>
+                  {(
+                    selectedSpotlightMovie ||
+                    (
+                      libraryView === 'discover' &&
+                      discoveryMode === 'recommended' &&
+                      !searchQuery.trim()
+                    )
+                  ) && (
+                    <HeroSpotlight
+                      movie={selectedSpotlightMovie}
+                      allMovies={visibleMovies}
+                      watchlistIds={library.watchlist.map((m) => m.id)}
+                      watchedIds={library.watched.map((m) => m.id)}
+                      matchPreferences={matchPreferences}
+                      onToggleWatchlist={toggleWatchlist}
+                      onToggleWatched={openMovieRating}
+                      onSelectPerson={handleSelectPerson}
+                      onSelectMovie={(movie) => {
+                        if (!movie) {
+                          setSpotlightMovieId(null);
+                          setSelectedSpotlightMovie(null);
+                        } else {
+                          selectSpotlightMovie(movie);
+                        }
+                      }}
+                    />
+                  )}
 
                   {(libraryView === 'watchlist' || libraryView === 'watched' || libraryView === 'cinema') && (
                     <div className="flex flex-wrap items-center justify-between gap-3 pb-2 pt-2 border-b border-white/[0.08]">

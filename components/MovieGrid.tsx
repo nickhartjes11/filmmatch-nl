@@ -559,6 +559,18 @@ export default function MovieGrid({
             if (watchedMovieIds.has(movie.id)) continue;
             if (request.excludedMovieId && movie.id === request.excludedMovieId) continue;
 
+            if (request.parameter === 'imdb') {
+              const imdbRating = Number.parseFloat(movie.rating || '');
+
+              if (
+                movie.rating_source !== 'IMDb' ||
+                !Number.isFinite(imdbRating) ||
+                imdbRating < (request.minimumRating ?? 7)
+              ) {
+                continue;
+              }
+            }
+
             seenMovieIds.add(movie.id);
 
             const score = baseMatchMap.get(movie.id) ?? calculateMatchScore(

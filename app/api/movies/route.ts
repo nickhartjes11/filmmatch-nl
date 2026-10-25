@@ -187,6 +187,11 @@ export async function GET(request: Request) {
   const similarToParam = searchParams.get('similarTo');
   const similarToId = similarToParam ? Number.parseInt(similarToParam, 10) : null;
   const nowPlaying = searchParams.get('nowPlaying') === 'true';
+  const sortBy = searchParams.get('sortBy');
+  const discoverySortQuery =
+    sortBy === 'imdbCandidates'
+      ? 'vote_average.desc&vote_count.gte=200'
+      : 'popularity.desc';
 
   const providersParam = searchParams.get('providers');
   const selectedProviderNames = providersParam
@@ -488,7 +493,7 @@ export async function GET(request: Request) {
     } else if (genreIds.length > 0) {
       const discoverUrl =
         `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}` +
-        `&language=en-US&sort_by=popularity.desc&watch_region=NL` +
+        '&language=en-US&sort_by=' + discoverySortQuery + '&watch_region=NL' +
         `&with_watch_providers=${providerIdsQuery}` +
         `&with_watch_monetization_types=flatrate` +
         `&with_genres=${genreIds.join('|')}&page=${page}&include_adult=false`;
@@ -527,7 +532,7 @@ export async function GET(request: Request) {
     } else {
       const discoverUrl =
         `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}` +
-        `&language=en-US&sort_by=popularity.desc&watch_region=NL` +
+        '&language=en-US&sort_by=' + discoverySortQuery + '&watch_region=NL' +
         `&with_watch_providers=${providerIdsQuery}` +
         `&with_watch_monetization_types=flatrate&page=${page}&include_adult=false`;
       const discoverResponse = await fetchWithTimeout(discoverUrl, {
@@ -587,6 +592,23 @@ export async function GET(request: Request) {
       rawMovies.map(async (movie: any) => {
         if (cachedMoviesMap.has(movie.id)) {
           const cachedMovie = cachedMoviesMap.get(movie.id);
+
+          if (
+            sortBy === 'imdbCandidates' &&
+            cachedMovie?.rating_source !== 'IMDb' &&
+            cachedMovie?.imdb_id &&
+            omdbKey
+          ) {
+            const imdbRating = await getImdbRating(cachedMovie.imdb_id, omdbKey);
+
+            return {
+              ...cachedMovie,
+              title: movie.title || cachedMovie.title,
+              rating: imdbRating,
+              rating_source: imdbRating ? 'IMDb' : null,
+            };
+          }
+
           return { ...cachedMovie, title: movie.title || cachedMovie.title };
         }
 

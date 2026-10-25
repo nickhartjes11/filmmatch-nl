@@ -249,16 +249,11 @@ export default function HeroSpotlight({
               )}
             </div>
 
-            {/* Korte reden voor de maandtip */}
+            {/* Korte uitleg bij de maandtip */}
             {!isSelectedByUser && activeTipMovie && activeTipMovie.id === displayedMovie.id && currentTipConfig?.reason && (
-              <div className="max-w-3xl rounded-xl border border-amber-300/15 bg-amber-300/[0.05] px-3 py-2">
-                <p className="text-xs leading-relaxed text-neutral-300">
-                  <span className="mr-2 text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                    Waarom nu?
-                  </span>
-                  {currentTipConfig.reason}
-                </p>
-              </div>
+              <p className="max-w-3xl text-xs leading-relaxed text-neutral-400">
+                {currentTipConfig.reason}
+              </p>
             )}
 
             {/* Synopsis */}

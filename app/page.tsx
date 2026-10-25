@@ -30,6 +30,28 @@ interface PersonSearchResult {
   name: string;
   known_for_department: string;
   profile_path: string | null;
+  birthday?: string | null;
+  biography?: string;
+  place_of_birth?: string | null;
+}
+
+function calculateAge(birthday?: string | null): number | null {
+  if (!birthday) return null;
+
+  const date = new Date(`${birthday}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+
+  const birthdayHasPassed =
+    today.getMonth() > date.getMonth() ||
+    (today.getMonth() === date.getMonth() &&
+      today.getDate() >= date.getDate());
+
+  if (!birthdayHasPassed) age -= 1;
+
+  return age >= 0 ? age : null;
 }
 
 interface MovieTasteMetadata extends MovieTasteSignals {
@@ -156,6 +178,33 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<PersonSearchResult | null>(null);
 
+  useEffect(() => {
+    if (!selectedPerson) return;
+
+    const controller = new AbortController();
+
+    fetch(`/api/movies?personDetails=${selectedPerson.id}`, {
+      signal: controller.signal,
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data?.person) return;
+
+        setSelectedPerson((current) =>
+          current?.id === selectedPerson.id
+            ? { ...current, ...data.person }
+            : current
+        );
+      })
+      .catch((error) => {
+        if (error?.name !== 'AbortError') {
+          console.error('Persoonsgegevens konden niet worden geladen:', error);
+        }
+      });
+
+    return () => controller.abort();
+  }, [selectedPerson?.id]);
+
   const [spotlightMovieId, setSpotlightMovieId] = useState<number | null>(null);
   const [selectedSpotlightMovie, setSelectedSpotlightMovie] = useState<Movie | null>(null);
 
@@ -226,19 +275,24 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         const match = data.people?.[0];
+
         if (match) {
           selectPerson(match);
+
           if (typeof window !== 'undefined') {
             window.scrollTo({ top: 0, behavior: 'smooth' });
             document.querySelector('.dashboard-content')?.scrollTo({ top: 0, behavior: 'smooth' });
           }
+
           return;
         }
       }
     } catch (err) {
       console.error(err);
     }
+
     setSearchQuery(name);
+
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       document.querySelector('.dashboard-content')?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -278,11 +332,13 @@ export default function Home() {
 
   const addFavoritePerson = (person: PersonSearchResult) => {
     const setter = person.known_for_department === 'Directing' ? setFavoriteDirectors : setFavoriteCast;
+
     setter((current) => (
       current.some((name) => name.trim().toLocaleLowerCase() === person.name.trim().toLocaleLowerCase())
         ? current
         : [...current, person.name]
     ));
+
     setFavoritePersonQuery('');
     setFavoritePersonMatches([]);
   };
@@ -290,6 +346,7 @@ export default function Home() {
   const removeFavoriteDirector = (name: string) => {
     setFavoriteDirectors((current) => current.filter((item) => item !== name));
   };
+
   const removeFavoriteCast = (name: string) => {
     setFavoriteCast((current) => current.filter((item) => item !== name));
   };
@@ -322,20 +379,28 @@ export default function Home() {
     const genreWeights = new Map<string, { name: string; weight: number }>();
     const ratedById = new Map(ratedMovies.map((movie) => [movie.id, movie.rating]));
     const favoriteIds = new Set(favoriteMovies.map((movie) => movie.id));
+
     const addGenres = (genres: readonly string[], weight: number) => {
       if (weight <= 0) return;
+
       Array.from(new Set(genres.map((genre) => genre.trim()).filter(Boolean))).forEach((name) => {
         const key = name.toLocaleLowerCase();
         const current = genreWeights.get(key);
-        genreWeights.set(key, { name: current?.name || name, weight: (current?.weight || 0) + weight });
+
+        genreWeights.set(key, {
+          name: current?.name || name,
+          weight: (current?.weight || 0) + weight,
+        });
       });
     };
+
     const ratingWeight = (rating: number) => Math.max(0, (rating - 5.5) / 4.5);
 
     favoriteMovies.forEach((movie) => {
       const rating = ratedById.get(movie.id);
       addGenres(movie.genres, rating === undefined ? 1 : ratingWeight(rating));
     });
+
     ratedMovies.forEach((movie) => {
       if (!favoriteIds.has(movie.id)) addGenres(movie.genres, ratingWeight(movie.rating));
     });
@@ -349,20 +414,24 @@ export default function Home() {
 
   const tasteGenresByMovie = useMemo(() => {
     const map = new Map<number, string[]>();
+
     [...favoriteMovies, ...ratedMovies].forEach((movie) => {
       map.set(movie.id, Array.from(new Set([
         ...(map.get(movie.id) || []),
         ...(movie.genres || []),
       ])));
     });
+
     return map;
   }, [favoriteMovies, ratedMovies]);
 
   const profileTopGenres = useMemo(() => {
     const counts = new Map<string, number>();
+
     tasteGenresByMovie.forEach((genres) => genres.forEach((genre) => {
       counts.set(genre, (counts.get(genre) || 0) + 1);
     }));
+
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
   }, [tasteGenresByMovie]);
 
@@ -377,6 +446,7 @@ export default function Home() {
         .eq('user_id', userId);
 
       const friendIds = (friendRows || []).map((row) => row.friend_id);
+
       if (friendIds.length === 0) {
         setFriendsActivity([]);
         setFriendsList([]);
@@ -401,8 +471,10 @@ export default function Home() {
 
       if (movieIds.length > 0) {
         const response = await fetch(`/api/movies?metadataIds=${movieIds.join(',')}`);
+
         if (response.ok) {
           const data = await response.json();
+
           if (Array.isArray(data.movies)) {
             movieMap = Object.fromEntries(
               data.movies.map((m: Movie) => [m.id, { title: m.title, poster_path: m.poster_path || '' }])
@@ -499,6 +571,7 @@ export default function Home() {
     if (!supabase) return;
 
     setAuthLoading(true);
+
     const { data, error } = await supabase.auth.signUp({
       email: accountEmail.trim(),
       password: accountPassword,
@@ -507,12 +580,14 @@ export default function Home() {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
+
     setAuthLoading(false);
 
     if (error) {
       setAuthError(error.message);
       return;
     }
+
     if (data.session && data.user) {
       await loadAuthenticatedUser(data.user);
       setCurrentView('dashboard');
@@ -531,16 +606,19 @@ export default function Home() {
     if (!supabase) return;
 
     setAuthLoading(true);
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email: loginEmail.trim(),
       password: loginPassword,
     });
+
     setAuthLoading(false);
 
     if (error) {
       setAuthError(error.message);
       return;
     }
+
     if (data.user) {
       await loadAuthenticatedUser(data.user);
       setCurrentView('dashboard');
@@ -559,10 +637,12 @@ export default function Home() {
 
   const saveProfile = async () => {
     if (!authUserId) return;
+
     const supabase = createSupabaseBrowserClient();
     if (!supabase) return;
 
     setAuthLoading(true);
+
     await supabase.from('profiles').upsert({
       id: authUserId,
       display_name: displayName.trim(),
@@ -576,6 +656,7 @@ export default function Home() {
       max_runtime_minutes: maxRuntimeMinutes,
       onboarding_completed: true,
     });
+
     setAuthLoading(false);
     setAuthNotice('Je profiel is opgeslagen.');
   };
@@ -597,6 +678,7 @@ export default function Home() {
   // Films inladen (discover & bioscoop)
   useEffect(() => {
     const query = searchQuery.trim();
+
     if (libraryView !== 'discover' && libraryView !== 'cinema') {
       return;
     }
@@ -611,6 +693,7 @@ export default function Home() {
       try {
         const isCinema = libraryView === 'cinema';
         const pagesToFetch = query || selectedPerson || isCinema ? [1] : [1, 2];
+
         const requests = pagesToFetch.map(async (p) => {
           const params = new URLSearchParams({
             page: String(p),
@@ -619,7 +702,12 @@ export default function Home() {
           if (isCinema) {
             params.set('nowPlaying', 'true');
           } else {
-            params.set('providers', selectedPlatforms.length > 0 ? selectedPlatforms.join(',') : FIVE_PLATFORMS.map((x) => x.name).join(','));
+            params.set(
+              'providers',
+              selectedPlatforms.length > 0
+                ? selectedPlatforms.join(',')
+                : FIVE_PLATFORMS.map((x) => x.name).join(',')
+            );
 
             if (selectedPerson) {
               params.set('personId', String(selectedPerson.id));
@@ -632,6 +720,7 @@ export default function Home() {
 
           const res = await fetch(`/api/movies?${params.toString()}`);
           if (!res.ok) return null;
+
           return res.json();
         });
 
@@ -640,10 +729,13 @@ export default function Home() {
 
         results.forEach((data) => {
           if (!data) return;
+
           const list: MovieApiResult[] = Array.isArray(data.movies) ? data.movies : [];
           const mapped = mapMovieResults(list, selectedPerson?.name || query, candidateMovies.length);
           const existingIds = new Set(candidateMovies.map((m) => m.id));
+
           candidateMovies.push(...mapped.filter((m) => !existingIds.has(m.id)));
+
           if (data.totalPages) setTotalPages(Number(data.totalPages));
         });
 
@@ -668,9 +760,7 @@ export default function Home() {
           setMovieLoadError('Films konden niet worden geladen.');
         }
       } finally {
-        if (isActive) {
-          setLoading(false);
-        }
+        if (isActive) setLoading(false);
       }
     }, 200);
 
@@ -704,21 +794,37 @@ export default function Home() {
 
   const toggleWatchlist = async (movie: Movie) => {
     const isSaved = library.watchlist.some((m) => m.id === movie.id);
+
     setLibrary((prev) => ({
       ...prev,
-      watchlist: isSaved ? prev.watchlist.filter((m) => m.id !== movie.id) : [movie, ...prev.watchlist],
+      watchlist: isSaved
+        ? prev.watchlist.filter((m) => m.id !== movie.id)
+        : [movie, ...prev.watchlist],
       watched: prev.watched.filter((m) => m.id !== movie.id),
     }));
 
     if (!authUserId) return;
+
     const supabase = createSupabaseBrowserClient();
     if (!supabase) return;
 
     if (isSaved) {
-      await supabase.from('user_watchlist').delete().match({ user_id: authUserId, movie_id: movie.id });
+      await supabase.from('user_watchlist').delete().match({
+        user_id: authUserId,
+        movie_id: movie.id,
+      });
     } else {
-      await supabase.from('user_watched').delete().match({ user_id: authUserId, movie_id: movie.id });
-      await supabase.from('user_watchlist').upsert({ user_id: authUserId, movie_id: movie.id, movie_data: movie, created_at: new Date().toISOString() });
+      await supabase.from('user_watched').delete().match({
+        user_id: authUserId,
+        movie_id: movie.id,
+      });
+
+      await supabase.from('user_watchlist').upsert({
+        user_id: authUserId,
+        movie_id: movie.id,
+        movie_data: movie,
+        created_at: new Date().toISOString(),
+      });
     }
   };
 
@@ -740,21 +846,34 @@ export default function Home() {
     }
 
     if (!authUserId) return;
+
     const supabase = createSupabaseBrowserClient();
     if (!supabase) return;
-    await supabase.from('user_watched').delete().match({ user_id: authUserId, movie_id: movie.id });
+
+    await supabase.from('user_watched').delete().match({
+      user_id: authUserId,
+      movie_id: movie.id,
+    });
   };
 
   const confirmMovieRating = async () => {
     if (!ratingMovie || draftMovieRating === null) return;
+
     setRatingSaving(true);
+
     try {
       const supabase = createSupabaseBrowserClient();
+
       if (supabase && authUserId) {
         await supabase.from('movie_ratings').upsert(
-          { user_id: authUserId, movie_id: ratingMovie.movie.id, rating: draftMovieRating },
+          {
+            user_id: authUserId,
+            movie_id: ratingMovie.movie.id,
+            rating: draftMovieRating,
+          },
           { onConflict: 'user_id,movie_id' }
         );
+
         await supabase.from('user_watched').upsert({
           user_id: authUserId,
           movie_id: ratingMovie.movie.id,
@@ -767,10 +886,15 @@ export default function Home() {
         ...current.filter((r) => r.movie_id !== ratingMovie.movie.id),
         { movie_id: ratingMovie.movie.id, rating: draftMovieRating },
       ]);
+
       setLibrary((prev) => ({
         watchlist: prev.watchlist.filter((m) => m.id !== ratingMovie.movie.id),
-        watched: [ratingMovie.movie, ...prev.watched.filter((m) => m.id !== ratingMovie.movie.id)],
+        watched: [
+          ratingMovie.movie,
+          ...prev.watched.filter((m) => m.id !== ratingMovie.movie.id),
+        ],
       }));
+
       setRatingMovie(null);
     } finally {
       setRatingSaving(false);
@@ -783,10 +907,9 @@ export default function Home() {
 
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
+
       const mainContent = document.querySelector('.dashboard-content');
-      if (mainContent) {
-        mainContent.scrollTo({ top: 0, behavior: 'smooth' });
-      }
+      if (mainContent) mainContent.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     if (!movie.director || !movie.cast || movie.cast.length === 0) {
@@ -794,9 +917,11 @@ export default function Home() {
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           const detail = data?.movies?.[0];
+
           if (detail) {
             setSelectedSpotlightMovie((prev) => {
               if (!prev || prev.id !== movie.id) return prev;
+
               return {
                 ...prev,
                 director: detail.director || prev.director,
@@ -827,6 +952,7 @@ export default function Home() {
 
   const filteredMovies = useMemo(() => {
     const watchedIds = new Set(library.watched.map((m) => m.id));
+
     let catalog = libraryView === 'watchlist'
       ? [...library.watchlist]
       : libraryView === 'watched'
@@ -848,23 +974,49 @@ export default function Home() {
     const isCinema = libraryView === 'cinema';
 
     return catalog.filter((m) => {
-      const matchQuery = selectedPerson || !searchQuery.trim() || `${m.title} ${m.overview}`.toLowerCase().includes(searchQuery.trim().toLowerCase());
-      const matchesFilters = (libraryView !== 'discover' && !isCinema) || matchesDiscoveryFilters(m, selectedPlatforms, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, isCinema);
+      const matchQuery = selectedPerson || !searchQuery.trim() ||
+        `${m.title} ${m.overview}`.toLowerCase().includes(searchQuery.trim().toLowerCase());
+
+      const matchesFilters = (libraryView !== 'discover' && !isCinema) ||
+        matchesDiscoveryFilters(
+          m,
+          selectedPlatforms,
+          minimumImdbRating,
+          releaseYearBefore,
+          maxRuntimeMinutes,
+          isCinema
+        );
+
       const isUnwatched =
         (libraryView !== 'discover' && !isCinema) ||
         (libraryView === 'discover' && Boolean(searchQuery.trim())) ||
         !watchedIds.has(m.id);
+
       return matchQuery && matchesFilters && isUnwatched;
     });
-  }, [scoredMovies, library, libraryView, searchQuery, selectedPerson, selectedPlatforms, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, librarySort, ratingsByMovieId]);
+  }, [
+    scoredMovies,
+    library,
+    libraryView,
+    searchQuery,
+    selectedPerson,
+    selectedPlatforms,
+    minimumImdbRating,
+    releaseYearBefore,
+    maxRuntimeMinutes,
+    librarySort,
+    ratingsByMovieId,
+  ]);
 
   const visibleMovies = filteredMovies.slice(0, visibleMovieLimit);
 
   const spotlightMovie = spotlightMovieId
-    ? (selectedSpotlightMovie ||
-       library.watched.find((m) => m.id === spotlightMovieId) ||
-       library.watchlist.find((m) => m.id === spotlightMovieId) ||
-       movies.find((m) => m.id === spotlightMovieId))
+    ? (
+        selectedSpotlightMovie ||
+        library.watched.find((m) => m.id === spotlightMovieId) ||
+        library.watchlist.find((m) => m.id === spotlightMovieId) ||
+        movies.find((m) => m.id === spotlightMovieId)
+      )
     : null;
 
   const topMatch = spotlightMovie || (
@@ -1165,8 +1317,79 @@ export default function Home() {
             />
           ) : (
             <>
-              {authError && <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">{authError}</p>}
-              {movieLoadError && <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">{movieLoadError}</p>}
+              {authError && (
+                <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">
+                  {authError}
+                </p>
+              )}
+              {movieLoadError && (
+                <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">
+                  {movieLoadError}
+                </p>
+              )}
+
+              {selectedPerson && (
+                <section className="flex flex-col gap-5 rounded-2xl border border-white/10 bg-slate-900/70 p-5 sm:flex-row sm:items-center">
+                  {selectedPerson.profile_path ? (
+                    <div className="h-32 w-28 shrink-0 overflow-hidden rounded-xl bg-white/5 sm:h-40 sm:w-32">
+                      <img
+                        src={`https://image.tmdb.org/t/p/w342${selectedPerson.profile_path}`}
+                        alt={selectedPerson.name}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="flex h-32 w-28 shrink-0 items-center justify-center rounded-xl bg-white/5 text-4xl text-neutral-500 sm:h-40 sm:w-32"
+                      aria-hidden="true"
+                    >
+                      {selectedPerson.name.charAt(0)}
+                    </div>
+                  )}
+
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
+                        {selectedPerson.known_for_department === 'Directing'
+                          ? 'Regisseur / regisseuse'
+                          : 'Acteur / actrice'}
+                      </p>
+                      <h2 className="text-2xl font-black text-white sm:text-3xl">
+                        {selectedPerson.name}
+                      </h2>
+                    </div>
+
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-neutral-300">
+                      {selectedPerson.birthday && (
+                        <span>
+                          Geboren{' '}
+                          {new Date(`${selectedPerson.birthday}T00:00:00`).toLocaleDateString('nl-NL')}
+                          {calculateAge(selectedPerson.birthday) !== null &&
+                            ` · ${calculateAge(selectedPerson.birthday)} jaar`}
+                        </span>
+                      )}
+                      {selectedPerson.place_of_birth && (
+                        <span>{selectedPerson.place_of_birth}</span>
+                      )}
+                    </div>
+
+                    {selectedPerson.biography && (
+                      <p className="max-w-4xl text-sm leading-relaxed text-neutral-300">
+                        {selectedPerson.biography.length > 420
+                          ? `${selectedPerson.biography.slice(0, 420).trim()}…`
+                          : selectedPerson.biography}
+                      </p>
+                    )}
+
+                    {visibleMovies.length > 0 && (
+                      <p className="text-xs text-neutral-400">
+                        <span className="font-semibold text-neutral-300">Bekend van:</span>{' '}
+                        {visibleMovies.slice(0, 3).map((movie) => movie.title).join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                </section>
+              )}
 
               {loading ? (
                 <div className="py-32 text-center text-xs text-neutral-400">Films inladen...</div>
@@ -1195,24 +1418,24 @@ export default function Home() {
                     (libraryView === 'discover' &&
                       discoveryMode === 'recommended' &&
                       !searchQuery.trim())) && (
-                  <HeroSpotlight
-  movie={selectedSpotlightMovie}
-  allMovies={visibleMovies}
-  watchlistIds={library.watchlist.map((m) => m.id)}
-  watchedIds={library.watched.map((m) => m.id)}
-  matchPreferences={matchPreferences}
-  onToggleWatchlist={toggleWatchlist}
-  onToggleWatched={openMovieRating}
-  onSelectPerson={handleSelectPerson}
-  onSelectMovie={(movie) => {
-    if (!movie) {
-      setSpotlightMovieId(null);
-      setSelectedSpotlightMovie(null);
-    } else {
-      selectSpotlightMovie(movie);
-    }
-  }}
-/>
+                    <HeroSpotlight
+                      movie={selectedSpotlightMovie}
+                      allMovies={visibleMovies}
+                      watchlistIds={library.watchlist.map((m) => m.id)}
+                      watchedIds={library.watched.map((m) => m.id)}
+                      matchPreferences={matchPreferences}
+                      onToggleWatchlist={toggleWatchlist}
+                      onToggleWatched={openMovieRating}
+                      onSelectPerson={handleSelectPerson}
+                      onSelectMovie={(movie) => {
+                        if (!movie) {
+                          setSpotlightMovieId(null);
+                          setSelectedSpotlightMovie(null);
+                        } else {
+                          selectSpotlightMovie(movie);
+                        }
+                      }}
+                    />
                   )}
 
                   {(libraryView === 'watchlist' || libraryView === 'watched' || libraryView === 'cinema') && (
@@ -1224,6 +1447,7 @@ export default function Home() {
                             ? `${library.watched.length} ${library.watched.length === 1 ? 'film' : 'films'} gezien`
                             : `${visibleMovies.length} actuele ${visibleMovies.length === 1 ? 'bioscoopfilm' : 'bioscoopfilms'} in Nederland`}
                       </span>
+
                       <div className="flex items-center gap-1.5 bg-neutral-900/90 p-1 rounded-xl border border-white/10 shadow-lg">
                         <button
                           type="button"

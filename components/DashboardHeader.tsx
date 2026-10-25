@@ -48,22 +48,26 @@ export default function DashboardHeader({
   // Zoeken naar acteurs en regisseurs zodra je typt
   useEffect(() => {
     const q = searchQuery.trim();
+
     if (!q || selectedPerson || q.length < 2) {
       setPersonSuggestions([]);
       return;
     }
 
     let active = true;
+
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/movies?people=${encodeURIComponent(q)}`);
         if (!res.ok) return;
+
         const data = await res.json();
+
         if (active && Array.isArray(data.people)) {
           setPersonSuggestions(data.people);
         }
       } catch {
-        // negeer fout
+        // Negeer fouten bij het ophalen van suggesties.
       }
     }, 200);
 
@@ -73,10 +77,23 @@ export default function DashboardHeader({
     };
   }, [searchQuery, selectedPerson]);
 
-  const handleSelectPerson = (person: PersonSearchResult) => {
-    selectPerson(person);
+  const closeSuggestions = () => {
     setPersonSuggestions([]);
     setIsFocused(false);
+  };
+
+  const handleSelectPerson = (person: PersonSearchResult) => {
+    selectPerson(person);
+    closeSuggestions();
+  };
+
+  const handleSearchKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (event.key === 'Enter' || event.key === 'Escape') {
+      event.preventDefault();
+      closeSuggestions();
+    }
   };
 
   const placeholderText =
@@ -92,16 +109,23 @@ export default function DashboardHeader({
       <div className="relative flex-1 max-w-xl">
         <div className="relative flex items-center">
           <span className="absolute left-3.5 text-neutral-400 text-sm">🔍</span>
+
           <input
             type="text"
             value={searchQuery}
             onFocus={() => setIsFocused(true)}
-            onBlur={() => setTimeout(() => setIsFocused(false), 250)}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              if (selectedPerson) setSelectedPerson(null);
+            onBlur={closeSuggestions}
+            onKeyDown={handleSearchKeyDown}
+            onChange={(event) => {
+              setSearchQuery(event.target.value);
+
+              if (selectedPerson) {
+                setSelectedPerson(null);
+              }
             }}
             placeholder={placeholderText}
+            aria-label="Zoek een film, acteur of regisseur"
+            aria-expanded={isFocused && personSuggestions.length > 0}
             className="w-full bg-neutral-900/90 border border-white/10 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-rose-500 transition"
           />
 
@@ -111,6 +135,7 @@ export default function DashboardHeader({
               onClick={clearSearch}
               className="absolute right-3 text-neutral-400 hover:text-white text-sm"
               title="Wissen"
+              aria-label="Zoekopdracht wissen"
             >
               &times;
             </button>
@@ -123,12 +148,16 @@ export default function DashboardHeader({
             <div className="px-3 py-2 bg-neutral-950/60 border-b border-white/[0.06] text-[10px] font-bold uppercase tracking-wider text-neutral-400">
               Acteurs &amp; Regisseurs
             </div>
+
             <div className="max-h-64 overflow-y-auto divide-y divide-white/[0.04]">
               {personSuggestions.map((person) => (
                 <button
                   key={person.id}
                   type="button"
-                  onMouseDown={() => handleSelectPerson(person)}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    handleSelectPerson(person);
+                  }}
                   className="w-full p-2.5 flex items-center gap-3 hover:bg-white/[0.08] transition text-left"
                 >
                   <div className="relative w-8 h-8 rounded-full overflow-hidden bg-neutral-800 shrink-0 border border-white/10">
@@ -146,10 +175,15 @@ export default function DashboardHeader({
                       </div>
                     )}
                   </div>
+
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-white truncate">{person.name}</p>
+                    <p className="text-xs font-bold text-white truncate">
+                      {person.name}
+                    </p>
                     <p className="text-[10px] text-neutral-400">
-                      {person.known_for_department === 'Directing' ? 'Regisseur' : 'Acteur / Actrice'}
+                      {person.known_for_department === 'Directing'
+                        ? 'Regisseur'
+                        : 'Acteur / Actrice'}
                     </p>
                   </div>
                 </button>

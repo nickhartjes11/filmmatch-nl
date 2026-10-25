@@ -29,10 +29,14 @@ interface FriendActivityPageProps {
   onToggleWatchlist: (movie: Movie) => void;
 }
 
+const getTmdbSearchUrl = (name: string) =>
+  `https://www.themoviedb.org/search?query=${encodeURIComponent(name)}`;
+
 export default function FriendActivityPage({
   allMovies,
   myWatchlistIds,
   activities,
+  onSelectMovieSpotlight,
   onToggleWatchlist,
 }: FriendActivityPageProps) {
   const [selectedFriendFilter, setSelectedFriendFilter] = useState<string>('all');
@@ -146,6 +150,10 @@ export default function FriendActivityPage({
   }, [activities, allMovies]);
 
   const handleOpenMovie = async (movie: Movie) => {
+    // Geef de geselecteerde film door aan de pagina, zodat die bovenaan
+    // in de filmspotlight kan worden getoond, net als bij Gezien en Watchlist.
+    onSelectMovieSpotlight?.(movie.id);
+
     setActiveModalMovie(movie);
     setTrailerKey(null);
     setModalDetails({
@@ -564,15 +572,33 @@ export default function FriendActivityPage({
                   {modalDetails.director && (
                     <p className="text-neutral-300">
                       <span className="font-bold text-neutral-500">Regie: </span>
-                      <span className="font-medium text-white">{modalDetails.director}</span>
+                      <a
+                        href={getTmdbSearchUrl(modalDetails.director)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-white underline decoration-white/30 underline-offset-2 transition hover:text-rose-200"
+                      >
+                        {modalDetails.director}
+                      </a>
                     </p>
                   )}
+
                   {modalDetails.cast && modalDetails.cast.length > 0 && (
                     <p className="text-neutral-300">
                       <span className="font-bold text-neutral-500">Cast: </span>
-                      <span className="font-medium text-white">
-                        {modalDetails.cast.slice(0, 5).join(', ')}
-                      </span>
+                      {modalDetails.cast.slice(0, 5).map((actor, index) => (
+                        <span key={`${actor}-${index}`}>
+                          <a
+                            href={getTmdbSearchUrl(actor)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-white underline decoration-white/30 underline-offset-2 transition hover:text-rose-200"
+                          >
+                            {actor}
+                          </a>
+                          {index < Math.min(modalDetails.cast!.length, 5) - 1 ? ', ' : ''}
+                        </span>
+                      ))}
                     </p>
                   )}
                 </div>

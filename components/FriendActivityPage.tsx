@@ -36,7 +36,6 @@ export default function FriendActivityPage({
   allMovies,
   myWatchlistIds,
   activities,
-  onSelectMovieSpotlight,
   onToggleWatchlist,
 }: FriendActivityPageProps) {
   const [selectedFriendFilter, setSelectedFriendFilter] = useState<string>('all');
@@ -150,10 +149,8 @@ export default function FriendActivityPage({
   }, [activities, allMovies]);
 
   const handleOpenMovie = async (movie: Movie) => {
-    // Geef de geselecteerde film door aan de pagina, zodat die bovenaan
-    // in de filmspotlight kan worden getoond, net als bij Gezien en Watchlist.
-    onSelectMovieSpotlight?.(movie.id);
-
+    // Open de film in de detailweergave van Vriendenactiviteit.
+    // Roep onSelectMovieSpotlight hier niet aan: die callback navigeert naar Home/Discover.
     setActiveModalMovie(movie);
     setTrailerKey(null);
     setModalDetails({

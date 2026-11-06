@@ -25,7 +25,6 @@ interface SidebarProps {
   onResetToHome?: () => void;
 }
 
-// Betrouwbare CDN-logo's en officiële TMDB streamingbadges
 const STREAMING_BRAND_ASSETS: Record<string, { logo: string; fallbackBg: string; textMark: string }> = {
   Netflix: {
     logo: 'https://image.tmdb.org/t/p/w92/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg',
@@ -56,13 +55,9 @@ const STREAMING_BRAND_ASSETS: Record<string, { logo: string; fallbackBg: string;
 
 function resolveLogo(platformName: string, rawLogoPath?: string): string {
   const branded = STREAMING_BRAND_ASSETS[platformName];
-  if (branded?.logo) {
-    return branded.logo;
-  }
+  if (branded?.logo) return branded.logo;
   if (!rawLogoPath) return '';
-  if (/^https?:\/\//i.test(rawLogoPath)) {
-    return rawLogoPath;
-  }
+  if (/^https?:\/\//i.test(rawLogoPath)) return rawLogoPath;
   const clean = rawLogoPath.startsWith('/') ? rawLogoPath : `/${rawLogoPath}`;
   return `https://image.tmdb.org/t/p/w92${clean}`;
 }
@@ -105,7 +100,7 @@ export default function Sidebar({
   return (
     <aside className="dashboard-sidebar sticky top-0 z-30 flex h-screen w-44 shrink-0 flex-col items-stretch justify-between border-r border-white/[0.1] bg-[#070a12]/95 px-3 py-4 backdrop-blur-xl sm:w-52 xl:w-60">
       <div className="flex w-full flex-col items-stretch gap-5">
-        {/* Logo / Home knop */}
+        {/* Logo / Home knop zonder oranje achtergrond */}
         <button
           type="button"
           onClick={handleLogoClick}
@@ -113,9 +108,9 @@ export default function Sidebar({
           aria-label="FilmMatchNL startpagina en filters resetten"
           className="flex h-11 w-full items-center justify-start gap-2.5 rounded-xl px-1.5 text-left transition hover:bg-white/[0.06]"
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-rose-600 to-amber-500 text-base font-black text-white shadow-lg shadow-rose-600/30">
+          <span className="shrink-0 text-2xl leading-none">
             🍿
-          </div>
+          </span>
           <div className="min-w-0">
             <span className="block whitespace-nowrap text-sm font-black leading-4 tracking-tight text-white">
               FILM<span className="text-rose-500">MATCH</span>NL

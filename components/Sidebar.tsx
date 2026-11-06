@@ -37,17 +37,14 @@ const OFFICIAL_LOGOS: Record<string, string> = {
 function getLogoSource(logoPath: string | undefined): string | undefined {
   if (!logoPath) return undefined;
 
-  // Laat volledige afbeeldingslinks intact.
   if (/^https?:\/\//i.test(logoPath)) {
     return logoPath;
   }
 
-  // TMDb-logo's zijn soms al als compleet afbeeldingspad opgeslagen.
   if (logoPath.startsWith('/t/p/')) {
     return `https://image.tmdb.org${logoPath}`;
   }
 
-  // Gewone TMDb-logo-bestandsnamen beginnen met een slash.
   return `https://image.tmdb.org/t/p/w185${logoPath.startsWith('/') ? '' : '/'}${logoPath}`;
 }
 
@@ -73,7 +70,7 @@ export default function Sidebar({
   const [failedLogos, setFailedLogos] = useState<Record<string, boolean>>({});
 
   const discoveryItems: { mode: DiscoveryMode; label: string; icon: string }[] = [
-    { mode: 'recommended', label: 'Aanbevolen voor jou', icon: '★' },
+    { mode: 'recommended', label: 'Aanbevolen', icon: '★' },
   ];
 
   const handleLogoClick = () => {
@@ -85,16 +82,16 @@ export default function Sidebar({
   };
 
   return (
-    <aside className="dashboard-sidebar sticky top-0 z-30 flex h-screen w-[68px] shrink-0 flex-col items-center justify-between border-r border-white/[0.1] px-2 py-4 md:w-20 xl:w-60 xl:items-stretch xl:px-3">
-      <div className="flex w-full flex-col items-center gap-6 xl:items-stretch">
+    <aside className="dashboard-sidebar sticky top-0 z-30 flex h-screen w-40 shrink-0 flex-col items-stretch justify-between border-r border-white/[0.1] px-2 py-4 sm:w-48 xl:w-60 xl:px-3">
+      <div className="flex w-full flex-col items-stretch gap-6">
         <button
           onClick={handleLogoClick}
           title="Herstel alle filters en ga naar startpagina"
           aria-label="FilmMatchNL startpagina en filters resetten"
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-lg text-left transition hover:bg-white/[0.06] xl:justify-start xl:px-1"
+          className="flex h-11 w-full items-center justify-start gap-2 rounded-lg px-1 text-left transition hover:bg-white/[0.06]"
         >
-          <span className="text-[25px] leading-none" aria-hidden="true">🍿</span>
-          <span className="hidden min-w-0 xl:block">
+          <span className="shrink-0 text-[25px] leading-none" aria-hidden="true">🍿</span>
+          <span className="min-w-0">
             <span className="block whitespace-nowrap text-[13px] font-black leading-4 text-white">
               FILM<span className="text-rose-500">MATCH</span>NL
             </span>
@@ -104,7 +101,7 @@ export default function Sidebar({
           </span>
         </button>
 
-        <nav className="flex flex-col items-center gap-1 xl:items-stretch">
+        <nav className="flex flex-col items-stretch gap-1">
           {discoveryItems.map((item) => {
             const active =
               !friendsActive &&
@@ -120,16 +117,16 @@ export default function Sidebar({
                 title={item.label}
                 aria-label={item.label}
                 aria-pressed={active}
-                className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:h-9 xl:w-full xl:justify-start xl:px-3 ${
+                className={`flex h-9 w-full items-center justify-start gap-2 rounded-lg px-3 text-xs font-semibold transition ${
                   active
                     ? 'bg-rose-400/20 text-rose-50'
                     : 'text-neutral-200 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <span className="w-4 text-center text-sm" aria-hidden="true">
+                <span className="w-4 shrink-0 text-center text-sm" aria-hidden="true">
                   {item.icon}
                 </span>
-                <span className="hidden xl:inline">{item.label}</span>
+                <span className="truncate">{item.label}</span>
               </button>
             );
           })}
@@ -139,16 +136,16 @@ export default function Sidebar({
             title="Watchlist"
             aria-label={`Watchlist, ${watchlistCount} films`}
             aria-pressed={!friendsActive && !watchTogetherActive && libraryView === 'watchlist'}
-            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${
+            className={`flex h-9 w-full items-center justify-start gap-2 rounded-lg px-3 text-xs font-semibold transition ${
               !friendsActive && !watchTogetherActive && libraryView === 'watchlist'
                 ? 'bg-amber-300/20 text-amber-50'
                 : 'text-neutral-200 hover:bg-white/10 hover:text-white'
             }`}
           >
-            <span className="w-4 text-center text-sm" aria-hidden="true">🔖</span>
-            <span className="hidden xl:inline">Watchlist</span>
+            <span className="w-4 shrink-0 text-center text-sm" aria-hidden="true">🔖</span>
+            <span className="truncate">Watchlist</span>
             {watchlistCount > 0 && (
-              <span className="hidden text-[10px] xl:inline">{watchlistCount}</span>
+              <span className="ml-auto shrink-0 text-[10px]">{watchlistCount}</span>
             )}
           </button>
 
@@ -157,14 +154,14 @@ export default function Sidebar({
             title="Gezien"
             aria-label="Gezien"
             aria-pressed={!friendsActive && !watchTogetherActive && libraryView === 'watched'}
-            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${
+            className={`flex h-9 w-full items-center justify-start gap-2 rounded-lg px-3 text-xs font-semibold transition ${
               !friendsActive && !watchTogetherActive && libraryView === 'watched'
                 ? 'bg-emerald-300/20 text-emerald-50'
                 : 'text-neutral-200 hover:bg-white/10 hover:text-white'
             }`}
           >
-            <span className="w-4 text-center text-sm" aria-hidden="true">✓</span>
-            <span className="hidden xl:inline">Gezien</span>
+            <span className="w-4 shrink-0 text-center text-sm" aria-hidden="true">✓</span>
+            <span>Gezien</span>
           </button>
 
           <button
@@ -172,14 +169,14 @@ export default function Sidebar({
             title="In de bioscoop"
             aria-label="In de bioscoop"
             aria-pressed={!friendsActive && !watchTogetherActive && libraryView === 'cinema'}
-            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${
+            className={`flex h-9 w-full items-center justify-start gap-2 rounded-lg px-3 text-xs font-semibold transition ${
               !friendsActive && !watchTogetherActive && libraryView === 'cinema'
                 ? 'border border-rose-500/30 bg-rose-500/20 text-rose-100'
                 : 'text-neutral-200 hover:bg-white/10 hover:text-white'
             }`}
           >
-            <span className="w-4 text-center text-sm" aria-hidden="true">🎟️</span>
-            <span className="hidden xl:inline">In de bioscoop</span>
+            <span className="w-4 shrink-0 text-center text-sm" aria-hidden="true">🎟️</span>
+            <span className="truncate">In de bioscoop</span>
           </button>
 
           <button
@@ -188,14 +185,14 @@ export default function Sidebar({
             title="Vriendenactiviteit"
             aria-label="Vriendenactiviteit"
             aria-pressed={friendsActive}
-            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${
+            className={`flex h-9 w-full items-center justify-start gap-2 rounded-lg px-3 text-xs font-semibold transition ${
               friendsActive
                 ? 'bg-rose-400/20 text-rose-50'
                 : 'text-neutral-200 hover:bg-white/10 hover:text-white'
             }`}
           >
-            <span className="w-4 text-center text-sm" aria-hidden="true">👥</span>
-            <span className="hidden xl:inline">Vriendenactiviteit</span>
+            <span className="w-4 shrink-0 text-center text-sm" aria-hidden="true">👥</span>
+            <span className="truncate">Vriendenactiviteit</span>
           </button>
 
           <button
@@ -204,30 +201,26 @@ export default function Sidebar({
             title="Samen Kijken"
             aria-label="Samen Kijken"
             aria-pressed={watchTogetherActive}
-            className={`flex h-9 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:w-full xl:justify-start xl:px-3 ${
+            className={`flex h-9 w-full items-center justify-start gap-2 rounded-lg px-3 text-xs font-semibold transition ${
               watchTogetherActive
                 ? 'bg-rose-600 text-white shadow-md'
                 : 'text-neutral-200 hover:bg-white/10 hover:text-white'
             }`}
           >
-            <span className="w-4 text-center text-sm" aria-hidden="true">🛋️</span>
-            <span className="hidden xl:inline">Samen Kijken</span>
+            <span className="w-4 shrink-0 text-center text-sm" aria-hidden="true">🛋️</span>
+            <span>Samen Kijken</span>
           </button>
         </nav>
 
         <div className="w-full border-t border-white/[0.1] pt-4">
-          <p className="mb-2 hidden px-2 text-[9px] font-bold uppercase tracking-wider text-neutral-200 xl:block">
+          <p className="mb-2 px-2 text-[9px] font-bold uppercase tracking-wider text-neutral-200">
             Mijn diensten
           </p>
 
-          <div className="flex flex-col items-center gap-1.5 xl:items-stretch">
+          <div className="flex flex-col items-stretch gap-1.5">
             {platforms.map((platform) => {
               const active = selectedPlatforms.includes(platform.name);
-
-              // Gebruik de vaste logo's voor de bekende diensten.
-              // Andere diensten gebruiken het logo uit de platformgegevens.
-              const logoPath =
-                OFFICIAL_LOGOS[platform.name] || platform.logo_path;
+              const logoPath = OFFICIAL_LOGOS[platform.name] || platform.logo_path;
               const logoSource = getLogoSource(logoPath);
               const logoFailed = failedLogos[platform.name];
 
@@ -238,7 +231,7 @@ export default function Sidebar({
                   title={`${platform.name}: ${active ? 'ingeschakeld' : 'uitgeschakeld'}`}
                   aria-label={`${platform.name} ${active ? 'uitschakelen' : 'inschakelen'}`}
                   aria-pressed={active}
-                  className={`group relative flex h-9 w-10 items-center justify-center gap-2 rounded-lg border px-0.5 transition xl:h-8 xl:w-full xl:justify-start xl:gap-2.5 xl:px-2 ${
+                  className={`group relative flex h-8 w-full items-center justify-start gap-2.5 rounded-lg border px-2 transition ${
                     active
                       ? 'border-white/15 bg-white/[0.08] shadow-sm'
                       : 'border-transparent opacity-50 grayscale hover:opacity-80'
@@ -273,8 +266,7 @@ export default function Sidebar({
                       />
                     )}
                   </span>
-
-                  <span className="hidden min-w-0 flex-1 truncate text-left text-[11px] font-medium text-neutral-100 xl:block">
+                  <span className="min-w-0 flex-1 truncate text-left text-[11px] font-medium text-neutral-100">
                     {platform.name}
                   </span>
                 </button>
@@ -284,14 +276,14 @@ export default function Sidebar({
         </div>
       </div>
 
-      <div className="flex w-full flex-col items-center gap-2 xl:items-stretch">
+      <div className="flex w-full flex-col items-stretch gap-2">
         <button
           type="button"
           onClick={onOpenProfile}
           title="Jouw profiel en voorkeuren"
           aria-label="Jouw profiel en voorkeuren"
           aria-pressed={profileActive}
-          className={`flex h-10 w-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition xl:h-10 xl:w-full xl:justify-start xl:px-2 ${
+          className={`flex h-10 w-full items-center justify-start gap-2 rounded-lg px-2 text-xs font-semibold transition ${
             profileActive
               ? 'bg-rose-400/20 text-rose-50'
               : 'text-neutral-200 hover:bg-white/10 hover:text-white'
@@ -300,8 +292,7 @@ export default function Sidebar({
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-rose-400 to-amber-300 text-[10px] font-black text-slate-950">
             {displayName.trim().slice(0, 1).toUpperCase() || '?'}
           </span>
-
-          <span className="hidden min-w-0 flex-1 text-left xl:block">
+          <span className="min-w-0 flex-1 text-left">
             <span className="block truncate text-[11px] font-semibold">
               {displayName || 'Jouw profiel'}
             </span>
@@ -309,18 +300,18 @@ export default function Sidebar({
           </span>
         </button>
 
-        <div className="flex w-full flex-col items-center gap-3 xl:flex-row xl:justify-between">
-          <button
-            type="button"
-            onClick={onLogout}
-            title="Uitloggen"
-            aria-label="Uitloggen"
-            className="flex h-9 w-9 items-center justify-center gap-2 rounded-lg bg-white/[0.04] text-neutral-300 transition hover:bg-rose-600 hover:text-white xl:w-full xl:justify-start xl:px-2"
-          >
-            <span aria-hidden="true" className="text-base leading-none">↪</span>
-            <span className="hidden text-xs font-semibold xl:inline">Uitloggen</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onLogout}
+          title="Uitloggen"
+          aria-label="Uitloggen"
+          className="flex h-9 w-full items-center justify-start gap-2 rounded-lg bg-white/[0.04] px-2 text-neutral-300 transition hover:bg-rose-600 hover:text-white"
+        >
+          <span aria-hidden="true" className="w-7 shrink-0 text-center text-base leading-none">
+            ↪
+          </span>
+          <span className="text-xs font-semibold">Uitloggen</span>
+        </button>
       </div>
     </aside>
   );

@@ -263,6 +263,7 @@ export default function Home() {
     displayName.trim() && accountEmail.trim() && accountPassword.length >= 8 && passwordsMatch
   );
 
+  // Logo klik reset alleen weergave en filters, maar BEHOUDT jouw gekozen streamingdiensten
   const handleResetToHome = () => {
     setCurrentView('dashboard');
     setLibraryView('discover');
@@ -276,7 +277,6 @@ export default function Home() {
     setMinimumImdbRating(0);
     setReleaseYearBefore(null);
     setMaxRuntimeMinutes(null);
-    setSelectedPlatforms(FIVE_PLATFORMS.map((p) => p.name));
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       document.querySelector('.dashboard-content')?.scrollTo({ top: 0, behavior: 'smooth' });

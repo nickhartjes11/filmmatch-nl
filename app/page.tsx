@@ -497,7 +497,7 @@ export default function Home() {
     });
   }, []);
 
-  // TMDB ophalen
+  // TMDB & Catalogus ophalen (met ondersteuning voor topkwaliteit / IMDb candidates)
   useEffect(() => {
     const query = searchQuery.trim();
     if (libraryView !== 'discover' && libraryView !== 'cinema') return;
@@ -516,10 +516,26 @@ export default function Home() {
           if (isCinema) {
             params.set('nowPlaying', 'true');
           } else {
-            params.set('providers', selectedPlatforms.length > 0 ? selectedPlatforms.join(',') : FIVE_PLATFORMS.map((x) => x.name).join(','));
-            if (selectedPerson) params.set('personId', String(selectedPerson.id));
-            else if (query) params.set('query', query);
-            else if (preferredGenres.length > 0) params.set('genre', preferredGenres[0]);
+            params.set(
+              'providers',
+              selectedPlatforms.length > 0
+                ? selectedPlatforms.join(',')
+                : FIVE_PLATFORMS.map((x) => x.name).join(',')
+            );
+
+            // Stuur topkwaliteit parameters mee zodra gezocht wordt op aanbevelingen of rating
+            if (!query && !selectedPerson && (librarySort === 'rating' || discoveryMode === 'recommended')) {
+              params.set('sortBy', 'imdbCandidates');
+              params.set('topRated', 'true');
+            }
+
+            if (selectedPerson) {
+              params.set('personId', String(selectedPerson.id));
+            } else if (query) {
+              params.set('query', query);
+            } else if (preferredGenres.length > 0) {
+              params.set('genre', preferredGenres[0]);
+            }
           }
           const res = await fetch(`/api/movies?${params.toString()}`);
           return res.ok ? res.json() : null;
@@ -535,10 +551,15 @@ export default function Home() {
           candidateMovies.push(...mapped.filter((m) => !existingIds.has(m.id)));
         });
 
-        setMovies(candidateMovies.map((m) => ({
-          ...m,
-          match_percentage: calculateMatchScore({ id: m.id, genres: m.genres || [], director: m.director, cast: m.cast, rating: m.rating }, matchPreferences),
-        })));
+        setMovies(
+          candidateMovies.map((m) => ({
+            ...m,
+            match_percentage: calculateMatchScore(
+              { id: m.id, genres: m.genres || [], director: m.director, cast: m.cast, rating: m.rating },
+              matchPreferences
+            ),
+          }))
+        );
       } catch (e) {
         if (isActive) setMovieLoadError('Films konden niet worden geladen.');
       } finally {
@@ -550,7 +571,16 @@ export default function Home() {
       isActive = false;
       clearTimeout(timer);
     };
-  }, [searchQuery, libraryView, selectedPerson, selectedPlatforms, preferredGenres, matchPreferences]);
+  }, [
+    searchQuery,
+    libraryView,
+    selectedPerson,
+    selectedPlatforms,
+    preferredGenres,
+    matchPreferences,
+    librarySort,
+    discoveryMode,
+  ]);
 
   const togglePlatform = (name: string) => {
     setSelectedPlatforms((prev) => (prev.includes(name) ? prev.filter((p) => p !== name) : [...prev, name]));
@@ -641,7 +671,7 @@ export default function Home() {
 
   const filteredMovies = useMemo(() => {
     const watchedIds = new Set(library.watched.map((m) => m.id));
-    let catalog = libraryView === 'watchlist' ? [...library.watchlist] : libraryView === 'watched' ? [...library.watched] : movies;
+    let catalog = libraryView === 'watchlist' ? [...library.watchlist] : libraryView === 'watched' ? [...library.watched] : [...movies];
 
     if (librarySort === 'rating') {
       catalog.sort((a, b) => (ratingsByMovieId[b.id] ?? Number.parseFloat(b.rating || '0')) - (ratingsByMovieId[a.id] ?? Number.parseFloat(a.rating || '0')));

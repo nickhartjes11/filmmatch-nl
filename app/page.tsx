@@ -161,6 +161,7 @@ export default function Home() {
 
   const [registerStep, setRegisterStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [libraryView, setLibraryView] = useState<LibraryView>('discover');
+  const [previousLibraryView, setPreviousLibraryView] = useState<LibraryView>('discover');
   const [discoveryMode, setDiscoveryMode] = useState<DiscoveryMode>('recommended');
   const [librarySort, setLibrarySort] = useState<'default' | 'rating' | 'match'>('default');
   const [library, setLibrary] = useState<{ watchlist: Movie[]; watched: Movie[] }>({ watchlist: [], watched: [] });
@@ -177,6 +178,23 @@ export default function Home() {
   const [minimumImdbRating, setMinimumImdbRating] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<PersonSearchResult | null>(null);
+
+  const handleSearchQueryChange = (val: string) => {
+    if (val.trim() !== '') {
+      if (currentView !== 'dashboard') {
+        setCurrentView('dashboard');
+      }
+      if (libraryView !== 'discover') {
+        setPreviousLibraryView(libraryView);
+        setLibraryView('discover');
+      }
+    } else {
+      if (previousLibraryView !== libraryView) {
+        setLibraryView(previousLibraryView);
+      }
+    }
+    setSearchQuery(val);
+  };
 
   useEffect(() => {
     if (!selectedPerson) return;
@@ -248,6 +266,7 @@ export default function Home() {
   const handleResetToHome = () => {
     setCurrentView('dashboard');
     setLibraryView('discover');
+    setPreviousLibraryView('discover');
     setDiscoveryMode('recommended');
     setSearchQuery('');
     setSelectedPerson(null);
@@ -266,7 +285,10 @@ export default function Home() {
 
   const handleSelectPerson = async (name: string, _department: 'Acting' | 'Directing') => {
     setCurrentView('dashboard');
-    setLibraryView('discover');
+    if (libraryView !== 'discover') {
+      setPreviousLibraryView(libraryView);
+      setLibraryView('discover');
+    }
     setSpotlightMovieId(null);
     setSelectedSpotlightMovie(null);
 
@@ -943,9 +965,16 @@ export default function Home() {
     setSelectedPerson(null);
     setSpotlightMovieId(null);
     setSelectedSpotlightMovie(null);
+    if (previousLibraryView !== libraryView) {
+      setLibraryView(previousLibraryView);
+    }
   };
 
   const selectPerson = (person: PersonSearchResult) => {
+    if (libraryView !== 'discover') {
+      setPreviousLibraryView(libraryView);
+      setLibraryView('discover');
+    }
     setSelectedPerson(person);
     setSearchQuery(person.name);
   };
@@ -1138,6 +1167,7 @@ export default function Home() {
           onNavigate={(view) => {
             setCurrentView('dashboard');
             setLibraryView(view);
+            setPreviousLibraryView(view);
             setSpotlightMovieId(null);
             setSelectedSpotlightMovie(null);
             setSearchQuery('');
@@ -1145,6 +1175,7 @@ export default function Home() {
           onSelectDiscoveryMode={(mode) => {
             setCurrentView('dashboard');
             setLibraryView('discover');
+            setPreviousLibraryView('discover');
             setDiscoveryMode(mode);
             setSpotlightMovieId(null);
             setSelectedSpotlightMovie(null);
@@ -1177,6 +1208,7 @@ export default function Home() {
           onOpenWatched={() => {
             setCurrentView('dashboard');
             setLibraryView('watched');
+            setPreviousLibraryView('watched');
             setSearchQuery('');
           }}
           onOpenFavoritesOnboarding={() => {
@@ -1186,6 +1218,7 @@ export default function Home() {
           onSelectMovieSpotlight={(id) => {
             setCurrentView('dashboard');
             setLibraryView('watched');
+            setPreviousLibraryView('watched');
             setSpotlightMovieId(id);
             setSearchQuery('');
           }}
@@ -1227,6 +1260,7 @@ export default function Home() {
         onNavigate={(view) => {
           setCurrentView('dashboard');
           setLibraryView(view);
+          setPreviousLibraryView(view);
           setSpotlightMovieId(null);
           setSelectedSpotlightMovie(null);
           setSearchQuery('');
@@ -1234,6 +1268,7 @@ export default function Home() {
         onSelectDiscoveryMode={(mode) => {
           setCurrentView('dashboard');
           setLibraryView('discover');
+          setPreviousLibraryView('discover');
           setDiscoveryMode(mode);
           setSpotlightMovieId(null);
           setSelectedSpotlightMovie(null);
@@ -1252,7 +1287,7 @@ export default function Home() {
           currentView={currentView}
           libraryView={libraryView}
           searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
+          setSearchQuery={handleSearchQueryChange}
           selectedPerson={selectedPerson}
           setSelectedPerson={setSelectedPerson}
           setSpotlightMovieId={setSpotlightMovieId}

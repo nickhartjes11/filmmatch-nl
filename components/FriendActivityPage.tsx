@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import HeroSpotlight from './HeroSpotlight';
 import StreamingLogo from './StreamingLogo';
 import type { FriendActivityItem, Movie } from './types';
 import { getMatchColorBand } from '../lib/recommendations/matchScore';
@@ -24,8 +25,8 @@ interface FriendActivityPageProps {
   activities: FriendActivityItem[];
   friends?: FriendProfile[];
   onFriendshipChanged?: () => void;
-  onSelectMovieSpotlight?: (movieId: number) => void;
   onToggleWatchlist: (movie: Movie) => void;
+  onToggleWatched?: (movie: Movie) => void;
   onSelectPerson?: (name: string, department: 'Acting' | 'Directing') => void;
 }
 
@@ -34,15 +35,17 @@ export default function FriendActivityPage({
   myWatchlistIds,
   activities,
   onToggleWatchlist,
-  onSelectMovieSpotlight,
+  onToggleWatched,
+  onSelectPerson,
 }: FriendActivityPageProps) {
   const [selectedFriendFilter, setSelectedFriendFilter] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'recent' | 'rating'>('recent');
+  const [spotlightMovie, setSpotlightMovie] = useState<Movie | null>(null);
 
   const [activityMovieMetadata, setActivityMovieMetadata] = useState<Record<number, Movie>>({});
   const [providerLoadStatus, setProviderLoadStatus] = useState<
     Record<number, 'loading' | 'loaded' | 'error'>
-  >( {});
+  >({});
   const requestedMetadataIds = useRef(new Set<number>());
 
   const formatElapsedTime = (minutesAgo: number) => {
@@ -53,30 +56,25 @@ export default function FriendActivityPage({
 
   const uniqueFriendsInFeed = useMemo(() => {
     const map = new Map<string, string>();
-
     activities.forEach((item) => {
       const friendKey = String(item.friendId ?? item.name);
       if (!map.has(friendKey)) {
         map.set(friendKey, item.name);
       }
     });
-
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [activities]);
 
   const displayedActivities = useMemo(() => {
     let list = [...activities];
-
     if (selectedFriendFilter !== 'all') {
       list = list.filter((item) => String(item.friendId ?? item.name) === selectedFriendFilter);
     }
-
     if (sortOrder === 'rating') {
       list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
     } else {
       list.sort((a, b) => a.minutesAgo - b.minutesAgo);
     }
-
     return list;
   }, [activities, selectedFriendFilter, sortOrder]);
 
@@ -89,7 +87,6 @@ export default function FriendActivityPage({
     );
 
     if (idsToLoad.length === 0) return;
-
     idsToLoad.forEach((movieId) => requestedMetadataIds.current.add(movieId));
 
     setProviderLoadStatus((current) => {
@@ -103,11 +100,9 @@ export default function FriendActivityPage({
     const loadActivityMovieMetadata = async () => {
       for (let index = 0; index < idsToLoad.length; index += 25) {
         const batch = idsToLoad.slice(index, index + 25);
-
         try {
           const response = await fetch(`/api/movies?metadataIds=${batch.join(',')}`);
-          if (!response.ok) throw new Error('Filmgegevens konden niet worden geladen.');
-
+          if (!response.ok) throw new Error('Fout bij laden metadata');
           const data = await response.json();
           const fetchedMovies: Movie[] = Array.isArray(data.movies) ? data.movies : [];
           const fetchedIds = new Set(fetchedMovies.map((movie) => movie.id));
@@ -142,14 +137,46 @@ export default function FriendActivityPage({
     void loadActivityMovieMetadata();
   }, [activities, allMovies]);
 
-  const handleMovieClick = (movieId: number) => {
-    if (onSelectMovieSpotlight) {
-      onSelectMovieSpotlight(movieId);
+  const handleSelectMovieForSpotlight = async (movie: Movie) => {
+    setSpotlightMovie(movie);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.querySelector('.dashboard-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    if (!movie.director || !movie.cast || movie.cast.length === 0) {
+      try {
+        const res = await fetch(`/api/movies?metadataIds=${movie.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          const detail = data?.movies?.[0];
+          if (detail) {
+            setSpotlightMovie((prev) => (prev?.id === movie.id ? { ...prev, ...detail } : prev));
+          }
+        }
+      } catch (e) {
+        console.warn('Kon spotlight details niet verrijken:', e);
+      }
     }
   };
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
+      {/* Uitgelichte Spotlight bovenaan (exact zoals op foto 1) */}
+      {spotlightMovie && (
+        <section className="relative">
+          <HeroSpotlight
+            movie={spotlightMovie}
+            watchlistIds={myWatchlistIds}
+            onToggleWatchlist={onToggleWatchlist}
+            onToggleWatched={onToggleWatched || (() => {})}
+            onSelectPerson={onSelectPerson}
+            onSelectMovie={(m) => setSpotlightMovie(m || null)}
+          />
+        </section>
+      )}
+
+      {/* Header & Filters */}
       <section className="flex flex-col gap-3 border-b border-white/10 pb-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-lg font-bold text-white sm:text-xl">Vriendenactiviteit</h1>
@@ -218,6 +245,7 @@ export default function FriendActivityPage({
         </div>
       </section>
 
+      {/* Grid met vriendenactiviteiten */}
       {displayedActivities.length === 0 ? (
         <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900/70 to-slate-950/80 px-5 py-16 text-center shadow-inner sm:py-24">
           <div
@@ -269,11 +297,11 @@ export default function FriendActivityPage({
                 key={item.id}
                 className="movie-card-reveal group flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/90 to-slate-950 shadow-lg shadow-black/15 transition duration-300 hover:-translate-y-1 hover:border-rose-300/30 hover:shadow-rose-950/20"
               >
-                {/* Poster knop die direct naar Spotlight navigeert */}
+                {/* Poster: toont film bovenaan in Spotlight op DEZE pagina */}
                 <button
                   type="button"
-                  onClick={() => handleMovieClick(item.movieId)}
-                  aria-label={`Bekijk ${item.recentFilm} in spotlight`}
+                  onClick={() => handleSelectMovieForSpotlight(matchedMovie)}
+                  aria-label={`Toon ${item.recentFilm} bovenaan`}
                   className="relative block aspect-[2/3] w-full cursor-pointer overflow-hidden bg-slate-900/60 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400"
                 >
                   {item.poster_path ? (
@@ -327,7 +355,7 @@ export default function FriendActivityPage({
                     >
                       <button
                         type="button"
-                        onClick={() => handleMovieClick(item.movieId)}
+                        onClick={() => handleSelectMovieForSpotlight(matchedMovie)}
                         className="truncate text-left focus:outline-none hover:underline"
                       >
                         {item.recentFilm}
@@ -343,7 +371,9 @@ export default function FriendActivityPage({
                     <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-gradient-to-r from-amber-400/[0.12] to-orange-300/[0.06] px-3 py-2.5 shadow-inner shadow-amber-300/[0.04]">
                       <div className="flex min-w-0 items-center gap-2.5">
                         <span
-                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${item.avatarGradient || 'from-rose-500 to-amber-500'} text-xs font-black text-white ring-2 ring-white/10`}
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${
+                            item.avatarGradient || 'from-rose-500 to-amber-500'
+                          } text-xs font-black text-white ring-2 ring-white/10`}
                         >
                           {item.initial}
                         </span>
@@ -396,7 +426,7 @@ export default function FriendActivityPage({
                         ) : (
                           <span className="text-[9px] text-neutral-500">
                             {providerLoadStatus[item.movieId] === 'loading'
-                              ? 'Streamingdiensten laden…'
+                              ? 'Streaming laden…'
                               : 'Geen streaming'}
                           </span>
                         )}

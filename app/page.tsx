@@ -163,7 +163,6 @@ export default function Home() {
   const [friendsList, setFriendsList] = useState<Array<{ id: string; display_name: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [movieLoadError, setMovieLoadError] = useState('');
-  const [loadingMore, setLoadingMore] = useState(false);
   const [visibleMovieLimit, setVisibleMovieLimit] = useState(TARGET_DISCOVERY_COUNT);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(FIVE_PLATFORMS.map((p) => p.name));
   const [minimumImdbRating, setMinimumImdbRating] = useState(0);
@@ -832,12 +831,9 @@ export default function Home() {
               activities={friendsActivity}
               friends={friendsList}
               onFriendshipChanged={() => { if (authUserId) void loadFriendsActivity(authUserId); }}
-              onSelectMovieSpotlight={(id) => {
-                setCurrentView('dashboard');
-                setLibraryView('discover');
-                setSpotlightMovieId(id);
-              }}
               onToggleWatchlist={toggleWatchlist}
+              onToggleWatched={openMovieRating}
+              onSelectPerson={handleSelectPerson}
             />
           ) : (
             <>

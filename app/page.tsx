@@ -263,7 +263,6 @@ export default function Home() {
     displayName.trim() && accountEmail.trim() && accountPassword.length >= 8 && passwordsMatch
   );
 
-  // Logo klik reset alleen weergave en filters, maar BEHOUDT jouw gekozen streamingdiensten
   const handleResetToHome = () => {
     setCurrentView('dashboard');
     setLibraryView('discover');
@@ -887,6 +886,7 @@ export default function Home() {
       const supabase = createSupabaseBrowserClient();
 
       if (supabase && authUserId) {
+        // 1. Cijfer opslaan in Supabase
         await supabase.from('movie_ratings').upsert(
           {
             user_id: authUserId,
@@ -896,19 +896,28 @@ export default function Home() {
           { onConflict: 'user_id,movie_id' }
         );
 
+        // 2. Film toevoegen aan Gezien in Supabase
         await supabase.from('user_watched').upsert({
           user_id: authUserId,
           movie_id: ratingMovie.movie.id,
           movie_data: ratingMovie.movie,
           created_at: new Date().toISOString(),
         });
+
+        // 3. Film DEFINITIEF verwijderen uit Watchlist in Supabase
+        await supabase.from('user_watchlist').delete().match({
+          user_id: authUserId,
+          movie_id: ratingMovie.movie.id,
+        });
       }
 
+      // Ratings lokaal bijwerken
       setMovieRatings((current) => [
         ...current.filter((r) => r.movie_id !== ratingMovie.movie.id),
         { movie_id: ratingMovie.movie.id, rating: draftMovieRating },
       ]);
 
+      // Direct lokaal uit Watchlist verwijderen en toevoegen aan Gezien
       setLibrary((prev) => ({
         watchlist: prev.watchlist.filter((m) => m.id !== ratingMovie.movie.id),
         watched: [

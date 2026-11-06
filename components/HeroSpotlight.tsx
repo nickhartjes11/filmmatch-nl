@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
 import StreamingLogo from './StreamingLogo';
 import type { Movie } from './types';
 import { calculateMatchScore, getMatchColorBand, type MatchPreferences } from '../lib/recommendations/matchScore';
@@ -161,13 +160,10 @@ export default function HeroSpotlight({
       <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-6 md:p-8 shadow-2xl">
         {backdropSrc && (
           <div className="pointer-events-none absolute inset-0 -z-0 opacity-20">
-            <Image
+            <img
               src={backdropSrc}
               alt=""
-              fill
-              priority
-              unoptimized
-              className="object-cover object-center filter blur-[2px]"
+              className="h-full w-full object-cover object-center filter blur-[2px]"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/85 to-slate-950/50" />
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/90 to-transparent" />
@@ -178,14 +174,11 @@ export default function HeroSpotlight({
           {/* Filmposter LINKS */}
           {displayedMovie.poster_path && (
             <div className="shrink-0 w-36 sm:w-44 md:w-52 mx-auto md:mx-0">
-              <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
-                <Image
+              <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-white/15 shadow-2xl bg-slate-900">
+                <img
                   src={`https://image.tmdb.org/t/p/w500${displayedMovie.poster_path}`}
                   alt={displayedMovie.title}
-                  fill
-                  priority
-                  unoptimized
-                  className="object-cover"
+                  className="h-full w-full object-cover"
                 />
               </div>
             </div>

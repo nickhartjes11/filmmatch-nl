@@ -2,7 +2,6 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import Image from 'next/image';
 import MovieRatingControl from './MovieRatingControl';
 import StreamingLogo from './StreamingLogo';
 import type { DiscoveryMode, LibraryView, Movie } from './types';
@@ -119,19 +118,18 @@ function MovieCard({
   return (
     <article className={`movie-card-reveal group flex flex-col justify-between overflow-hidden rounded-xl border border-white/10 bg-slate-950/40 hover:border-white/25 transition duration-300 ${railCard ? 'w-[148px] shrink-0 snap-start sm:w-[170px]' : 'w-full'}`}>
       <button
+        type="button"
         onClick={() => onSelectMovie(movie)}
         title={`Toon ${movie.title} bovenaan`}
         aria-label={`Toon ${movie.title} als uitgelichte poster`}
         className={`relative block aspect-[2/3] overflow-hidden bg-slate-900 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 ${compactPoster ? 'mx-auto w-[90%]' : 'w-full'}`}
       >
         {hasValidPoster ? (
-          <Image
+          <img
             src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
             alt={movie.title}
-            fill
-            unoptimized
             onError={() => setImageError(true)}
-            className="object-cover transition duration-300 group-hover:scale-105"
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center p-3 text-center bg-gradient-to-b from-neutral-800 to-neutral-900">
@@ -182,6 +180,7 @@ function MovieCard({
           </div>
           <div className="flex items-center gap-1">
             <button
+              type="button"
               onClick={() => onToggleWatchlist(movie)}
               title={isWatchlisted ? 'Verwijder uit watchlist' : 'Bewaar voor later'}
               aria-label={isWatchlisted ? `Verwijder ${movie.title} uit watchlist` : `Bewaar ${movie.title} voor later`}
@@ -191,6 +190,7 @@ function MovieCard({
               {isWatchlisted ? '✓' : '+'}
             </button>
             <button
+              type="button"
               onClick={() => onToggleWatched(movie)}
               title={isWatched ? 'Verwijder markering gezien' : 'Markeer als gezien'}
               aria-label={isWatched ? `Verwijder markering gezien voor ${movie.title}` : `Markeer ${movie.title} als gezien`}
@@ -202,7 +202,6 @@ function MovieCard({
           </div>
         </div>
 
-        {/* Cijfer en 'Wijzig' worden UITSLUITEND getoond als highlightUserRating aan staat (in het Gezien-overzicht) */}
         {highlightUserRating && (isWatched || userRating !== undefined) && (
           <div className="mt-2 border-t border-white/[0.08] pt-2">
             <MovieRatingControl rating={userRating} onEdit={() => onEditRating(movie)} prominent={highlightUserRating} />
@@ -269,8 +268,8 @@ function MovieRail({
           <span className="text-[10px] text-neutral-300">{movies.length}</span>
         </div>
         <div className="hidden gap-1 sm:flex">
-          <button onClick={() => scrollRail(-1)} aria-label={`Vorige films: ${title}`} className="flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-slate-900/40 text-xs text-white transition hover:bg-white/15">←</button>
-          <button onClick={() => scrollRail(1)} aria-label={`Volgende films: ${title}`} className="flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-slate-900/40 text-xs text-white transition hover:bg-white/15">→</button>
+          <button type="button" onClick={() => scrollRail(-1)} aria-label={`Vorige films: ${title}`} className="flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-slate-900/40 text-xs text-white transition hover:bg-white/15">←</button>
+          <button type="button" onClick={() => scrollRail(1)} aria-label={`Volgende films: ${title}`} className="flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-slate-900/40 text-xs text-white transition hover:bg-white/15">→</button>
         </div>
       </div>
       <div
@@ -458,6 +457,7 @@ export default function MovieGrid({
       )}
     </div>
   );
+
   const imdbRailRequest: DynamicMovieRailRequest = {
     key: 'imdb:' + railFilterKey,
     title: 'Best beoordeelde IMDb-films',
@@ -693,35 +693,35 @@ export default function MovieGrid({
         {visibleRails.map((rail) => (
           <Fragment key={rail.id}>
             {rail.movies.length > 0 ? (
-            <MovieRail
-              key={rail.id}
-              title={rail.title}
-              movies={rail.movies}
-              headerAction={rail.headerAction}
-              watchlistIds={watchlistIds}
-              watchedIds={watchedIds}
-              onSelectMovie={onSelectMovie}
-              ratings={ratings}
-              onEditRating={onEditRating}
-              onToggleWatchlist={onToggleWatchlist}
-              onToggleWatched={onToggleWatched}
-              onSelectPerson={onSelectPerson}
-            />
-          ) : rail.loading ? (
-            <section key={rail.id} className="space-y-3" aria-label={rail.title}>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-white md:text-base">{rail.title}</h2>
-                {rail.headerAction}
-              </div>
-              <div className="flex gap-3 overflow-hidden py-1">
-                {[1, 2, 3, 4, 5].map((skeletonId) => (
-                  <div
-                    key={skeletonId}
-                    className="w-[148px] sm:w-[170px] aspect-[2/3] shrink-0 rounded-xl bg-white/[0.04] animate-pulse border border-white/5"
-                  />
-                ))}
-              </div>
-            </section>
+              <MovieRail
+                key={rail.id}
+                title={rail.title}
+                movies={rail.movies}
+                headerAction={rail.headerAction}
+                watchlistIds={watchlistIds}
+                watchedIds={watchedIds}
+                onSelectMovie={onSelectMovie}
+                ratings={ratings}
+                onEditRating={onEditRating}
+                onToggleWatchlist={onToggleWatchlist}
+                onToggleWatched={onToggleWatched}
+                onSelectPerson={onSelectPerson}
+              />
+            ) : rail.loading ? (
+              <section key={rail.id} className="space-y-3" aria-label={rail.title}>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-white md:text-base">{rail.title}</h2>
+                  {rail.headerAction}
+                </div>
+                <div className="flex gap-3 overflow-hidden py-1">
+                  {[1, 2, 3, 4, 5].map((skeletonId) => (
+                    <div
+                      key={skeletonId}
+                      className="w-[148px] sm:w-[170px] aspect-[2/3] shrink-0 rounded-xl bg-white/[0.04] animate-pulse border border-white/5"
+                    />
+                  ))}
+                </div>
+              </section>
             ) : rail.id === selectedGenreRailRequest?.key ? (
               <section className="space-y-2" aria-label={rail.title}>
                 <div className="flex items-center gap-2">
@@ -736,6 +736,7 @@ export default function MovieGrid({
         {hasMoreMovies && (
           <div className="flex justify-center pt-2">
             <button
+              type="button"
               onClick={onLoadMore}
               disabled={loadingMore}
               className="rounded-full border border-white/20 bg-white/[0.08] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-white/[0.15] disabled:cursor-wait disabled:opacity-60"

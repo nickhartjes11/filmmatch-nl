@@ -25,23 +25,46 @@ interface SidebarProps {
   onResetToHome?: () => void;
 }
 
-const OFFICIAL_LOGOS: Record<string, string> = {
-  Netflix: '/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg',
-  'Prime Video': '/pvsKGltTBD6bJk1n5Q2p57T77o6.jpg',
-  'Disney+': '/97yvRBw1GzX7fXprcF80919jwCS.jpg',
-  'HBO Max': '/Ajqyt5Gh8fqGaSlXMj9310wI75x.jpg',
-  Videoland: '/9A1DaAYi4SYahE4a9fl0Z4qVwZ6.jpg',
+// Betrouwbare CDN-logo's en officiële TMDB streamingbadges
+const STREAMING_BRAND_ASSETS: Record<string, { logo: string; fallbackBg: string; textMark: string }> = {
+  Netflix: {
+    logo: 'https://image.tmdb.org/t/p/w92/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg',
+    fallbackBg: '#E50914',
+    textMark: 'N',
+  },
+  'Prime Video': {
+    logo: 'https://image.tmdb.org/t/p/w92/pvsKGltTBD6bJk1n5Q2p57T77o6.jpg',
+    fallbackBg: '#00A8E1',
+    textMark: 'P',
+  },
+  'Disney+': {
+    logo: 'https://image.tmdb.org/t/p/w92/97yvRBw1GzX7fXprcF80919jwCS.jpg',
+    fallbackBg: '#113CCF',
+    textMark: 'D+',
+  },
+  'HBO Max': {
+    logo: 'https://image.tmdb.org/t/p/w92/Ajqyt5Gh8fqGaSlXMj9310wI75x.jpg',
+    fallbackBg: '#5822B4',
+    textMark: 'MAX',
+  },
+  Videoland: {
+    logo: 'https://image.tmdb.org/t/p/w92/9A1DaAYi4SYahE4a9fl0Z4qVwZ6.jpg',
+    fallbackBg: '#E50043',
+    textMark: 'V',
+  },
 };
 
-function getLogoSource(logoPath: string | undefined): string | undefined {
-  if (!logoPath) return undefined;
-
-  if (/^https?:\/\//i.test(logoPath)) {
-    return logoPath;
+function resolveLogo(platformName: string, rawLogoPath?: string): string {
+  const branded = STREAMING_BRAND_ASSETS[platformName];
+  if (branded?.logo) {
+    return branded.logo;
   }
-
-  const cleanPath = logoPath.startsWith('/') ? logoPath : `/${logoPath}`;
-  return `https://image.tmdb.org/t/p/w92${cleanPath}`;
+  if (!rawLogoPath) return '';
+  if (/^https?:\/\//i.test(rawLogoPath)) {
+    return rawLogoPath;
+  }
+  const clean = rawLogoPath.startsWith('/') ? rawLogoPath : `/${rawLogoPath}`;
+  return `https://image.tmdb.org/t/p/w92${clean}`;
 }
 
 export default function Sidebar({
@@ -230,9 +253,9 @@ export default function Sidebar({
           <div className="flex flex-col items-stretch gap-1.5">
             {platforms.map((platform) => {
               const active = selectedPlatforms.includes(platform.name);
-              const logoPath = OFFICIAL_LOGOS[platform.name] || platform.logo_path;
-              const logoSource = getLogoSource(logoPath);
-              const logoFailed = failedLogos[platform.name];
+              const logoUrl = resolveLogo(platform.name, platform.logo_path);
+              const isFailed = failedLogos[platform.name] || !logoUrl;
+              const brandInfo = STREAMING_BRAND_ASSETS[platform.name];
 
               return (
                 <button
@@ -250,10 +273,11 @@ export default function Sidebar({
                 >
                   <div className="flex min-w-0 items-center gap-2.5">
                     <div className="relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-neutral-900 shadow">
-                      {logoSource && !logoFailed ? (
+                      {!isFailed ? (
                         <img
-                          src={logoSource}
+                          src={logoUrl}
                           alt={`${platform.name} logo`}
+                          loading="lazy"
                           className="h-full w-full object-cover"
                           onError={() =>
                             setFailedLogos((current) => ({
@@ -264,10 +288,10 @@ export default function Sidebar({
                         />
                       ) : (
                         <span
-                          className="flex h-full w-full items-center justify-center text-[10px] font-black text-white"
-                          style={{ backgroundColor: platform.color || '#333' }}
+                          className="flex h-full w-full items-center justify-center text-[9px] font-black tracking-tighter text-white"
+                          style={{ backgroundColor: brandInfo?.fallbackBg || platform.color || '#262626' }}
                         >
-                          {platform.mark || platform.name.slice(0, 2).toUpperCase()}
+                          {brandInfo?.textMark || platform.mark || platform.name.slice(0, 2).toUpperCase()}
                         </span>
                       )}
                     </div>

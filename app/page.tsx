@@ -32,17 +32,6 @@ interface PersonSearchResult {
   place_of_birth?: string | null;
 }
 
-function calculateAge(birthday?: string | null): number | null {
-  if (!birthday) return null;
-  const date = new Date(`${birthday}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - date.getFullYear();
-  const passed = today.getMonth() > date.getMonth() || (today.getMonth() === date.getMonth() && today.getDate() >= date.getDate());
-  if (!passed) age -= 1;
-  return age >= 0 ? age : null;
-}
-
 interface MovieTasteMetadata extends MovieTasteSignals {
   release_date: string;
   runtime_minutes: number | null;
@@ -414,7 +403,7 @@ export default function Home() {
     });
   }, []);
 
-  // TMDB ophalen
+  // TMDB & Catalogus ophalen
   useEffect(() => {
     const query = searchQuery.trim();
     if (libraryView !== 'discover' && libraryView !== 'cinema') return;
@@ -668,33 +657,32 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#080d1a] text-neutral-100 flex flex-col selection:bg-cyan-500 selection:text-black">
-      {/* 1. HORIZONTALE TOPNAVIGATIE (NIEUW DESIGN) */}
-      <header className="sticky top-0 z-40 w-full bg-[#080d1a]/90 backdrop-blur-xl border-b border-white/10 px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        {/* Logo */}
+    <div className="min-h-screen bg-[#060913] text-neutral-100 flex flex-col selection:bg-sky-500 selection:text-black">
+      {/* 1. TOPNAVIGATIE (VOLGENS MOCKUP) */}
+      <header className="sticky top-0 z-40 w-full bg-[#060913]/90 backdrop-blur-xl border-b border-white/[0.08] px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-8">
           <button
             type="button"
             onClick={handleResetToHome}
             className="flex items-center gap-2.5 text-left group"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white font-black text-lg">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-500/25 text-white font-black text-lg">
               🎬
             </div>
-            <span className="text-xl font-black tracking-tight text-white group-hover:text-cyan-400 transition">
-              FilmMatch<span className="text-cyan-400">.nl</span>
+            <span className="text-xl font-black tracking-tight text-white group-hover:text-sky-400 transition">
+              FilmMatch<span className="text-sky-400">.nl</span>
             </span>
           </button>
 
           {/* Menutabs bovenaan */}
-          <nav className="hidden lg:flex items-center gap-1 text-sm font-semibold">
+          <nav className="hidden lg:flex items-center gap-1.5 text-sm font-semibold">
             <button
               type="button"
               onClick={handleResetToHome}
-              className={`px-4 py-2 rounded-xl transition ${
+              className={`px-4 py-1.5 rounded-full transition ${
                 currentView === 'dashboard' && libraryView === 'discover'
-                  ? 'bg-cyan-500 text-neutral-950 font-bold shadow-md shadow-cyan-500/20'
-                  : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                  ? 'bg-sky-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)]'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
               }`}
             >
               Home
@@ -706,11 +694,7 @@ export default function Home() {
                 setLibraryView('discover');
                 setDiscoveryMode('recommended');
               }}
-              className={`px-4 py-2 rounded-xl transition ${
-                currentView === 'dashboard' && libraryView === 'discover' && discoveryMode === 'recommended'
-                  ? 'text-white'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/5'
-              }`}
+              className="px-4 py-1.5 rounded-full text-slate-300 hover:text-white hover:bg-white/5 transition"
             >
               Aanbevelingen
             </button>
@@ -720,15 +704,15 @@ export default function Home() {
                 setCurrentView('dashboard');
                 setLibraryView('watchlist');
               }}
-              className={`px-4 py-2 rounded-xl transition ${
+              className={`px-4 py-1.5 rounded-full transition ${
                 currentView === 'dashboard' && libraryView === 'watchlist'
-                  ? 'bg-white/15 text-white font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-sky-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)]'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
               }`}
             >
               Watchlist
               {library.watchlist.length > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-cyan-500/20 text-cyan-300">
+                <span className="ml-1.5 px-1.5 py-0.5 text-[11px] rounded-full bg-sky-400/20 text-sky-300">
                   {library.watchlist.length}
                 </span>
               )}
@@ -739,25 +723,24 @@ export default function Home() {
                 setCurrentView('dashboard');
                 setLibraryView('watched');
               }}
-              className={`px-4 py-2 rounded-xl transition ${
+              className={`px-4 py-1.5 rounded-full transition ${
                 currentView === 'dashboard' && libraryView === 'watched'
-                  ? 'bg-white/15 text-white font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-sky-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)]'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
               }`}
             >
               Gezien
             </button>
-            {/* BIOSCOOP IS NU EEN APARTE TAB BOVENAAN */}
             <button
               type="button"
               onClick={() => {
                 setCurrentView('dashboard');
                 setLibraryView('cinema');
               }}
-              className={`px-4 py-2 rounded-xl transition ${
+              className={`px-4 py-1.5 rounded-full transition ${
                 currentView === 'dashboard' && libraryView === 'cinema'
-                  ? 'bg-cyan-500 text-neutral-950 font-bold shadow-md shadow-cyan-500/20'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-sky-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)]'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
               }`}
             >
               Bioscoop
@@ -765,10 +748,10 @@ export default function Home() {
             <button
               type="button"
               onClick={() => navigateToView('friends')}
-              className={`px-4 py-2 rounded-xl transition ${
+              className={`px-4 py-1.5 rounded-full transition ${
                 currentView === 'friends'
-                  ? 'bg-white/15 text-white font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-sky-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)]'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
               }`}
             >
               Vrienden
@@ -776,10 +759,10 @@ export default function Home() {
             <button
               type="button"
               onClick={() => navigateToView('watch-together')}
-              className={`px-4 py-2 rounded-xl transition ${
+              className={`px-4 py-1.5 rounded-full transition ${
                 currentView === 'watch-together'
-                  ? 'bg-white/15 text-white font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-sky-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)]'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
               }`}
             >
               Samen kijken
@@ -787,7 +770,7 @@ export default function Home() {
           </nav>
         </div>
 
-        {/* Rechter acties: Zoekbalk & Profiel */}
+        {/* Rechter acties: Zoekbalk, Meldingen & Avatar */}
         <div className="flex items-center gap-3">
           {showSearchInput ? (
             <div className="relative flex items-center">
@@ -797,7 +780,7 @@ export default function Home() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Zoek film of acteur..."
                 autoFocus
-                className="w-48 sm:w-64 px-3.5 py-1.5 pr-8 rounded-xl bg-neutral-900 border border-cyan-400/40 text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="w-48 sm:w-64 px-3.5 py-1.5 pr-8 rounded-full bg-slate-900 border border-sky-400/50 text-xs text-white placeholder-slate-500 focus:outline-none"
               />
               <button
                 type="button"
@@ -805,7 +788,7 @@ export default function Home() {
                   setSearchQuery('');
                   setShowSearchInput(false);
                 }}
-                className="absolute right-2.5 text-neutral-400 hover:text-white text-xs"
+                className="absolute right-2.5 text-slate-400 hover:text-white text-xs"
               >
                 ✕
               </button>
@@ -814,7 +797,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => setShowSearchInput(true)}
-              className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-neutral-300 transition"
+              className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 transition"
               title="Zoeken"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -823,24 +806,32 @@ export default function Home() {
             </button>
           )}
 
+          {/* Melding icoontje */}
+          <button
+            type="button"
+            className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 transition relative"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-sky-400" />
+          </button>
+
           {/* Profiel dropdown button */}
           <button
             type="button"
             onClick={() => navigateToView('profile')}
-            className="flex items-center gap-2 p-1 pl-2 pr-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition"
+            className="flex items-center gap-2 p-0.5 rounded-full border border-white/15 transition hover:scale-105"
           >
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-500 to-rose-500 flex items-center justify-center font-bold text-xs text-white uppercase">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 to-rose-500 flex items-center justify-center font-bold text-xs text-white uppercase shadow-inner">
               {displayName.charAt(0)}
             </div>
-            <span className="text-xs font-semibold text-neutral-200 hidden sm:inline">
-              {displayName}
-            </span>
           </button>
         </div>
       </header>
 
       {/* 2. HOOFD INHOUD */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+      <main className="flex-1 max-w-[1400px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         {currentView === 'watch-together' ? (
           <WatchTogetherPage
             currentUserId={authUserId}
@@ -873,7 +864,7 @@ export default function Home() {
           />
         ) : (
           <>
-            {/* Grote Widescreen Hero (alleen tonen bij discover en cinema) */}
+            {/* Grote Widescreen Hero */}
             <HeroSpotlight
               movie={spotlightMovie}
               allMovies={filteredMovies}
@@ -890,18 +881,18 @@ export default function Home() {
               }}
             />
 
-            {/* Subnavigatie Pillenbalk (Onder de Hero) */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            {/* Subnavigatie Pillenbalk onder de Hero */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               <button
                 type="button"
                 onClick={() => {
                   setLibraryView('discover');
                   setDiscoveryMode('recommended');
                 }}
-                className={`py-3 px-4 rounded-2xl border text-xs font-bold transition flex items-center justify-center gap-2 ${
+                className={`px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
                   libraryView === 'discover' && discoveryMode === 'recommended'
-                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-lg shadow-cyan-500/10'
-                    : 'bg-neutral-900/80 border-white/10 text-neutral-300 hover:bg-white/5'
+                    ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(56,189,248,0.35)]'
+                    : 'bg-slate-900/60 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 ★ Aanbevelingen
@@ -909,10 +900,10 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setLibraryView('watchlist')}
-                className={`py-3 px-4 rounded-2xl border text-xs font-bold transition flex items-center justify-center gap-2 ${
+                className={`px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
                   libraryView === 'watchlist'
-                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-lg shadow-cyan-500/10'
-                    : 'bg-neutral-900/80 border-white/10 text-neutral-300 hover:bg-white/5'
+                    ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(56,189,248,0.35)]'
+                    : 'bg-slate-900/60 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 🔖 Watchlist
@@ -920,10 +911,10 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setLibraryView('watched')}
-                className={`py-3 px-4 rounded-2xl border text-xs font-bold transition flex items-center justify-center gap-2 ${
+                className={`px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
                   libraryView === 'watched'
-                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-lg shadow-cyan-500/10'
-                    : 'bg-neutral-900/80 border-white/10 text-neutral-300 hover:bg-white/5'
+                    ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(56,189,248,0.35)]'
+                    : 'bg-slate-900/60 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 ✓ Gezien
@@ -931,10 +922,10 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setLibraryView('cinema')}
-                className={`py-3 px-4 rounded-2xl border text-xs font-bold transition flex items-center justify-center gap-2 ${
+                className={`px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
                   libraryView === 'cinema'
-                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-lg shadow-cyan-500/10'
-                    : 'bg-neutral-900/80 border-white/10 text-neutral-300 hover:bg-white/5'
+                    ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(56,189,248,0.35)]'
+                    : 'bg-slate-900/60 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 🍿 Bioscoop
@@ -942,47 +933,46 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => navigateToView('friends')}
-                className="py-3 px-4 rounded-2xl border bg-neutral-900/80 border-white/10 text-neutral-300 hover:bg-white/5 text-xs font-bold transition flex items-center justify-center gap-2"
+                className="px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap bg-slate-900/60 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition"
               >
                 👥 Vriendenactiviteit
               </button>
               <button
                 type="button"
                 onClick={() => navigateToView('watch-together')}
-                className="py-3 px-4 rounded-2xl border bg-neutral-900/80 border-white/10 text-neutral-300 hover:bg-white/5 text-xs font-bold transition flex items-center justify-center gap-2"
+                className="px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap bg-slate-900/60 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition"
               >
                 📺 Samen kijken
               </button>
             </div>
 
-            {/* Horizontale Filterbalk (Beschikbaar op & IMDb-minimum) */}
+            {/* Horizontale Filterbalk (Beschikbaar op & IMDb) */}
             {libraryView !== 'cinema' && (
-              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-900/80 border border-white/10 backdrop-blur-md">
+              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/40 border border-white/[0.08] backdrop-blur-md">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-                    Beschikbaar op
-                  </span>
+                  <span className="text-xs font-semibold text-slate-400">Beschikbaar op</span>
                   <div className="flex flex-wrap items-center gap-2">
-                    {FIVE_PLATFORMS.map((platform) => {
-                      const isSelected = selectedPlatforms.includes(platform.name);
+                    {[
+                      { name: 'Netflix', color: 'text-red-600', border: 'hover:border-red-500/40' },
+                      { name: 'Prime Video', color: 'text-sky-400', border: 'hover:border-sky-400/40' },
+                      { name: 'Disney+', color: 'text-blue-400', border: 'hover:border-blue-400/40' },
+                      { name: 'HBO Max', color: 'text-purple-400', border: 'hover:border-purple-400/40' },
+                      { name: 'Videoland', color: 'text-rose-500', border: 'hover:border-rose-400/40' },
+                    ].map((service) => {
+                      const isSelected = selectedPlatforms.includes(service.name);
                       return (
                         <button
-                          key={platform.id}
+                          key={service.name}
                           type="button"
-                          onClick={() => togglePlatform(platform.name)}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition ${
+                          onClick={() => togglePlatform(service.name)}
+                          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
                             isSelected
-                              ? 'bg-white/15 border-white/30 text-white shadow-sm'
-                              : 'bg-black/30 border-white/5 text-neutral-500 hover:text-neutral-300'
-                          }`}
+                              ? 'bg-slate-800 border-white/30 text-white shadow-sm'
+                              : 'bg-slate-950/40 border-white/5 text-slate-500 hover:text-slate-300'
+                          } ${service.border}`}
                         >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            readOnly
-                            className="rounded text-cyan-500 focus:ring-0 cursor-pointer pointer-events-none w-3.5 h-3.5"
-                          />
-                          <span>{platform.name}</span>
+                          <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-sky-400' : 'bg-slate-700'}`} />
+                          <span className={service.color}>{service.name}</span>
                         </button>
                       );
                     })}
@@ -990,55 +980,25 @@ export default function Home() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 text-xs font-bold text-neutral-400">
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
                     <span>IMDb-minimum:</span>
                     <select
                       value={minimumImdbRating}
                       onChange={(e) => setMinimumImdbRating(Number(e.target.value))}
-                      className="px-3 py-1.5 rounded-xl bg-neutral-950 border border-white/15 text-amber-300 font-black text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                      className="px-3 py-1.5 rounded-xl bg-slate-950 border border-white/15 text-amber-300 font-bold text-xs focus:outline-none"
                     >
                       <option value={0}>Alles tonen</option>
-                      <option value={7.0}>★ 7.0+</option>
-                      <option value={7.5}>★ 7.5+</option>
-                      <option value={8.0}>★ 8.0+ (Topfilms)</option>
+                      <option value={7.0}>★ 7,0+</option>
+                      <option value={7.5}>★ 7,5+</option>
+                      <option value={8.0}>★ 8,0+</option>
                     </select>
-                  </div>
-
-                  <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
-                    <button
-                      type="button"
-                      onClick={() => setLibrarySort('default')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
-                        librarySort === 'default' ? 'bg-white/20 text-white font-bold' : 'text-neutral-400 hover:text-white'
-                      }`}
-                    >
-                      Standaard
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLibrarySort('rating')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
-                        librarySort === 'rating' ? 'bg-amber-400/20 text-amber-300 font-bold' : 'text-neutral-400 hover:text-white'
-                      }`}
-                    >
-                      ★ Cijfer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLibrarySort('match')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
-                        librarySort === 'match' ? 'bg-rose-500/20 text-rose-300 font-bold' : 'text-neutral-400 hover:text-white'
-                      }`}
-                    >
-                      ⚡ Match
-                    </button>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Catalogus Rijen: 16:9 Landschapskaarten */}
-            <div id="film-catalog" className="space-y-6 pt-4">
+            {/* Catalogus: 16:9 Landschapskaarten */}
+            <div id="film-catalog" className="space-y-4 pt-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                   {libraryView === 'cinema'
@@ -1049,21 +1009,21 @@ export default function Home() {
                     ? 'Gezien door jou'
                     : 'Aanbevolen voor jou'}
                 </h3>
-                <span className="text-xs font-semibold text-neutral-400">
-                  {filteredMovies.length} films
+                <span className="text-xs font-semibold text-slate-400">
+                  {filteredMovies.length} titels
                 </span>
               </div>
 
               {loading ? (
-                <div className="py-24 text-center text-sm text-neutral-400">
+                <div className="py-24 text-center text-sm text-slate-400">
                   Films inladen...
                 </div>
               ) : filteredMovies.length === 0 ? (
-                <div className="py-20 text-center text-sm text-neutral-400">
+                <div className="py-20 text-center text-sm text-slate-400">
                   Geen films gevonden die aan de filters voldoen.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                   {filteredMovies.map((film) => {
                     const backdrop = film.backdrop_path
                       ? `https://image.tmdb.org/t/p/w780${film.backdrop_path}`
@@ -1077,34 +1037,33 @@ export default function Home() {
                       <div
                         key={film.id}
                         onClick={() => selectSpotlightMovie(film)}
-                        className="group relative aspect-[16/9] rounded-2xl overflow-hidden bg-neutral-900 border border-white/10 hover:border-cyan-400/50 transition-all duration-300 hover:scale-[1.02] cursor-pointer shadow-xl"
+                        className="group relative aspect-[16/9] rounded-2xl overflow-hidden bg-slate-900/60 border border-white/10 hover:border-sky-400/50 transition-all duration-300 hover:scale-[1.03] cursor-pointer shadow-lg hover:shadow-[0_10px_30px_rgba(56,189,248,0.2)]"
                       >
-                        {/* 16:9 Afbeelding */}
                         <img
                           src={backdrop}
                           alt={film.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#060913] via-[#060913]/30 to-transparent" />
 
-                        {/* Badges linksboven */}
-                        <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                          {film.match_percentage && (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-500/90 text-white shadow-sm">
+                        {/* Match indicator linksboven */}
+                        {film.match_percentage && (
+                          <div className="absolute top-2.5 left-2.5">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-sky-500 text-slate-950 shadow-sm">
                               {film.match_percentage}%
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
-                        {/* Info onderaan de kaart */}
-                        <div className="absolute bottom-3 left-3 right-3 space-y-1">
-                          <h4 className="text-sm font-black text-white truncate group-hover:text-cyan-300 transition">
+                        {/* Titel, ster en genres onderaan */}
+                        <div className="absolute bottom-2.5 left-3 right-3 space-y-0.5">
+                          <h4 className="text-sm font-bold text-white truncate group-hover:text-sky-300 transition">
                             {film.title}
                           </h4>
-                          <div className="flex items-center gap-2 text-[11px] text-neutral-300">
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
                             <span className="text-amber-400 font-bold">★ {score}</span>
                             {film.genres?.slice(0, 2).map((g) => (
-                              <span key={g} className="text-neutral-400 truncate">
+                              <span key={g} className="text-slate-400 truncate">
                                 · {g}
                               </span>
                             ))}

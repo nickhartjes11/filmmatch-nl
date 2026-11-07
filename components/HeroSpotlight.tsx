@@ -1,377 +1,276 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import StreamingLogo from './StreamingLogo';
+import { useState, useEffect } from 'react';
 import type { Movie } from './types';
-import { calculateMatchScore, getMatchColorBand, type MatchPreferences } from '../lib/recommendations/matchScore';
-
-export interface EditorialTip {
-  tmdbId: number;
-  reason: string;
-}
-
-export const MONTHLY_TIPS: EditorialTip[] = [
-  {
-    tmdbId: 671, // Harry Potter and the Philosopher's Stone
-    reason: 'Met de nieuwe HBO-serie in aantocht is dit een mooi moment om terug te gaan naar Hogwarts.',
-  },
-  {
-    tmdbId: 299534, // Avengers: Endgame
-    reason: 'Herbeleef de ultieme Marvel-climax voordat je aan het volgende hoofdstuk begint.',
-  },
-  {
-    tmdbId: 438631, // Dune (Part One)
-    reason: 'Begin bij het eerste deel voor Villeneuves indrukwekkende wereld en cinematografie.',
-  },
-  {
-    tmdbId: 693134, // Dune: Part Two
-    reason: 'Een visueel verbluffend vervolg dat Arrakis nog grootser maakt.',
-  },
-  {
-    tmdbId: 157336, // Interstellar
-    reason: 'Een tijdloos sci-fi-epos over liefde, zwarte gaten en tijd.',
-  },
-];
+import type { MatchPreferences } from '@/lib/recommendations/matchScore';
 
 interface HeroSpotlightProps {
-  movie?: Movie | null;
+  movie: Movie | null;
   allMovies?: Movie[];
-  watchlistIds?: number[];
+  watchlistIds: number[];
   watchedIds?: number[];
   matchPreferences?: MatchPreferences;
   onToggleWatchlist: (movie: Movie) => void;
   onToggleWatched: (movie: Movie) => void;
-  onSelectMovie?: (movie: Movie | undefined) => void;
-  onSelectPerson?: (name: string, department: 'Acting' | 'Directing') => void;
+  onSelectPerson?: (name: string, ...args: any[]) => void;
+  onSelectMovie?: (movie: any) => void;
+  onFindMovie?: () => void;
 }
 
 export default function HeroSpotlight({
-  movie: activeMovieProp,
-  allMovies = [],
-  watchlistIds = [],
-  watchedIds = [],
-  matchPreferences,
+  movie,
+  allMovies,
+  watchlistIds,
+  watchedIds,
   onToggleWatchlist,
   onToggleWatched,
   onSelectPerson,
+  onFindMovie,
 }: HeroSpotlightProps) {
-  const [tipIndex, setTipIndex] = useState(0);
-  const [editorialMovies, setEditorialMovies] = useState<Record<number, Movie>>({});
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
-  const [loadingTrailer, setLoadingTrailer] = useState(false);
   const [showTrailerModal, setShowTrailerModal] = useState(false);
+  const [trailerLoading, setTrailerLoading] = useState(false);
+
+  const activeMovie = movie || allMovies?.[0] || null;
 
   useEffect(() => {
-    const tipIds = MONTHLY_TIPS.map((tip) => tip.tmdbId);
-    let isMounted = true;
-
-    fetch(`/api/movies?metadataIds=${tipIds.join(',')}`)
-      .then((res) => (res.ok ? res.json() : { movies: [] }))
-      .then((data) => {
-        if (!isMounted) return;
-        const map: Record<number, Movie> = {};
-        (data.movies || []).forEach((m: Movie) => {
-          map[m.id] = m;
-        });
-        setEditorialMovies(map);
-      })
-      .catch((err) => console.warn('Kon tips niet laden:', err));
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (activeMovieProp || MONTHLY_TIPS.length <= 1) return;
-
-    const interval = setInterval(() => {
-      setTipIndex((current) => (current + 1) % MONTHLY_TIPS.length);
-    }, 10_000);
-
-    return () => clearInterval(interval);
-  }, [activeMovieProp]);
-
-  const currentTipConfig = MONTHLY_TIPS[tipIndex % MONTHLY_TIPS.length];
-  const activeTipMovie = currentTipConfig
-    ? editorialMovies[currentTipConfig.tmdbId]
-    : undefined;
-
-  const isSelectedByUser = Boolean(activeMovieProp);
-  const displayedMovie: Movie | undefined =
-    activeMovieProp || activeTipMovie || allMovies[0];
-
-  useEffect(() => {
-    if (!displayedMovie?.id) {
+    if (!activeMovie?.id) {
       setTrailerKey(null);
       return;
     }
 
     let isMounted = true;
-    setLoadingTrailer(true);
+    setTrailerLoading(true);
 
-    fetch(`/api/movies?trailerMovieId=${displayedMovie.id}`)
-      .then((res) => (res.ok ? res.json() : { youtubeKey: null }))
+    fetch(`/api/movies?trailerMovieId=${activeMovie.id}`)
+      .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!isMounted) return;
-        setTrailerKey(data.youtubeKey || null);
+        if (isMounted) {
+          setTrailerKey(data?.youtubeKey || null);
+          setTrailerLoading(false);
+        }
       })
       .catch(() => {
-        if (!isMounted) return;
-        setTrailerKey(null);
-      })
-      .finally(() => {
-        if (isMounted) setLoadingTrailer(false);
+        if (isMounted) {
+          setTrailerKey(null);
+          setTrailerLoading(false);
+        }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [displayedMovie?.id]);
+  }, [activeMovie?.id]);
 
-  if (!displayedMovie) return null;
+  if (!activeMovie) return null;
 
-  const isWatchlisted = Boolean(watchlistIds?.includes(displayedMovie.id));
-  const isWatched = Boolean(watchedIds?.includes(displayedMovie.id));
+  const isWatchlisted = watchlistIds.includes(activeMovie.id);
+  const isWatched = Boolean(watchedIds?.includes(activeMovie.id));
 
-  const matchScore = matchPreferences
-    ? calculateMatchScore(
-        {
-          id: displayedMovie.id,
-          genres: displayedMovie.genres || [],
-          director: displayedMovie.director,
-          cast: displayedMovie.cast,
-          rating: displayedMovie.rating,
-        },
-        matchPreferences
-      )
-    : displayedMovie.match_percentage || 88;
+  const backdropUrl = activeMovie.backdrop_path
+    ? `https://image.tmdb.org/t/p/original${activeMovie.backdrop_path}`
+    : activeMovie.poster_path
+    ? `https://image.tmdb.org/t/p/original${activeMovie.poster_path}`
+    : '/fallback-backdrop.jpg';
 
-  const matchBand = getMatchColorBand(matchScore);
-
-  const backdropSrc = displayedMovie.backdrop_path
-    ? `https://image.tmdb.org/t/p/original${displayedMovie.backdrop_path}`
-    : displayedMovie.poster_path
-      ? `https://image.tmdb.org/t/p/original${displayedMovie.poster_path}`
-      : null;
+  const imdbScore = activeMovie.rating || (activeMovie as any).imdb_rating || '8.5';
+  const releaseYear = activeMovie.release_date?.slice(0, 4) || '';
 
   return (
-    <>
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-6 md:p-8 shadow-2xl">
-        {backdropSrc && (
-          <div className="pointer-events-none absolute inset-0 -z-0 opacity-20">
-            <img
-              src={backdropSrc}
-              alt=""
-              className="h-full w-full object-cover object-center filter blur-[2px]"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/85 to-slate-950/50" />
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/90 to-transparent" />
-          </div>
-        )}
+    <section className="relative w-full rounded-3xl overflow-hidden min-h-[480px] lg:min-h-[540px] flex flex-col justify-between p-6 sm:p-10 lg:p-12 border border-white/10 shadow-2xl bg-neutral-950">
+      {/* Achtergrondafbeelding met cinematische gradient overlays */}
+      <div className="absolute inset-0 z-0">
+        <img
+          src={backdropUrl}
+          alt={activeMovie.title}
+          className="w-full h-full object-cover object-center filter brightness-[0.40] contrast-125 transition-all duration-700"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-neutral-950 via-neutral-950/80 to-transparent w-full lg:w-3/4" />
+      </div>
 
-        <div className="relative z-10 flex flex-col md:flex-row items-start gap-6 md:gap-8">
-          {/* Filmposter LINKS */}
-          {displayedMovie.poster_path && (
-            <div className="shrink-0 w-36 sm:w-44 md:w-52 mx-auto md:mx-0">
-              <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-white/15 shadow-2xl bg-slate-900">
-                <img
-                  src={`https://image.tmdb.org/t/p/w500${displayedMovie.poster_path}`}
-                  alt={displayedMovie.title}
-                  className="h-full w-full object-cover"
-                />
+      {/* Bovenste rij: Hero titel & Actieknop */}
+      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+        {/* Linker kolom: Belofte / CTA */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 text-xs font-bold tracking-widest uppercase">
+            FilmMatch.nl
+          </div>
+
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.1]">
+            De juiste film <br />
+            voor <span className="text-cyan-400">vanavond</span>
+          </h1>
+
+          <p className="text-sm sm:text-base text-neutral-300 max-w-xl leading-relaxed">
+            Persoonlijke filmtips, je watchlist, bioscooptijden en samen kijken met vrienden — allemaal op één plek.
+          </p>
+
+          <div className="flex items-center gap-4 pt-2">
+            <button
+              type="button"
+              onClick={onFindMovie}
+              className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-neutral-950 font-bold text-sm transition-all duration-200 shadow-lg shadow-cyan-500/25 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              <span>Vind jouw film</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Rechter kolom: Spotlight Film Kaart */}
+        <div className="lg:col-span-5 flex justify-end">
+          <div className="w-full max-w-md rounded-2xl bg-neutral-900/85 border border-white/15 p-6 backdrop-blur-xl shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold tracking-widest text-cyan-400 uppercase">
+                Film in de spotlight
+              </span>
+              {activeMovie.match_percentage && (
+                <span className="px-2.5 py-1 rounded-full text-xs font-black bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  ⚡ {activeMovie.match_percentage}% match
+                </span>
+              )}
+            </div>
+
+            <div>
+              <h2 className="text-2xl font-black text-white tracking-wide uppercase">
+                {activeMovie.title}
+              </h2>
+              <div className="flex flex-wrap items-center gap-2.5 mt-2">
+                <span className="inline-flex items-center gap-1 text-xs font-black text-amber-300 bg-amber-400/15 border border-amber-400/30 px-2 py-0.5 rounded-md">
+                  ★ {imdbScore}
+                </span>
+                {releaseYear && <span className="text-xs text-neutral-400">{releaseYear}</span>}
+                {activeMovie.runtime && <span className="text-xs text-neutral-400">· {activeMovie.runtime}</span>}
+                {activeMovie.genres?.slice(0, 2).map((genre) => (
+                  <span key={genre} className="text-xs px-2 py-0.5 rounded-md bg-white/10 text-neutral-300">
+                    {genre}
+                  </span>
+                ))}
               </div>
             </div>
-          )}
 
-          {/* Informatie en acties RECHTS */}
-          <div className="flex-1 space-y-3 min-w-0">
-            {/* Titel van de film */}
-            <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl">
-              {displayedMovie.title}
-            </h1>
-
-            {/* Filminformatie */}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-400">
-              {displayedMovie.release_date && (
-                <span>{displayedMovie.release_date.split('-')[0]}</span>
-              )}
-              {displayedMovie.genres?.[0] && (
-                <span>
-                  {displayedMovie.release_date ? '• ' : ''}
-                  {displayedMovie.genres[0]}
-                </span>
-              )}
-              {displayedMovie.runtime && (
-                <span>
-                  {displayedMovie.release_date || displayedMovie.genres?.[0]
-                    ? '• '
-                    : ''}
-                  {displayedMovie.runtime}
-                </span>
-              )}
-            </div>
-
-            {/* Korte uitleg bij de maandtip */}
-            {!isSelectedByUser &&
-              activeTipMovie &&
-              activeTipMovie.id === displayedMovie.id &&
-              currentTipConfig?.reason && (
-                <p className="max-w-3xl text-xs leading-relaxed text-neutral-400">
-                  {currentTipConfig.reason}
-                </p>
-              )}
-
-            {/* Synopsis */}
-            <p className="line-clamp-3 text-xs leading-relaxed text-neutral-300 sm:text-sm">
-              {displayedMovie.overview || 'Geen beschrijving beschikbaar.'}
+            <p className="text-xs text-neutral-300 line-clamp-3 leading-relaxed">
+              {activeMovie.overview || 'Geen samenvatting beschikbaar.'}
             </p>
 
-            {/* Regisseur & Cast (klikbaar) */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs pt-0.5">
-              {displayedMovie.director && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-neutral-400">Regie:</span>
+            {/* Regisseur & Cast (Klikbaar) */}
+            <div className="space-y-1.5 pt-1 text-xs text-neutral-400 border-t border-white/10">
+              {activeMovie.director && (
+                <p>
+                  <span className="text-neutral-500">Regie:</span>{' '}
                   <button
                     type="button"
-                    onClick={() =>
-                      onSelectPerson?.(displayedMovie.director!, 'Directing')
-                    }
-                    className="font-medium text-white hover:text-rose-300 underline underline-offset-2 transition"
+                    onClick={() => onSelectPerson && onSelectPerson(activeMovie.director!)}
+                    className="text-cyan-300 hover:underline font-medium"
                   >
-                    {displayedMovie.director}
+                    {activeMovie.director}
                   </button>
-                </div>
+                </p>
               )}
-
-              {displayedMovie.cast && displayedMovie.cast.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-neutral-400">Cast:</span>
-                  {displayedMovie.cast.slice(0, 4).map((actor, idx) => (
-                    <span key={actor} className="inline-flex items-center">
+              {activeMovie.cast && activeMovie.cast.length > 0 && (
+                <p className="truncate">
+                  <span className="text-neutral-500">Cast:</span>{' '}
+                  {activeMovie.cast.slice(0, 3).map((actor, idx) => (
+                    <span key={actor}>
+                      {idx > 0 && ', '}
                       <button
                         type="button"
-                        onClick={() => onSelectPerson?.(actor, 'Acting')}
-                        className="font-medium text-white hover:text-rose-300 underline underline-offset-2 transition"
+                        onClick={() => onSelectPerson && onSelectPerson(actor)}
+                        className="text-neutral-300 hover:text-cyan-300 hover:underline"
                       >
                         {actor}
                       </button>
-                      {idx < Math.min(displayedMovie.cast!.length, 4) - 1 && (
-                        <span className="text-neutral-400 ml-1">,</span>
-                      )}
                     </span>
                   ))}
-                </div>
+                </p>
               )}
             </div>
 
-            {/* Match score, Rating & Streamingdiensten */}
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              <span
-                className={`rounded-lg px-2.5 py-1 text-xs font-black backdrop-blur-md ${
-                  matchBand === 'strong'
-                    ? 'bg-emerald-400 text-slate-950'
-                    : matchBand === 'medium'
-                      ? 'bg-amber-400 text-slate-950'
-                      : 'bg-rose-400 text-slate-950'
-                }`}
-              >
-                {matchScore}% FilmMatch
-              </span>
-
-              {displayedMovie.rating && (
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-xs font-bold text-white border border-white/10 backdrop-blur-md">
-                  <span className="rounded bg-[#f5c518] px-1 text-[9px] font-black text-black">
-                    {displayedMovie.rating_source || 'IMDb'}
-                  </span>
-                  <span>{displayedMovie.rating}</span>
-                </span>
+            {/* Actieknoppen */}
+            <div className="flex items-center gap-2 pt-2">
+              {trailerKey ? (
+                <button
+                  type="button"
+                  onClick={() => setShowTrailerModal(true)}
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-white/15 hover:bg-white/20 border border-white/20 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition"
+                >
+                  <svg className="w-3.5 h-3.5 fill-current text-rose-500" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  Trailer
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={trailerLoading}
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-white/5 border border-white/10 text-neutral-500 text-xs font-semibold"
+                >
+                  {trailerLoading ? 'Trailer zoekt...' : 'Geen trailer'}
+                </button>
               )}
 
-              {displayedMovie.providers &&
-                displayedMovie.providers.length > 0 && (
-                  <div className="flex items-center gap-1.5 pl-1">
-                    {displayedMovie.providers.slice(0, 4).map((provider) => (
-                      <StreamingLogo
-                        key={provider.provider_id}
-                        name={provider.provider_name}
-                        logoPath={provider.logo_path}
-                        className="h-7 w-7 rounded-lg"
-                      />
-                    ))}
-                  </div>
-                )}
-            </div>
-
-            {/* Knoppen */}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
-                onClick={() => trailerKey && setShowTrailerModal(true)}
-                disabled={!trailerKey || loadingTrailer}
-                className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-rose-600/30 transition hover:bg-rose-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span>▶</span>
-                <span>
-                  {loadingTrailer ? 'Trailer laden…' : 'Bekijk Trailer'}
-                </span>
-              </button>
-
-              <button
-                onClick={() => onToggleWatchlist(displayedMovie)}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold transition border ${
+                type="button"
+                onClick={() => onToggleWatchlist(activeMovie)}
+                className={`py-2.5 px-3.5 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 ${
                   isWatchlisted
-                    ? 'bg-amber-400 text-slate-950 border-amber-300'
-                    : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                    : 'bg-white/10 hover:bg-white/15 text-white border-white/20'
                 }`}
               >
-                <span>{isWatchlisted ? '✓' : '+'}</span>
-                <span>{isWatchlisted ? 'In Watchlist' : 'Watchlist'}</span>
+                <svg className="w-3.5 h-3.5" fill={isWatchlisted ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+                {isWatchlisted ? 'Bewaard' : 'Watchlist'}
               </button>
 
               <button
-                onClick={() => onToggleWatched(displayedMovie)}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold transition border ${
+                type="button"
+                onClick={() => onToggleWatched(activeMovie)}
+                className={`py-2.5 px-3.5 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 ${
                   isWatched
-                    ? 'bg-emerald-400 text-slate-950 border-emerald-300'
-                    : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
+                    ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
+                    : 'bg-white/10 hover:bg-white/15 text-white border-white/20'
                 }`}
               >
-                <span>✓</span>
-                <span>{isWatched ? 'Gezien' : 'Markeer als gezien'}</span>
+                ★ {isWatched ? 'Beoordeeld' : 'Cijfer'}
               </button>
             </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* Trailer Modal */}
+      {/* Trailer Modal Overlay */}
       {showTrailerModal && trailerKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
-          <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black border border-white/20 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-              <h3 className="text-sm font-bold text-white">
-                {displayedMovie.title} — Officiële Trailer
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-4xl bg-neutral-900 border border-white/20 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                Trailer: {activeMovie.title}
               </h3>
               <button
+                type="button"
                 onClick={() => setShowTrailerModal(false)}
-                className="rounded-lg p-1 text-neutral-400 hover:text-white"
-                aria-label="Sluit trailer"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition"
               >
                 ✕
               </button>
             </div>
             <div className="relative aspect-video w-full">
               <iframe
-                src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1`}
-                title={`${displayedMovie.title} Trailer`}
+                src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
+                title={`Trailer ${activeMovie.title}`}
+                className="w-full h-full border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
-                className="h-full w-full"
               />
             </div>
           </div>
         </div>
       )}
-    </>
+    </section>
   );
 }

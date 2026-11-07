@@ -5,11 +5,14 @@ import type { User } from '@supabase/supabase-js';
 import LandingView from '../components/LandingView';
 import RegisterFlow from '../components/RegisterFlow';
 import ProfileView from '../components/ProfileView';
+import DashboardHeader from '../components/DashboardHeader';
 import FriendActivityPage from '../components/FriendActivityPage';
 import WatchTogetherPage from '../components/WatchTogetherPage';
 import HeroSpotlight from '../components/HeroSpotlight';
 import AuthPage from '../components/AuthPage';
+import MovieGrid from '../components/MovieGrid';
 import MovieRatingDialog from '../components/MovieRatingDialog';
+import Sidebar from '../components/Sidebar';
 import type { DiscoveryMode, FriendActivityItem, LibraryView, Movie, MovieRating, StreamingPlatform } from '../components/types';
 import { createSupabaseBrowserClient } from '../lib/supabase/client';
 import { calculateMatchScore, type MatchPreferences, type MovieTasteSignals, type RatedMovieTasteSignals } from '@/lib/recommendations/matchScore';
@@ -112,6 +115,22 @@ const ONBOARDING_FAVORITES = [
   { id: 872585, title: 'Oppenheimer', poster_path: '/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg', year: '2023', genres: ['Drama', 'Historisch'] },
   { id: 278, title: 'The Shawshank Redemption', poster_path: '/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg', year: '1994', genres: ['Drama', 'Misdaad'] },
   { id: 680, title: 'Pulp Fiction', poster_path: '/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg', year: '1994', genres: ['Misdaad', 'Drama'] },
+  { id: 98, title: 'Gladiator', poster_path: '/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg', year: '2000', genres: ['Actie', 'Avontuur', 'Drama'] },
+  { id: 807, title: 'Se7en', poster_path: '/191nKfP0ehp3uIvWqgPbFmI4lv9.jpg', year: '1995', genres: ['Misdaad', 'Mysterie', 'Thriller'] },
+  { id: 122, title: 'The Lord of the Rings', poster_path: '/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg', year: '2003', genres: ['Avontuur', 'Fantasy'] },
+  { id: 597, title: 'Titanic', poster_path: '/9xjZS2rlVxm8SFx8kPC3aIGCOYQ.jpg', year: '1997', genres: ['Drama', 'Romantiek'] },
+  { id: 603, title: 'The Matrix', poster_path: '/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg', year: '1999', genres: ['Sciencefiction', 'Actie'] },
+  { id: 496243, title: 'Parasite', poster_path: '/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg', year: '2019', genres: ['Misdaad', 'Drama', 'Thriller'] },
+  { id: 244786, title: 'Whiplash', poster_path: '/7fn624j5lj3xTme2SgiLCeuedmO.jpg', year: '2014', genres: ['Drama', 'Muziek', 'Thriller'] },
+  { id: 120467, title: 'The Grand Budapest Hotel', poster_path: '/eWdyYreja6JGCzqHWXpWHDrrPo.jpg', year: '2014', genres: ['Komedie', 'Drama'] },
+  { id: 354912, title: 'Coco', poster_path: '/6Ryitt95xrO8KXuqRGm1fUuNwqF.jpg', year: '2017', genres: ['Animatie', 'Avontuur', 'Familie', 'Muziek'] },
+  { id: 324857, title: 'Spider-Man: Into the Spider-Verse', poster_path: '/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg', year: '2018', genres: ['Animatie', 'Actie', 'Avontuur', 'Sciencefiction'] },
+  { id: 313369, title: 'La La Land', poster_path: '/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg', year: '2016', genres: ['Komedie', 'Drama', 'Romantiek'] },
+  { id: 11631, title: 'Mamma Mia!', poster_path: '/xYLiCWmAMHJubx5jNZ7HuXKjAbV.jpg', year: '2008', genres: ['Komedie', 'Romantiek', 'Muziek'] },
+  { id: 419430, title: 'Get Out', poster_path: '/5Axrbsz7ps5RzYB7a1L8IxBSfsD.jpg', year: '2017', genres: ['Horror', 'Mysterie', 'Thriller'] },
+  { id: 68718, title: 'Django Unchained', poster_path: '/7oWY8VDWW7thTzWh3OKYRkWUlD5.jpg', year: '2012', genres: ['Western', 'Drama'] },
+  { id: 530915, title: '1917', poster_path: '/iZf0KyrE25z1sage4SYFLCCrMi9.jpg', year: '2019', genres: ['Oorlog', 'Drama', 'Historisch'] },
+  { id: 515042, title: 'Free Solo', poster_path: '/v4QfYZMACODlWul9doN9RxE99ag.jpg', year: '2018', genres: ['Documentaire', 'Avontuur'] },
 ];
 
 export default function Home() {
@@ -138,12 +157,41 @@ export default function Home() {
   const [friendsActivity, setFriendsActivity] = useState<FriendActivityItem[]>([]);
   const [friendsList, setFriendsList] = useState<Array<{ id: string; display_name: string }>>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [movieLoadError, setMovieLoadError] = useState('');
+  const [visibleMovieLimit, setVisibleMovieLimit] = useState(TARGET_DISCOVERY_COUNT);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(FIVE_PLATFORMS.map((p) => p.name));
   const [minimumImdbRating, setMinimumImdbRating] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showSearchInput, setShowSearchInput] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<PersonSearchResult | null>(null);
+
+  const handleSearchQueryChange = (val: string) => {
+    if (val.trim() !== '') {
+      if (currentView !== 'dashboard') setCurrentView('dashboard');
+      if (libraryView !== 'discover') {
+        setPreviousLibraryView(libraryView);
+        setLibraryView('discover');
+      }
+    } else if (previousLibraryView !== libraryView) {
+      setLibraryView(previousLibraryView);
+    }
+    setSearchQuery(val);
+  };
+
+  useEffect(() => {
+    if (!selectedPerson) return;
+    const controller = new AbortController();
+    fetch(`/api/movies?personDetails=${selectedPerson.id}`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data?.person) return;
+        setSelectedPerson((cur) => (cur?.id === selectedPerson.id ? { ...cur, ...data.person } : cur));
+      })
+      .catch((err) => {
+        if (err?.name !== 'AbortError') console.error('Persoonsgegevens konden niet worden geladen:', err);
+      });
+    return () => controller.abort();
+  }, [selectedPerson?.id]);
 
   const [spotlightMovieId, setSpotlightMovieId] = useState<number | null>(null);
   const [selectedSpotlightMovie, setSelectedSpotlightMovie] = useState<Movie | null>(null);
@@ -159,7 +207,6 @@ export default function Home() {
   const [dislikedGenres, setDislikedGenres] = useState<string[]>([]);
   const [favoriteDirectors, setFavoriteDirectors] = useState<string[]>([]);
   const [favoriteCast, setFavoriteCast] = useState<string[]>([]);
-
   const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('Gebruiker');
   const [accountEmail, setAccountEmail] = useState('');
@@ -186,8 +233,12 @@ export default function Home() {
     setSelectedPerson(null);
     setSpotlightMovieId(null);
     setSelectedSpotlightMovie(null);
+    setMinimumImdbRating(0);
+    setReleaseYearBefore(null);
+    setMaxRuntimeMinutes(null);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.querySelector('.dashboard-content')?.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -206,8 +257,7 @@ export default function Home() {
         const data = await res.json();
         const match = data.people?.[0];
         if (match) {
-          setSelectedPerson(match);
-          setSearchQuery(match.name);
+          selectPerson(match);
           return;
         }
       }
@@ -439,7 +489,7 @@ export default function Home() {
     });
   }, []);
 
-  // TMDB & Catalogus ophalen
+  // TMDB ophalen
   useEffect(() => {
     const query = searchQuery.trim();
     if (libraryView !== 'discover' && libraryView !== 'cinema') return;
@@ -458,25 +508,10 @@ export default function Home() {
           if (isCinema) {
             params.set('nowPlaying', 'true');
           } else {
-            params.set(
-              'providers',
-              selectedPlatforms.length > 0
-                ? selectedPlatforms.join(',')
-                : FIVE_PLATFORMS.map((x) => x.name).join(',')
-            );
-
-            if (!query && !selectedPerson && (librarySort === 'rating' || discoveryMode === 'recommended')) {
-              params.set('sortBy', 'imdbCandidates');
-              params.set('topRated', 'true');
-            }
-
-            if (selectedPerson) {
-              params.set('personId', String(selectedPerson.id));
-            } else if (query) {
-              params.set('query', query);
-            } else if (preferredGenres.length > 0) {
-              params.set('genre', preferredGenres[0]);
-            }
+            params.set('providers', selectedPlatforms.length > 0 ? selectedPlatforms.join(',') : FIVE_PLATFORMS.map((x) => x.name).join(','));
+            if (selectedPerson) params.set('personId', String(selectedPerson.id));
+            else if (query) params.set('query', query);
+            else if (preferredGenres.length > 0) params.set('genre', preferredGenres[0]);
           }
           const res = await fetch(`/api/movies?${params.toString()}`);
           return res.ok ? res.json() : null;
@@ -492,15 +527,10 @@ export default function Home() {
           candidateMovies.push(...mapped.filter((m) => !existingIds.has(m.id)));
         });
 
-        setMovies(
-          candidateMovies.map((m) => ({
-            ...m,
-            match_percentage: calculateMatchScore(
-              { id: m.id, genres: m.genres || [], director: m.director, cast: m.cast, rating: m.rating },
-              matchPreferences
-            ),
-          }))
-        );
+        setMovies(candidateMovies.map((m) => ({
+          ...m,
+          match_percentage: calculateMatchScore({ id: m.id, genres: m.genres || [], director: m.director, cast: m.cast, rating: m.rating }, matchPreferences),
+        })));
       } catch (e) {
         if (isActive) setMovieLoadError('Films konden niet worden geladen.');
       } finally {
@@ -512,16 +542,7 @@ export default function Home() {
       isActive = false;
       clearTimeout(timer);
     };
-  }, [
-    searchQuery,
-    libraryView,
-    selectedPerson,
-    selectedPlatforms,
-    preferredGenres,
-    matchPreferences,
-    librarySort,
-    discoveryMode,
-  ]);
+  }, [searchQuery, libraryView, selectedPerson, selectedPlatforms, preferredGenres, matchPreferences]);
 
   const togglePlatform = (name: string) => {
     setSelectedPlatforms((prev) => (prev.includes(name) ? prev.filter((p) => p !== name) : [...prev, name]));
@@ -585,21 +606,39 @@ export default function Home() {
   };
 
   const selectSpotlightMovie = (movie?: Movie | null) => {
-  if (!movie) {
+    if (!movie) {
+      setSpotlightMovieId(null);
+      setSelectedSpotlightMovie(null);
+      return;
+    }
+    setSpotlightMovieId(movie.id);
+    setSelectedSpotlightMovie(movie);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.querySelector('.dashboard-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSelectedPerson(null);
     setSpotlightMovieId(null);
     setSelectedSpotlightMovie(null);
-    return;
-  }
-  setSpotlightMovieId(movie.id);
-  setSelectedSpotlightMovie(movie);
-  if (typeof window !== 'undefined') {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-};
+    if (previousLibraryView !== libraryView) setLibraryView(previousLibraryView);
+  };
+
+  const selectPerson = (person: PersonSearchResult) => {
+    if (libraryView !== 'discover') {
+      setPreviousLibraryView(libraryView);
+      setLibraryView('discover');
+    }
+    setSelectedPerson(person);
+    setSearchQuery(person.name);
+  };
 
   const filteredMovies = useMemo(() => {
     const watchedIds = new Set(library.watched.map((m) => m.id));
-    let catalog = libraryView === 'watchlist' ? [...library.watchlist] : libraryView === 'watched' ? [...library.watched] : [...movies];
+    let catalog = libraryView === 'watchlist' ? [...library.watchlist] : libraryView === 'watched' ? [...library.watched] : movies;
 
     if (librarySort === 'rating') {
       catalog.sort((a, b) => (ratingsByMovieId[b.id] ?? Number.parseFloat(b.rating || '0')) - (ratingsByMovieId[a.id] ?? Number.parseFloat(a.rating || '0')));
@@ -616,8 +655,10 @@ export default function Home() {
     });
   }, [movies, library, libraryView, searchQuery, selectedPerson, selectedPlatforms, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, librarySort, ratingsByMovieId]);
 
-  const spotlightMovie = spotlightMovieId ? (selectedSpotlightMovie || filteredMovies.find((m) => m.id === spotlightMovieId) || null) : null;
-  const activeHeroMovie = spotlightMovie || filteredMovies[0] || null;
+  const visibleMovies = filteredMovies.slice(0, visibleMovieLimit);
+  const spotlightMovie = spotlightMovieId ? (selectedSpotlightMovie || visibleMovies.find((m) => m.id === spotlightMovieId) || null) : null;
+  const topMatch = spotlightMovie || (libraryView === 'cinema' ? visibleMovies[0] : null);
+  const gridMatches = libraryView === 'watched' ? visibleMovies : topMatch ? visibleMovies.filter((m) => m.id !== topMatch.id) : visibleMovies;
 
   if (currentView === 'landing') {
     return <LandingView platforms={FIVE_PLATFORMS} onOpenDashboard={() => setCurrentView('dashboard')} onOpenRegister={() => { setRegisterStep(1); setCurrentView('register'); }} onOpenLogin={() => setCurrentView('login')} />;
@@ -699,428 +740,211 @@ export default function Home() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#060913] text-neutral-100 flex flex-col selection:bg-sky-500 selection:text-black overflow-x-hidden">
-      {/* Cinematische achtergrondgloed */}
-      <div className="pointer-events-none absolute -top-40 left-1/4 h-[500px] w-[700px] rounded-full bg-sky-600/10 blur-[130px]" />
-      <div className="pointer-events-none absolute top-1/3 -right-40 h-[600px] w-[600px] rounded-full bg-blue-700/5 blur-[150px]" />
+    <div className="dashboard-shell min-h-screen text-neutral-100 flex selection:bg-rose-600 selection:text-white">
+      <Sidebar
+        libraryView={libraryView}
+        discoveryMode={discoveryMode}
+        friendsActive={currentView === 'friends'}
+        watchTogetherActive={currentView === 'watch-together'}
+        profileActive={currentView === 'profile'}
+        displayName={displayName}
+        watchlistCount={library.watchlist.length}
+        selectedPlatforms={selectedPlatforms}
+        minimumImdbRating={minimumImdbRating}
+        platforms={FIVE_PLATFORMS}
+        onResetToHome={handleResetToHome}
+        onNavigate={(view) => {
+          setCurrentView('dashboard');
+          setLibraryView(view);
+          setPreviousLibraryView(view);
+          setSpotlightMovieId(null);
+          setSelectedSpotlightMovie(null);
+          setSearchQuery('');
+        }}
+        onSelectDiscoveryMode={(mode) => {
+          setCurrentView('dashboard');
+          setLibraryView('discover');
+          setPreviousLibraryView('discover');
+          setDiscoveryMode(mode);
+          setSpotlightMovieId(null);
+          setSelectedSpotlightMovie(null);
+          setSearchQuery('');
+        }}
+        onOpenFriends={() => navigateToView('friends')}
+        onOpenWatchTogether={() => navigateToView('watch-together')}
+        onOpenProfile={() => navigateToView('profile')}
+        onLogout={handleSignOut}
+        onTogglePlatform={togglePlatform}
+        onMinimumImdbRatingChange={(rating) => setMinimumImdbRating(rating)}
+      />
 
-      {/* 1. HORIZONTALE TOPNAVIGATIE */}
-      <header className="sticky top-0 z-40 w-full bg-[#060913]/90 backdrop-blur-xl border-b border-white/[0.08] px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-8">
-          <button
-            type="button"
-            onClick={handleResetToHome}
-            className="flex items-center gap-2.5 text-left group"
-          >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-500/25 text-white font-black text-lg">
-              🎬
-            </div>
-            <span className="text-xl font-black tracking-tight text-white group-hover:text-sky-400 transition">
-              FilmMatch<span className="text-sky-400">.nl</span>
-            </span>
-          </button>
+      <div className="flex-1 flex flex-col min-w-0">
+        <DashboardHeader
+          currentView={currentView}
+          libraryView={libraryView}
+          searchQuery={searchQuery}
+          setSearchQuery={handleSearchQueryChange}
+          selectedPerson={selectedPerson}
+          setSelectedPerson={setSelectedPerson}
+          setSpotlightMovieId={setSpotlightMovieId}
+          setVisibleMovieLimit={setVisibleMovieLimit}
+          personSearchFocused={false}
+          setPersonSearchFocused={() => {}}
+          loading={loading}
+          movieMatches={[]}
+          peopleLoading={false}
+          personMatches={[]}
+          selectPerson={selectPerson}
+          clearSearch={clearSearch}
+          goBackToPreviousView={goBackToPreviousView}
+          setDiscoveryMode={setDiscoveryMode}
+          setFeaturedIndex={() => {}}
+          targetCount={TARGET_DISCOVERY_COUNT}
+        />
 
-          {/* Menutabs bovenaan */}
-          <nav className="hidden lg:flex items-center gap-1.5 text-sm font-semibold">
-            <button
-              type="button"
-              onClick={handleResetToHome}
-              className={`px-4 py-1.5 rounded-full transition ${
-                currentView === 'dashboard' && libraryView === 'discover'
-                  ? 'bg-sky-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)]'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              Home
-            </button>
-            <button
-              type="button"
-              onClick={() => {
+        <main className="dashboard-content flex-1 p-4 md:p-8 space-y-8 overflow-y-auto">
+          {currentView === 'watch-together' ? (
+            <WatchTogetherPage
+              currentUserId={authUserId}
+              currentUserName={displayName || 'Jij'}
+              myWatchlist={library.watchlist}
+              myStreamingServices={selectedPlatforms}
+              friends={friendsList}
+              platforms={FIVE_PLATFORMS}
+              onSelectMovieSpotlight={(id) => {
                 setCurrentView('dashboard');
                 setLibraryView('discover');
-                setDiscoveryMode('recommended');
+                setSpotlightMovieId(id);
               }}
-              className="px-4 py-1.5 rounded-full text-slate-300 hover:text-white hover:bg-white/5 transition"
-            >
-              Aanbevelingen
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCurrentView('dashboard');
-                setLibraryView('watchlist');
-              }}
-              className={`px-4 py-1.5 rounded-full transition ${
-                currentView === 'dashboard' && libraryView === 'watchlist'
-                  ? 'bg-sky-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)]'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              Watchlist
-              {library.watchlist.length > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 text-[11px] rounded-full bg-sky-400/20 text-sky-300">
-                  {library.watchlist.length}
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCurrentView('dashboard');
-                setLibraryView('watched');
-              }}
-              className={`px-4 py-1.5 rounded-full transition ${
-                currentView === 'dashboard' && libraryView === 'watched'
-                  ? 'bg-sky-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)]'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              Gezien
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCurrentView('dashboard');
-                setLibraryView('cinema');
-              }}
-              className={`px-4 py-1.5 rounded-full transition ${
-                currentView === 'dashboard' && libraryView === 'cinema'
-                  ? 'bg-sky-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)]'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              Bioscoop
-            </button>
-            <button
-              type="button"
-              onClick={() => navigateToView('friends')}
-              className={`px-4 py-1.5 rounded-full transition ${
-                currentView === 'friends'
-                  ? 'bg-sky-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)]'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              Vrienden
-            </button>
-            <button
-              type="button"
-              onClick={() => navigateToView('watch-together')}
-              className={`px-4 py-1.5 rounded-full transition ${
-                currentView === 'watch-together'
-                  ? 'bg-sky-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)]'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              Samen kijken
-            </button>
-          </nav>
-        </div>
-
-        {/* Rechter acties: Zoekbalk & Avatar */}
-        <div className="flex items-center gap-3">
-          {showSearchInput ? (
-            <div className="relative flex items-center">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Zoek film of acteur..."
-                autoFocus
-                className="w-48 sm:w-64 px-3.5 py-1.5 pr-8 rounded-full bg-slate-900 border border-sky-400/50 text-xs text-white placeholder-slate-500 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setShowSearchInput(false);
-                }}
-                className="absolute right-2.5 text-slate-400 hover:text-white text-xs"
-              >
-                ✕
-              </button>
-            </div>
+              onToggleWatchlist={toggleWatchlist}
+            />
+          ) : currentView === 'friends' || currentView === 'activity' ? (
+            <FriendActivityPage
+              currentUserId={authUserId}
+              currentUserName={displayName || 'Jij'}
+              myStreamingServices={selectedPlatforms}
+              allMovies={movies}
+              myWatchedIds={library.watched.map((m) => m.id)}
+              myWatchlistIds={library.watchlist.map((m) => m.id)}
+              activities={friendsActivity}
+              friends={friendsList}
+              onFriendshipChanged={() => { if (authUserId) void loadFriendsActivity(authUserId); }}
+              onToggleWatchlist={toggleWatchlist}
+              onToggleWatched={openMovieRating}
+              onSelectPerson={handleSelectPerson}
+            />
           ) : (
-            <button
-              type="button"
-              onClick={() => setShowSearchInput(true)}
-              className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 transition"
-              title="Zoeken"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </button>
-          )}
+            <>
+              {authError && <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">{authError}</p>}
+              {movieLoadError && <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">{movieLoadError}</p>}
 
-          <button
-            type="button"
-            onClick={() => navigateToView('profile')}
-            className="flex items-center gap-2 p-0.5 rounded-full border border-white/15 transition hover:scale-105"
-          >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 to-rose-500 flex items-center justify-center font-bold text-xs text-white uppercase shadow-inner">
-              {displayName.charAt(0)}
-            </div>
-          </button>
-        </div>
-      </header>
-
-      {/* 2. HOOFD INHOUD */}
-      <main className="flex-1 max-w-[1400px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        {currentView === 'watch-together' ? (
-          <WatchTogetherPage
-            currentUserId={authUserId}
-            currentUserName={displayName || 'Jij'}
-            myWatchlist={library.watchlist}
-            myStreamingServices={selectedPlatforms}
-            friends={friendsList}
-            platforms={FIVE_PLATFORMS}
-            onSelectMovieSpotlight={(id) => {
-              setCurrentView('dashboard');
-              setLibraryView('discover');
-              setSpotlightMovieId(id);
-            }}
-            onToggleWatchlist={toggleWatchlist}
-          />
-        ) : currentView === 'friends' || currentView === 'activity' ? (
-          <FriendActivityPage
-            currentUserId={authUserId}
-            currentUserName={displayName || 'Jij'}
-            myStreamingServices={selectedPlatforms}
-            allMovies={movies}
-            myWatchedIds={library.watched.map((m) => m.id)}
-            myWatchlistIds={library.watchlist.map((m) => m.id)}
-            activities={friendsActivity}
-            friends={friendsList}
-            onFriendshipChanged={() => { if (authUserId) void loadFriendsActivity(authUserId); }}
-            onToggleWatchlist={toggleWatchlist}
-            onToggleWatched={openMovieRating}
-            onSelectPerson={handleSelectPerson}
-          />
-        ) : (
-          <>
-            {authError && <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">{authError}</p>}
-            {movieLoadError && <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">{movieLoadError}</p>}
-
-            {/* Grote Widescreen Hero Spotlight */}
-            {activeHeroMovie && (
-              <HeroSpotlight
-                movie={activeHeroMovie}
-                allMovies={filteredMovies}
-                watchlistIds={library.watchlist.map((m) => m.id)}
-                watchedIds={library.watched.map((m) => m.id)}
-                matchPreferences={matchPreferences}
-                onToggleWatchlist={toggleWatchlist}
-                onToggleWatched={openMovieRating}
-                onSelectPerson={handleSelectPerson}
-                onSelectMovie={(m) => {
-                  if (m) selectSpotlightMovie(m);
-                }}
-                onFindMovie={() => {
-                  const el = document.getElementById('film-catalog');
-                  el?.scrollIntoView({ behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {/* Subnavigatie Pillenbalk onder de Hero */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-              <button
-                type="button"
-                onClick={() => {
-                  setLibraryView('discover');
-                  setDiscoveryMode('recommended');
-                }}
-                className={`px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-                  libraryView === 'discover' && discoveryMode === 'recommended'
-                    ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(56,189,248,0.35)]'
-                    : 'bg-slate-900/60 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                ★ Aanbevelingen
-              </button>
-              <button
-                type="button"
-                onClick={() => setLibraryView('watchlist')}
-                className={`px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-                  libraryView === 'watchlist'
-                    ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(56,189,248,0.35)]'
-                    : 'bg-slate-900/60 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                🔖 Watchlist
-              </button>
-              <button
-                type="button"
-                onClick={() => setLibraryView('watched')}
-                className={`px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-                  libraryView === 'watched'
-                    ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(56,189,248,0.35)]'
-                    : 'bg-slate-900/60 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                ✓ Gezien
-              </button>
-              <button
-                type="button"
-                onClick={() => setLibraryView('cinema')}
-                className={`px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-                  libraryView === 'cinema'
-                    ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(56,189,248,0.35)]'
-                    : 'bg-slate-900/60 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                🍿 Bioscoop
-              </button>
-              <button
-                type="button"
-                onClick={() => navigateToView('friends')}
-                className="px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap bg-slate-900/60 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition"
-              >
-                👥 Vriendenactiviteit
-              </button>
-              <button
-                type="button"
-                onClick={() => navigateToView('watch-together')}
-                className="px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap bg-slate-900/60 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition"
-              >
-                📺 Samen kijken
-              </button>
-            </div>
-
-            {/* Horizontale Filterbalk (Beschikbaar op & IMDb) */}
-            {libraryView !== 'cinema' && (
-              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/40 border border-white/[0.08] backdrop-blur-md">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="text-xs font-semibold text-slate-400">Beschikbaar op</span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {[
-                      { name: 'Netflix', color: 'text-red-500', border: 'hover:border-red-500/40' },
-                      { name: 'Prime Video', color: 'text-sky-400', border: 'hover:border-sky-400/40' },
-                      { name: 'Disney+', color: 'text-blue-400', border: 'hover:border-blue-400/40' },
-                      { name: 'HBO Max', color: 'text-purple-400', border: 'hover:border-purple-400/40' },
-                      { name: 'Videoland', color: 'text-rose-500', border: 'hover:border-rose-400/40' },
-                    ].map((service) => {
-                      const isSelected = selectedPlatforms.includes(service.name);
-                      return (
-                        <button
-                          key={service.name}
-                          type="button"
-                          onClick={() => togglePlatform(service.name)}
-                          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
-                            isSelected
-                              ? 'bg-slate-800 border-white/30 text-white shadow-sm'
-                              : 'bg-slate-950/40 border-white/5 text-slate-500 hover:text-slate-300'
-                          } ${service.border}`}
-                        >
-                          <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-sky-400' : 'bg-slate-700'}`} />
-                          <span className={service.color}>{service.name}</span>
-                        </button>
-                      );
-                    })}
+              {selectedPerson && (
+                <section className="flex flex-col gap-5 rounded-2xl border border-white/10 bg-slate-900/70 p-5 sm:flex-row sm:items-center">
+                  {selectedPerson.profile_path ? (
+                    <div className="h-32 w-28 shrink-0 overflow-hidden rounded-xl bg-white/5 sm:h-40 sm:w-32">
+                      <img src={`https://image.tmdb.org/t/p/w342${selectedPerson.profile_path}`} alt={selectedPerson.name} className="h-full w-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="flex h-32 w-28 shrink-0 items-center justify-center rounded-xl bg-white/5 text-4xl text-neutral-500 sm:h-40 sm:w-32">
+                      {selectedPerson.name.charAt(0)}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
+                      {selectedPerson.known_for_department === 'Directing' ? 'Regisseur' : 'Acteur / actrice'}
+                    </p>
+                    <h2 className="text-2xl font-black text-white sm:text-3xl">{selectedPerson.name}</h2>
+                    <div className="flex flex-wrap gap-x-3 text-sm text-neutral-300">
+                      {selectedPerson.birthday && (
+                        <span>Geboren {new Date(`${selectedPerson.birthday}T00:00:00`).toLocaleDateString('nl-NL')} {calculateAge(selectedPerson.birthday) !== null && `· ${calculateAge(selectedPerson.birthday)} jaar`}</span>
+                      )}
+                      {selectedPerson.place_of_birth && <span>{selectedPerson.place_of_birth}</span>}
+                    </div>
+                    {selectedPerson.biography && <p className="max-w-4xl text-sm text-neutral-300">{selectedPerson.biography.slice(0, 420)}…</p>}
                   </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
-                    <span>IMDb-minimum:</span>
-                    <select
-                      value={minimumImdbRating}
-                      onChange={(e) => setMinimumImdbRating(Number(e.target.value))}
-                      className="px-3 py-1.5 rounded-xl bg-slate-950 border border-white/15 text-amber-300 font-bold text-xs focus:outline-none"
-                    >
-                      <option value={0}>Alles tonen</option>
-                      <option value={7.0}>★ 7,0+</option>
-                      <option value={7.5}>★ 7,5+</option>
-                      <option value={8.0}>★ 8,0+</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Catalogus: 16:9 Landschapskaarten */}
-            <div id="film-catalog" className="space-y-4 pt-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                  {libraryView === 'cinema'
-                    ? 'Nu in de bioscoop'
-                    : libraryView === 'watchlist'
-                    ? 'Jouw Watchlist'
-                    : libraryView === 'watched'
-                    ? 'Gezien door jou'
-                    : 'Aanbevolen voor jou'}
-                </h3>
-                <span className="text-xs font-semibold text-slate-400">
-                  {filteredMovies.length} titels
-                </span>
-              </div>
+                </section>
+              )}
 
               {loading ? (
-                <div className="py-24 text-center text-sm text-slate-400">
-                  Films inladen...
-                </div>
-              ) : filteredMovies.length === 0 ? (
-                <div className="py-20 text-center text-sm text-slate-400">
-                  Geen films gevonden die aan de filters voldoen.
+                <div className="py-32 text-center text-xs text-neutral-400">Films inladen...</div>
+              ) : visibleMovies.length === 0 ? (
+                <div className="py-24 text-center space-y-2">
+                  <p className="text-sm font-bold text-white">
+                    {libraryView === 'watched' ? 'Je hebt nog geen films als gezien gemarkeerd' : libraryView === 'watchlist' ? 'Je watchlist is leeg' : 'Geen films gevonden'}
+                  </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {filteredMovies.map((film) => {
-                    const backdrop = film.backdrop_path
-                      ? `https://image.tmdb.org/t/p/w780${film.backdrop_path}`
-                      : film.poster_path
-                      ? `https://image.tmdb.org/t/p/w780${film.poster_path}`
-                      : '/fallback-backdrop.jpg';
+                <>
+                  {(selectedSpotlightMovie || (libraryView === 'discover' && discoveryMode === 'recommended' && !searchQuery.trim())) && (
+                    <HeroSpotlight
+                      movie={selectedSpotlightMovie}
+                      allMovies={visibleMovies}
+                      watchlistIds={library.watchlist.map((m) => m.id)}
+                      watchedIds={library.watched.map((m) => m.id)}
+                      matchPreferences={matchPreferences}
+                      onToggleWatchlist={toggleWatchlist}
+                      onToggleWatched={openMovieRating}
+                      onSelectPerson={handleSelectPerson}
+                      onSelectMovie={(movie) => {
+                        selectSpotlightMovie(movie ?? null);
+                      }}
+                    />
+                  )}
 
-                    const score = film.rating || (film as any).imdb_rating || '7.5';
-
-                    return (
-                      <div
-                        key={film.id}
-                        onClick={() => selectSpotlightMovie(film)}
-                        className="group relative aspect-[16/9] rounded-2xl overflow-hidden bg-slate-900/60 border border-white/10 hover:border-sky-400/50 transition-all duration-300 hover:scale-[1.03] cursor-pointer shadow-lg hover:shadow-[0_10px_30px_rgba(56,189,248,0.2)]"
-                      >
-                        <img
-                          src={backdrop}
-                          alt={film.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#060913] via-[#060913]/30 to-transparent" />
-
-                        {/* Match indicator linksboven */}
-                        {film.match_percentage && (
-                          <div className="absolute top-2.5 left-2.5">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-sky-500 text-slate-950 shadow-sm">
-                              {film.match_percentage}%
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Titel, ster en genres onderaan */}
-                        <div className="absolute bottom-2.5 left-3 right-3 space-y-0.5">
-                          <h4 className="text-sm font-bold text-white truncate group-hover:text-sky-300 transition">
-                            {film.title}
-                          </h4>
-                          <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                            <span className="text-amber-400 font-bold">★ {score}</span>
-                            {film.genres?.slice(0, 2).map((g) => (
-                              <span key={g} className="text-slate-400 truncate">
-                                · {g}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
+                  {(libraryView === 'watchlist' || libraryView === 'watched' || libraryView === 'cinema') && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 pb-2 pt-2 border-b border-white/[0.08]">
+                      <span className="text-xs font-semibold text-neutral-400">
+                        {libraryView === 'watchlist' ? `${library.watchlist.length} films in je watchlist` : libraryView === 'watched' ? `${library.watched.length} films gezien` : `${visibleMovies.length} actuele bioscoopfilms`}
+                      </span>
+                      <div className="flex items-center gap-1.5 bg-neutral-900/90 p-1 rounded-xl border border-white/10 shadow-lg">
+                        <button type="button" onClick={() => setLibrarySort('default')} className={`px-3 py-1.5 text-xs rounded-lg font-medium transition ${librarySort === 'default' ? 'bg-white/15 text-white font-bold' : 'text-neutral-400 hover:text-white'}`}>
+                          {libraryView === 'cinema' ? 'Populair in de zaal' : 'Recent toegevoegd'}
+                        </button>
+                        <button type="button" onClick={() => setLibrarySort('rating')} className={`px-3 py-1.5 text-xs rounded-lg font-medium transition ${librarySort === 'rating' ? 'bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30' : 'text-neutral-400 hover:text-white'}`}>
+                          ★ Hoogste cijfer
+                        </button>
+                        <button type="button" onClick={() => setLibrarySort('match')} className={`px-3 py-1.5 text-xs rounded-lg font-medium transition ${librarySort === 'match' ? 'bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30' : 'text-neutral-400 hover:text-white'}`}>
+                          ⚡ Hoogste match
+                        </button>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </main>
+                    </div>
+                  )}
 
-      {/* Beoordelingsdialog */}
+                  <MovieGrid
+                    movies={gridMatches}
+                    libraryView={libraryView}
+                    discoveryMode={discoveryMode}
+                    searchQuery={searchQuery}
+                    recentlyWatchedMovies={library.watched.slice(0, 3)}
+                    preferredGenres={preferredGenres}
+                    selectedPlatforms={selectedPlatforms}
+                    minimumImdbRating={minimumImdbRating}
+                    releaseYearBefore={releaseYearBefore}
+                    maxRuntimeMinutes={maxRuntimeMinutes}
+                    matchPreferences={matchPreferences}
+                    watchlistIds={library.watchlist.map((m) => m.id)}
+                    watchedIds={library.watched.map((m) => m.id)}
+                    hasMoreMovies={visibleMovies.length < filteredMovies.length}
+                    loadingMore={loadingMore}
+                    onLoadMore={async () => {
+                      setLoadingMore(true);
+                      setVisibleMovieLimit((c) => c + TARGET_DISCOVERY_COUNT);
+                      setLoadingMore(false);
+                    }}
+                    onSelectMovie={selectSpotlightMovie}
+                    ratings={ratingsByMovieId}
+                    onEditRating={openMovieRating}
+                    onToggleWatchlist={toggleWatchlist}
+                    onToggleWatched={openMovieRating}
+                    onSelectPerson={handleSelectPerson}
+                  />
+                </>
+              )}
+            </>
+          )}
+        </main>
+      </div>
+
       {ratingMovie && (
         <MovieRatingDialog
           movie={ratingMovie.movie}

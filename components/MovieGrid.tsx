@@ -45,6 +45,7 @@ interface MovieRailProps extends Omit<MovieCardProps, 'movie' | 'railCard'> {
   title: string;
   movies: Movie[];
   headerAction?: ReactNode;
+  onViewAll?: () => void;
 }
 
 interface DynamicMovieRailRequest {
@@ -73,19 +74,6 @@ const MOVIE_GENRES = [
   'Thriller', 'Oorlog', 'Western',
 ];
 
-function RatingBadge({ rating, source }: { rating?: string | null; source?: Movie['rating_source'] }) {
-  if (!rating) return null;
-
-  return (
-    <span className="inline-flex items-center gap-1 rounded bg-black/75 px-1.5 py-0.5 backdrop-blur-md">
-      <span className={`rounded-sm px-1 text-[8px] font-black leading-3 ${source === 'IMDb' ? 'bg-[#f5c518] text-black' : 'text-neutral-300'}`}>
-        {source || 'Score'}
-      </span>
-      <span className="text-[10px] font-bold text-amber-200">{rating}</span>
-    </span>
-  );
-}
-
 function MovieCard({
   movie,
   watchlistIds,
@@ -97,8 +85,6 @@ function MovieCard({
   onToggleWatched,
   railCard = false,
   highlightUserRating = false,
-  compactPoster = false,
-  showWatchedBadge = false,
 }: MovieCardProps) {
   const [imageError, setImageError] = useState(false);
   const isWatchlisted = watchlistIds.includes(movie.id);
@@ -106,104 +92,112 @@ function MovieCard({
   const userRating = ratings[movie.id];
   const matchBand = getMatchColorBand(movie.match_percentage || 0);
 
-  const hasValidPoster = Boolean(
-    movie.poster_path &&
-    typeof movie.poster_path === 'string' &&
-    movie.poster_path.trim() !== '' &&
-    movie.poster_path !== 'null' &&
-    movie.poster_path !== 'undefined' &&
-    !imageError
-  );
+  // We verkiezen de 16:9 backdrop, met poster als fallback
+  const imageSrc = !imageError && movie.backdrop_path
+    ? `https://image.tmdb.org/t/p/w780${movie.backdrop_path}`
+    : !imageError && movie.poster_path
+      ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+      : null;
+
+  const score = movie.rating || '7.5';
 
   return (
-    <article className={`movie-card-reveal group flex flex-col justify-between overflow-hidden rounded-xl border border-white/10 bg-slate-950/40 hover:border-white/25 transition duration-300 ${railCard ? 'w-[148px] shrink-0 snap-start sm:w-[170px]' : 'w-full'}`}>
-      <button
-        type="button"
-        onClick={() => onSelectMovie(movie)}
-        title={`Toon ${movie.title} bovenaan`}
-        aria-label={`Toon ${movie.title} als uitgelichte poster`}
-        className={`relative block aspect-[2/3] overflow-hidden bg-slate-900 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 ${compactPoster ? 'mx-auto w-[90%]' : 'w-full'}`}
-      >
-        {hasValidPoster ? (
-          <img
-            src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
-            alt={movie.title}
-            onError={() => setImageError(true)}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center p-3 text-center bg-gradient-to-b from-neutral-800 to-neutral-900">
-            <span className="text-2xl opacity-40 mb-1">🎬</span>
-            <span className="text-[10px] font-bold text-neutral-400 line-clamp-2 leading-tight">
-              {movie.title}
-            </span>
-          </div>
-        )}
-        <div className="absolute inset-x-2 top-2 flex items-center justify-between gap-1">
-          <span className={`rounded px-1.5 py-0.5 text-[10px] font-black backdrop-blur-md ${matchBand === 'strong' ? 'bg-emerald-300 text-[#07110d]' : matchBand === 'medium' ? 'bg-amber-300 text-[#1f1605]' : 'bg-rose-400 text-[#2b080d]'}`}>
+    <article
+      onClick={() => onSelectMovie(movie)}
+      className={`group relative aspect-[16/9] overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60 cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:border-sky-400/50 hover:shadow-[0_10px_30px_rgba(56,189,248,0.2)] ${
+        railCard ? 'w-[240px] sm:w-[280px] shrink-0 snap-start' : 'w-full'
+      }`}
+    >
+      {/* 16:9 Achtergrondbeeld */}
+      {imageSrc ? (
+        <img
+          src={imageSrc}
+          alt={movie.title}
+          onError={() => setImageError(true)}
+          className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
+        />
+      ) : (
+        <div className="flex h-full w-full flex-col items-center justify-center p-3 text-center bg-gradient-to-b from-slate-800 to-slate-950">
+          <span className="text-2xl opacity-40 mb-1">🎬</span>
+          <span className="text-xs font-bold text-slate-300 line-clamp-2 leading-tight">
+            {movie.title}
+          </span>
+        </div>
+      )}
+
+      {/* Donkerblauw verloop voor leesbaarheid tekst */}
+      <div className="absolute inset-0 bg-gradient-to-t from-[#06111e] via-[#06111e]/40 to-transparent pointer-events-none" />
+
+      {/* Linksboven: Match-percentage */}
+      {movie.match_percentage ? (
+        <div className="absolute top-2.5 left-2.5 z-10">
+          <span
+            className={`rounded-md px-2 py-0.5 text-[10px] font-black backdrop-blur-md shadow-md ${
+              matchBand === 'strong'
+                ? 'bg-emerald-400 text-slate-950'
+                : matchBand === 'medium'
+                ? 'bg-amber-400 text-slate-950'
+                : 'bg-rose-400 text-slate-950'
+            }`}
+          >
             {movie.match_percentage}%
           </span>
-          <RatingBadge
-            rating={movie.rating}
-            source={movie.rating_source}
-          />
         </div>
-        {showWatchedBadge && isWatched && (
-          <span className="absolute bottom-2 left-2 rounded-full border border-emerald-200/30 bg-emerald-950/90 px-2 py-1 text-[9px] font-bold text-emerald-100 shadow-lg backdrop-blur-sm">
-            Gezien
+      ) : null}
+
+      {/* Rechtsboven: Subtiele Actieknoppen (+ Watchlist en ✓ Gezien - Optie B) */}
+      <div
+        className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={() => onToggleWatchlist(movie)}
+          title={isWatchlisted ? 'Verwijder uit watchlist' : 'Bewaar voor later'}
+          aria-label={isWatchlisted ? `Verwijder ${movie.title} uit watchlist` : `Bewaar ${movie.title} voor later`}
+          className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold backdrop-blur-md transition shadow-md ${
+            isWatchlisted
+              ? 'bg-amber-400 text-slate-950 border border-amber-300'
+              : 'bg-black/60 text-white border border-white/20 hover:bg-black/80'
+          }`}
+        >
+          {isWatchlisted ? '✓' : '+'}
+        </button>
+        <button
+          type="button"
+          onClick={() => onToggleWatched(movie)}
+          title={isWatched ? 'Verwijder markering gezien' : 'Markeer als gezien'}
+          aria-label={isWatched ? `Verwijder markering gezien voor ${movie.title}` : `Markeer ${movie.title} als gezien`}
+          className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold backdrop-blur-md transition shadow-md ${
+            isWatched
+              ? 'bg-emerald-400 text-slate-950 border border-emerald-300'
+              : 'bg-black/60 text-white border border-white/20 hover:bg-black/80'
+          }`}
+        >
+          ✓
+        </button>
+      </div>
+
+      {/* Onderaan: Titel, ster-score, releasejaar en genres */}
+      <div className="absolute bottom-2.5 left-3 right-3 z-10 space-y-0.5 pointer-events-none">
+        <h3 className="truncate text-sm font-bold text-white group-hover:text-sky-300 transition">
+          {movie.title}
+        </h3>
+        <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
+          <span className="text-amber-400 font-bold flex items-center gap-0.5">
+            ★ {score}
           </span>
-        )}
-      </button>
-
-      <div className="flex flex-1 flex-col justify-between p-3">
-        <div>
-          <h3 className="truncate text-xs font-bold text-white transition group-hover:text-rose-200" title={movie.title}>
-            <button type="button" onClick={() => onSelectMovie(movie)} className="truncate text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400">
-              {movie.title}
-            </button>
-          </h3>
-          <p className="mt-0.5 text-[10px] text-neutral-300 truncate">
-            {movie.release_date?.split('-')[0]} &bull; {movie.genres?.[0] || 'Film'}
-          </p>
+          {movie.release_date && (
+            <span className="text-slate-400">· {movie.release_date.split('-')[0]}</span>
+          )}
+          {movie.genres?.[0] && (
+            <span className="text-slate-400 truncate">· {movie.genres[0]}</span>
+          )}
         </div>
 
-        <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/[0.12] pt-2">
-          <div className="flex items-center gap-1">
-            {movie.providers?.slice(0, 2).map((provider) => (
-              <StreamingLogo
-                key={provider.provider_id}
-                name={provider.provider_name}
-                logoPath={provider.logo_path}
-                className="h-6 w-6 rounded"
-              />
-            ))}
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onToggleWatchlist(movie)}
-              title={isWatchlisted ? 'Verwijder uit watchlist' : 'Bewaar voor later'}
-              aria-label={isWatchlisted ? `Verwijder ${movie.title} uit watchlist` : `Bewaar ${movie.title} voor later`}
-              aria-pressed={isWatchlisted}
-              className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold transition ${isWatchlisted ? 'bg-amber-300 text-slate-950' : 'bg-amber-300/15 text-amber-100 hover:bg-amber-300/30'}`}
-            >
-              {isWatchlisted ? '✓' : '+'}
-            </button>
-            <button
-              type="button"
-              onClick={() => onToggleWatched(movie)}
-              title={isWatched ? 'Verwijder markering gezien' : 'Markeer als gezien'}
-              aria-label={isWatched ? `Verwijder markering gezien voor ${movie.title}` : `Markeer ${movie.title} als gezien`}
-              aria-pressed={isWatched}
-              className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold transition ${isWatched ? 'bg-emerald-300 text-slate-950' : 'bg-emerald-300/15 text-emerald-100 hover:bg-emerald-300/30'}`}
-            >
-              ✓
-            </button>
-          </div>
-        </div>
-
+        {/* Rating balk indien van toepassing */}
         {highlightUserRating && (isWatched || userRating !== undefined) && (
-          <div className="mt-2 border-t border-white/[0.08] pt-2">
+          <div className="pt-1 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
             <MovieRatingControl rating={userRating} onEdit={() => onEditRating(movie)} prominent={highlightUserRating} />
           </div>
         )}
@@ -263,13 +257,22 @@ function MovieRail({
     <section className="space-y-3" aria-label={title}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h2 className="text-sm font-bold text-white md:text-base">{title}</h2>
+          <h2 className="text-base sm:text-lg font-black text-white tracking-tight">{title}</h2>
           {headerAction}
-          <span className="text-[10px] text-neutral-300">{movies.length}</span>
+          <span className="text-xs text-slate-400">({movies.length})</span>
         </div>
-        <div className="hidden gap-1 sm:flex">
-          <button type="button" onClick={() => scrollRail(-1)} aria-label={`Vorige films: ${title}`} className="flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-slate-900/40 text-xs text-white transition hover:bg-white/15">←</button>
-          <button type="button" onClick={() => scrollRail(1)} aria-label={`Volgende films: ${title}`} className="flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-slate-900/40 text-xs text-white transition hover:bg-white/15">→</button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => scrollRail(1)}
+            className="text-xs font-semibold text-sky-400 hover:text-sky-300 transition flex items-center gap-1"
+          >
+            Bekijk alles <span aria-hidden="true">→</span>
+          </button>
+          <div className="hidden gap-1 sm:flex">
+            <button type="button" onClick={() => scrollRail(-1)} aria-label={`Vorige films: ${title}`} className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-slate-900/60 text-xs text-white transition hover:bg-white/15">←</button>
+            <button type="button" onClick={() => scrollRail(1)} aria-label={`Volgende films: ${title}`} className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-slate-900/60 text-xs text-white transition hover:bg-white/15">→</button>
+          </div>
         </div>
       </div>
       <div
@@ -279,7 +282,7 @@ function MovieRail({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onClickCapture={handleClickCapture}
-        className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 [scrollbar-color:rgba(255,255,255,0.35)_transparent] [scrollbar-width:thin] touch-pan-x"
+        className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden touch-pan-x"
       >
         {movies.map((movie) => (
           <MovieCard
@@ -409,9 +412,9 @@ export default function MovieGrid({
         onClick={toggleGenreMenu}
         aria-expanded={isGenreMenuOpen}
         aria-haspopup="dialog"
-        className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold text-neutral-200 transition hover:border-amber-200/60 hover:text-white"
+        className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/30 bg-sky-500/10 px-2.5 py-1 text-[11px] font-bold text-sky-300 transition hover:bg-sky-500/20"
       >
-        Genres <span className="text-amber-200">{selectedGenres.length}</span>
+        Genres <span className="text-white">({selectedGenres.length})</span>
         <span aria-hidden="true">{isGenreMenuOpen ? '⌃' : '⌄'}</span>
       </button>
       {isGenreMenuOpen && (
@@ -425,7 +428,7 @@ export default function MovieGrid({
             <button
               type="button"
               onClick={() => setDraftGenres([defaultGenre])}
-              className="text-[10px] font-semibold text-amber-200 hover:text-amber-100"
+              className="text-[10px] font-semibold text-sky-400 hover:text-sky-300"
             >
               Standaard
             </button>
@@ -437,7 +440,7 @@ export default function MovieGrid({
                   type="checkbox"
                   checked={draftGenres.includes(genre)}
                   onChange={() => toggleDraftGenre(genre)}
-                  className="accent-amber-300"
+                  className="accent-sky-400"
                 />
                 {genre}
               </label>
@@ -448,7 +451,7 @@ export default function MovieGrid({
             <button
               type="button"
               onClick={applyGenreSelection}
-              className="rounded-full bg-amber-200 px-3 py-1.5 text-[10px] font-bold text-slate-950 transition hover:bg-amber-100"
+              className="rounded-full bg-sky-500 px-3 py-1.5 text-[10px] font-bold text-slate-950 transition hover:bg-sky-400"
             >
               Toepassen
             </button>
@@ -651,13 +654,13 @@ export default function MovieGrid({
             ? 'Nieuwe releases'
             : discoveryMode === 'popular'
               ? 'Populair in NL'
-              : 'Aanbevolen op basis van jouw smaak';
+              : 'Aanbevolen voor jou';
 
   if (libraryView === 'discover' && !searchQuery.trim()) {
     const rails: RecommendationRail[] = [
       {
         id: 'hits',
-        title: 'Beste filmhits',
+        title: 'Aanbevolen voor jou',
         movies: [...synchronizedMovies]
           .filter((movie) => (movie.match_percentage || 0) >= 68)
           .sort((first, second) => (second.match_percentage || 0) - (first.match_percentage || 0))
@@ -684,6 +687,7 @@ export default function MovieGrid({
         loading: loadingRailKeys[imdbRailRequest.key] || false,
       },
     ];
+
     const visibleRails = rails.filter((rail) =>
       rail.id === selectedGenreRailRequest?.key || rail.movies.length > 0 || rail.loading
     );
@@ -710,14 +714,14 @@ export default function MovieGrid({
             ) : rail.loading ? (
               <section key={rail.id} className="space-y-3" aria-label={rail.title}>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-white md:text-base">{rail.title}</h2>
+                  <h2 className="text-base sm:text-lg font-black text-white tracking-tight">{rail.title}</h2>
                   {rail.headerAction}
                 </div>
-                <div className="flex gap-3 overflow-hidden py-1">
+                <div className="flex gap-4 overflow-hidden py-1">
                   {[1, 2, 3, 4, 5].map((skeletonId) => (
                     <div
                       key={skeletonId}
-                      className="w-[148px] sm:w-[170px] aspect-[2/3] shrink-0 rounded-xl bg-white/[0.04] animate-pulse border border-white/5"
+                      className="w-[240px] sm:w-[280px] aspect-[16/9] shrink-0 rounded-2xl bg-slate-900/40 animate-pulse border border-white/5"
                     />
                   ))}
                 </div>
@@ -725,10 +729,10 @@ export default function MovieGrid({
             ) : rail.id === selectedGenreRailRequest?.key ? (
               <section className="space-y-2" aria-label={rail.title}>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-white md:text-base">{rail.title}</h2>
+                  <h2 className="text-base sm:text-lg font-black text-white tracking-tight">{rail.title}</h2>
                   {rail.headerAction}
                 </div>
-                <p className="text-xs text-neutral-400">Geen films gevonden voor deze selectie. Kies andere genres.</p>
+                <p className="text-xs text-slate-400">Geen films gevonden voor deze selectie. Kies andere genres.</p>
               </section>
             ) : null}
           </Fragment>
@@ -739,7 +743,7 @@ export default function MovieGrid({
               type="button"
               onClick={onLoadMore}
               disabled={loadingMore}
-              className="rounded-full border border-white/20 bg-white/[0.08] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-white/[0.15] disabled:cursor-wait disabled:opacity-60"
+              className="rounded-full border border-sky-400/30 bg-sky-500/10 px-6 py-2.5 text-xs font-bold text-sky-300 transition hover:bg-sky-500/20 disabled:cursor-wait disabled:opacity-60"
             >
               {loadingMore ? 'Films ophalen…' : 'Laad meer films'}
             </button>
@@ -753,12 +757,13 @@ export default function MovieGrid({
     <section className="space-y-4">
       {heading && (
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold tracking-wider text-white">{heading}</h2>
-          <span className="text-xs text-neutral-100">{displayedMovies.length} films</span>
+          <h2 className="text-base sm:text-lg font-black text-white tracking-tight">{heading}</h2>
+          <span className="text-xs text-slate-400">{displayedMovies.length} films</span>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      {/* Grid weergave in 16:9 breedbeeldformaat */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {displayedMovies.map((movie) => (
           <MovieCard
             key={movie.id}
@@ -772,8 +777,6 @@ export default function MovieGrid({
             onToggleWatched={onToggleWatched}
             onSelectPerson={onSelectPerson}
             highlightUserRating={libraryView === 'watched'}
-            compactPoster={libraryView === 'watched' || libraryView === 'watchlist'}
-            showWatchedBadge={libraryView === 'discover' && Boolean(searchQuery.trim())}
           />
         ))}
       </div>

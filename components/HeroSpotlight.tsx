@@ -41,8 +41,9 @@ interface HeroSpotlightProps {
   matchPreferences?: MatchPreferences;
   onToggleWatchlist: (movie: Movie) => void;
   onToggleWatched: (movie: Movie) => void;
-  onSelectMovie?: (movie: Movie | undefined) => void;
+  onSelectMovie?: (movie?: Movie | null) => void;
   onSelectPerson?: (name: string, department: 'Acting' | 'Directing') => void;
+  onFindMovie?: () => void;
 }
 
 export default function HeroSpotlight({
@@ -54,6 +55,7 @@ export default function HeroSpotlight({
   onToggleWatchlist,
   onToggleWatched,
   onSelectPerson,
+  onFindMovie,
 }: HeroSpotlightProps) {
   const [tipIndex, setTipIndex] = useState(0);
   const [editorialMovies, setEditorialMovies] = useState<Record<number, Movie>>({});
@@ -155,190 +157,231 @@ export default function HeroSpotlight({
       ? `https://image.tmdb.org/t/p/original${displayedMovie.poster_path}`
       : null;
 
+  const releaseYear = displayedMovie.release_date?.split('-')[0] || '';
+
   return (
     <>
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-6 md:p-8 shadow-2xl">
+      <section className="relative w-full rounded-[2.5rem] overflow-hidden border border-white/10 shadow-[0_20px_60px_-15px_rgba(0,180,255,0.2)] bg-[#070c18] min-h-[520px] flex items-center">
+        {/* Achtergrond met filmbackdrop, donker verloop en blauwe sfeergloed */}
         {backdropSrc && (
-          <div className="pointer-events-none absolute inset-0 -z-0 opacity-20">
+          <div className="absolute inset-0 z-0">
             <img
               src={backdropSrc}
-              alt=""
-              className="h-full w-full object-cover object-center filter blur-[2px]"
+              alt={displayedMovie.title}
+              className="w-full h-full object-cover object-[center_25%] opacity-55 scale-105 filter contrast-110 brightness-90 transition-all duration-700"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/85 to-slate-950/50" />
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/90 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#060913] via-[#060913]/85 to-transparent w-full md:w-3/5" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#060913] via-transparent to-transparent" />
+            <div className="absolute top-1/4 left-10 w-96 h-96 bg-cyan-600/15 rounded-full blur-[130px] pointer-events-none" />
           </div>
         )}
 
-        <div className="relative z-10 flex flex-col md:flex-row items-start gap-6 md:gap-8">
-          {/* Filmposter LINKS */}
-          {displayedMovie.poster_path && (
-            <div className="shrink-0 w-36 sm:w-44 md:w-52 mx-auto md:mx-0">
-              <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-white/15 shadow-2xl bg-slate-900">
-                <img
-                  src={`https://image.tmdb.org/t/p/w500${displayedMovie.poster_path}`}
-                  alt={displayedMovie.title}
-                  className="h-full w-full object-cover"
-                />
-              </div>
+        <div className="relative z-10 w-full px-6 sm:px-12 py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          {/* Linkerzijde: Titels & Actieknoppen */}
+          <div className="lg:col-span-7 space-y-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 text-xs font-bold tracking-widest uppercase">
+              FILMMATCH.NL
             </div>
-          )}
 
-          {/* Informatie en acties RECHTS */}
-          <div className="flex-1 space-y-3 min-w-0">
-            {/* Titel van de film */}
-            <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl">
-              {displayedMovie.title}
+            <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-extrabold text-white tracking-tight leading-[1.08]">
+              De juiste film <br />
+              voor <span className="text-sky-400">vanavond</span>
             </h1>
 
-            {/* Filminformatie */}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-400">
-              {displayedMovie.release_date && (
-                <span>{displayedMovie.release_date.split('-')[0]}</span>
-              )}
-              {displayedMovie.genres?.[0] && (
-                <span>
-                  {displayedMovie.release_date ? '• ' : ''}
-                  {displayedMovie.genres[0]}
-                </span>
-              )}
-              {displayedMovie.runtime && (
-                <span>
-                  {displayedMovie.release_date || displayedMovie.genres?.[0]
-                    ? '• '
-                    : ''}
-                  {displayedMovie.runtime}
-                </span>
-              )}
-            </div>
-
-            {/* Korte uitleg bij de maandtip */}
-            {!isSelectedByUser &&
-              activeTipMovie &&
-              activeTipMovie.id === displayedMovie.id &&
-              currentTipConfig?.reason && (
-                <p className="max-w-3xl text-xs leading-relaxed text-neutral-400">
-                  {currentTipConfig.reason}
-                </p>
-              )}
-
-            {/* Synopsis */}
-            <p className="line-clamp-3 text-xs leading-relaxed text-neutral-300 sm:text-sm">
-              {displayedMovie.overview || 'Geen beschrijving beschikbaar.'}
+            <p className="text-sm sm:text-base text-slate-300/90 max-w-lg leading-relaxed font-normal">
+              Persoonlijke filmtips, je watchlist, bioscooptijden en samen kijken met vrienden — allemaal op één plek.
             </p>
 
-            {/* Regisseur & Cast (klikbaar) */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs pt-0.5">
-              {displayedMovie.director && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-neutral-400">Regie:</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onSelectPerson?.(displayedMovie.director!, 'Directing')
-                    }
-                    className="font-medium text-white hover:text-rose-300 underline underline-offset-2 transition"
-                  >
-                    {displayedMovie.director}
-                  </button>
-                </div>
-              )}
-
-              {displayedMovie.cast && displayedMovie.cast.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-neutral-400">Cast:</span>
-                  {displayedMovie.cast.slice(0, 4).map((actor, idx) => (
-                    <span key={actor} className="inline-flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => onSelectPerson?.(actor, 'Acting')}
-                        className="font-medium text-white hover:text-rose-300 underline underline-offset-2 transition"
-                      >
-                        {actor}
-                      </button>
-                      {idx < Math.min(displayedMovie.cast!.length, 4) - 1 && (
-                        <span className="text-neutral-400 ml-1">,</span>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Match score, Rating & Streamingdiensten */}
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              <span
-                className={`rounded-lg px-2.5 py-1 text-xs font-black backdrop-blur-md ${
-                  matchBand === 'strong'
-                    ? 'bg-emerald-400 text-slate-950'
-                    : matchBand === 'medium'
-                      ? 'bg-amber-400 text-slate-950'
-                      : 'bg-rose-400 text-slate-950'
-                }`}
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={
+                  onFindMovie ||
+                  (() => {
+                    document.getElementById('film-catalog')?.scrollIntoView({ behavior: 'smooth' });
+                  })
+                }
+                className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-slate-950 font-bold text-sm transition-all shadow-[0_0_25px_rgba(56,189,248,0.4)] active:scale-95"
               >
-                {matchScore}% FilmMatch
-              </span>
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <span>Vind jouw film</span>
+              </button>
+            </div>
+          </div>
 
-              {displayedMovie.rating && (
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-xs font-bold text-white border border-white/10 backdrop-blur-md">
-                  <span className="rounded bg-[#f5c518] px-1 text-[9px] font-black text-black">
-                    {displayedMovie.rating_source || 'IMDb'}
-                  </span>
-                  <span>{displayedMovie.rating}</span>
+          {/* Rechterzijde: Film Spotlight Glass Card */}
+          <div className="lg:col-span-5 flex flex-col items-end">
+            <div className="w-full max-w-md rounded-2xl bg-slate-900/50 border border-white/10 p-5 backdrop-blur-xl shadow-2xl space-y-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold tracking-widest text-sky-300 uppercase">
+                  {isSelectedByUser ? 'Geselecteerde Film' : 'Film van de week'}
                 </span>
-              )}
-
-              {displayedMovie.providers &&
-                displayedMovie.providers.length > 0 && (
-                  <div className="flex items-center gap-1.5 pl-1">
-                    {displayedMovie.providers.slice(0, 4).map((provider) => (
-                      <StreamingLogo
-                        key={provider.provider_id}
-                        name={provider.provider_name}
-                        logoPath={provider.logo_path}
-                        className="h-7 w-7 rounded-lg"
+                
+                {/* Carrousel dots (bij maandtips) of matchpercentage */}
+                {!isSelectedByUser ? (
+                  <div className="flex items-center gap-1.5">
+                    {MONTHLY_TIPS.map((tip, idx) => (
+                      <button
+                        key={tip.tmdbId}
+                        type="button"
+                        onClick={() => setTipIndex(idx)}
+                        aria-label={`Tip ${idx + 1}`}
+                        className={`h-1.5 rounded-full transition-all ${
+                          idx === tipIndex % MONTHLY_TIPS.length
+                            ? 'w-4 bg-sky-400'
+                            : 'w-1.5 bg-slate-600 hover:bg-slate-400'
+                        }`}
                       />
                     ))}
                   </div>
+                ) : (
+                  <span
+                    className={`rounded-md px-2 py-0.5 text-[10px] font-black backdrop-blur-md ${
+                      matchBand === 'strong'
+                        ? 'bg-emerald-400 text-slate-950'
+                        : matchBand === 'medium'
+                        ? 'bg-amber-400 text-slate-950'
+                        : 'bg-rose-400 text-slate-950'
+                    }`}
+                  >
+                    {matchScore}% Match
+                  </span>
                 )}
-            </div>
+              </div>
 
-            {/* Knoppen */}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
-                onClick={() => trailerKey && setShowTrailerModal(true)}
-                disabled={!trailerKey || loadingTrailer}
-                className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-rose-600/30 transition hover:bg-rose-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span>▶</span>
-                <span>
-                  {loadingTrailer ? 'Trailer laden…' : 'Bekijk Trailer'}
-                </span>
-              </button>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide uppercase">
+                  {displayedMovie.title}
+                </h2>
+                
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  {displayedMovie.rating && (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-300 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
+                      ★ {displayedMovie.rating}
+                    </span>
+                  )}
+                  {releaseYear && (
+                    <span className="text-xs text-slate-400">{releaseYear}</span>
+                  )}
+                  {displayedMovie.runtime && (
+                    <span className="text-xs text-slate-400">· {displayedMovie.runtime}</span>
+                  )}
+                  {displayedMovie.genres?.slice(0, 2).map((g) => (
+                    <span
+                      key={g}
+                      className="text-[11px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate-300"
+                    >
+                      {g}
+                    </span>
+                  ))}
+                </div>
+              </div>
 
-              <button
-                onClick={() => onToggleWatchlist(displayedMovie)}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold transition border ${
-                  isWatchlisted
-                    ? 'bg-amber-400 text-slate-950 border-amber-300'
-                    : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
-                }`}
-              >
-                <span>{isWatchlisted ? '✓' : '+'}</span>
-                <span>{isWatchlisted ? 'In Watchlist' : 'Watchlist'}</span>
-              </button>
+              {/* Reden bij de tip */}
+              {!isSelectedByUser &&
+                activeTipMovie &&
+                activeTipMovie.id === displayedMovie.id &&
+                currentTipConfig?.reason && (
+                  <p className="text-xs font-medium text-sky-200/90 bg-sky-950/40 p-2 rounded-lg border border-sky-800/30">
+                    💡 {currentTipConfig.reason}
+                  </p>
+                )}
 
-              <button
-                onClick={() => onToggleWatched(displayedMovie)}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold transition border ${
-                  isWatched
-                    ? 'bg-emerald-400 text-slate-950 border-emerald-300'
-                    : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
-                }`}
-              >
-                <span>✓</span>
-                <span>{isWatched ? 'Gezien' : 'Markeer als gezien'}</span>
-              </button>
+              {/* Synopsis */}
+              <p className="text-xs text-slate-300/80 line-clamp-3 leading-relaxed">
+                {displayedMovie.overview || 'Geen beschrijving beschikbaar.'}
+              </p>
+
+              {/* Regisseur & Cast (klikbaar) */}
+              {(displayedMovie.director || (displayedMovie.cast && displayedMovie.cast.length > 0)) && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400 pt-1">
+                  {displayedMovie.director && (
+                    <div>
+                      <span>Regie: </span>
+                      <button
+                        type="button"
+                        onClick={() => onSelectPerson?.(displayedMovie.director!, 'Directing')}
+                        className="text-white hover:text-sky-300 underline underline-offset-2 transition"
+                      >
+                        {displayedMovie.director}
+                      </button>
+                    </div>
+                  )}
+                  {displayedMovie.cast && displayedMovie.cast.length > 0 && (
+                    <div>
+                      <span>Cast: </span>
+                      {displayedMovie.cast.slice(0, 3).map((actor, idx) => (
+                        <span key={actor}>
+                          <button
+                            type="button"
+                            onClick={() => onSelectPerson?.(actor, 'Acting')}
+                            className="text-white hover:text-sky-300 underline underline-offset-2 transition"
+                          >
+                            {actor}
+                          </button>
+                          {idx < Math.min(displayedMovie.cast!.length, 3) - 1 && ', '}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Providers */}
+              {displayedMovie.providers && displayedMovie.providers.length > 0 && (
+                <div className="flex items-center gap-1.5 pt-1">
+                  <span className="text-[11px] text-slate-400 mr-1">Te zien op:</span>
+                  {displayedMovie.providers.slice(0, 4).map((provider) => (
+                    <StreamingLogo
+                      key={provider.provider_id}
+                      name={provider.provider_name}
+                      logoPath={provider.logo_path}
+                      className="h-6 w-6 rounded-md"
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Actieknoppen */}
+              <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => trailerKey && setShowTrailerModal(true)}
+                  disabled={!trailerKey || loadingTrailer}
+                  className="flex-1 py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <svg className="w-3.5 h-3.5 fill-current text-sky-400" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  <span>{loadingTrailer ? 'Laden…' : 'Trailer'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onToggleWatchlist(displayedMovie)}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
+                    isWatchlisted
+                      ? 'bg-sky-500/20 border-sky-400 text-sky-300'
+                      : 'bg-white/5 border-white/10 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  {isWatchlisted ? '✓ Watchlist' : '+ Watchlist'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onToggleWatched(displayedMovie)}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
+                    isWatched
+                      ? 'bg-amber-400/20 border-amber-400 text-amber-300'
+                      : 'bg-white/5 border-white/10 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  ★ Cijfer
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -346,15 +389,16 @@ export default function HeroSpotlight({
 
       {/* Trailer Modal */}
       {showTrailerModal && trailerKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
-          <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black border border-white/20 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-              <h3 className="text-sm font-bold text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <div className="relative w-full max-w-4xl bg-slate-900 border border-white/20 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <span className="text-sm font-bold text-white uppercase">
                 {displayedMovie.title} — Officiële Trailer
-              </h3>
+              </span>
               <button
+                type="button"
                 onClick={() => setShowTrailerModal(false)}
-                className="rounded-lg p-1 text-neutral-400 hover:text-white"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition"
                 aria-label="Sluit trailer"
               >
                 ✕
@@ -363,10 +407,10 @@ export default function HeroSpotlight({
             <div className="relative aspect-video w-full">
               <iframe
                 src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1`}
-                title={`${displayedMovie.title} Trailer`}
+                title={`Trailer ${displayedMovie.title}`}
+                className="w-full h-full border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
-                className="h-full w-full"
               />
             </div>
           </div>

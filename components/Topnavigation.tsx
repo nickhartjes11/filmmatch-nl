@@ -125,7 +125,7 @@ export default function TopNavigation({
   };
 
   useEffect(() => {
-    const desktop = window.matchMedia('(min-width: 1180px)');
+    const desktop = window.matchMedia('(min-width: 1380px)');
 
     const closeOnDesktop = () => {
       if (desktop.matches) {
@@ -220,13 +220,13 @@ export default function TopNavigation({
           }
         >
           <span className="fm-brand-symbol" aria-hidden="true">
-            ▰
+            🍿
           </span>
 
           <span>
             FILM
             <span className="fm-brand-accent">MATCH</span>
-            <span className="fm-brand-domain">.nl</span>
+            <span className="fm-brand-domain">NL</span>
             <small>De juiste film voor vanavond</small>
           </span>
         </button>
@@ -284,6 +284,8 @@ export default function TopNavigation({
             ))}
           </nav>
 
+          <div className="fm-search-slot">{children}</div>
+
           <div className="fm-account">
             <button
               type="button"
@@ -314,8 +316,6 @@ export default function TopNavigation({
       </div>
 
       <div className="fm-tools-row">
-        <div className="fm-search-slot">{children}</div>
-
         <div
           className="fm-platforms"
           role="group"

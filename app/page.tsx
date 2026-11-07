@@ -12,7 +12,7 @@ import HeroSpotlight from '../components/HeroSpotlight';
 import AuthPage from '../components/AuthPage';
 import MovieGrid from '../components/MovieGrid';
 import MovieRatingDialog from '../components/MovieRatingDialog';
-import Sidebar from '../components/Sidebar';
+import TopNavigation from '../components/Topnavigation';
 import type { DiscoveryMode, FriendActivityItem, LibraryView, Movie, MovieRating, StreamingPlatform } from '../components/types';
 import { createSupabaseBrowserClient } from '../lib/supabase/client';
 import { calculateMatchScore, type MatchPreferences, type MovieTasteSignals, type RatedMovieTasteSignals } from '@/lib/recommendations/matchScore';
@@ -207,6 +207,40 @@ export default function Home() {
   const [dislikedGenres, setDislikedGenres] = useState<string[]>([]);
   const [favoriteDirectors, setFavoriteDirectors] = useState<string[]>([]);
   const [favoriteCast, setFavoriteCast] = useState<string[]>([]);
+  const [favoritePersonQuery, setFavoritePersonQuery] = useState('');
+  const [favoritePersonMatches, setFavoritePersonMatches] = useState<PersonSearchResult[]>([]);
+  const [favoritePersonLoading, setFavoritePersonLoading] = useState(false);
+
+  useEffect(() => {
+    const query = favoritePersonQuery.trim();
+    if (query.length < 2 || currentView !== 'profile') return;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setFavoritePersonLoading(true);
+      try {
+        const response = await fetch('/api/movies?people=' + encodeURIComponent(query), { signal: controller.signal });
+        const data = response.ok ? await response.json() : null;
+        if (!controller.signal.aborted) setFavoritePersonMatches(Array.isArray(data?.people) ? data.people : []);
+      } catch {
+        if (!controller.signal.aborted) setFavoritePersonMatches([]);
+      } finally {
+        if (!controller.signal.aborted) setFavoritePersonLoading(false);
+      }
+    }, 200);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [favoritePersonQuery, currentView]);
+
+  const updateFavoritePersonQuery = (query: string) => {
+    setFavoritePersonQuery(query);
+    setFavoritePersonMatches([]);
+    setFavoritePersonLoading(query.trim().length >= 2);
+  };
+  const addFavoritePerson = (person: PersonSearchResult) => {
+    const update = (names: string[]) => names.includes(person.name) ? names : [...names, person.name];
+    if (person.known_for_department === 'Directing') setFavoriteDirectors(update);
+    else setFavoriteCast(update);
+    updateFavoritePersonQuery('');
+  };
   const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('Gebruiker');
   const [accountEmail, setAccountEmail] = useState('');
@@ -320,6 +354,34 @@ export default function Home() {
 
     return Array.from(genreWeights.values()).sort((a, b) => b.weight - a.weight).map((g) => g.name).slice(0, 2);
   }, [favoriteMovies, ratedMovies]);
+
+  const profileTasteMovies = useMemo(() => {
+    const byId = new Map<number, string[]>();
+    [...favoriteMovies, ...ratedMovies].forEach((movie) => {
+      const watched = library.watched.find((item) => item.id === movie.id);
+      byId.set(movie.id, Array.from(new Set([
+        ...(byId.get(movie.id) || []), ...(movie.genres || []), ...(watched?.genres || []),
+      ])));
+    });
+    return byId;
+  }, [favoriteMovies, ratedMovies, library.watched]);
+  const profileTopGenres = useMemo(() => {
+    const counts = new Map<string, number>();
+    profileTasteMovies.forEach((genres) => genres.forEach((genre) => counts.set(genre, (counts.get(genre) || 0) + 1)));
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  }, [profileTasteMovies]);
+  const genreOptions = useMemo(() => Array.from(new Set([
+    'Actie', 'Avontuur', 'Animatie', 'Komedie', 'Misdaad', 'Documentaire', 'Drama',
+    'Familie', 'Fantasy', 'Historisch', 'Horror', 'Muziek', 'Mysterie', 'Romantiek',
+    'Sciencefiction', 'Thriller', 'Oorlog', 'Western', ...dislikedGenres,
+    ...ONBOARDING_FAVORITES.flatMap((movie) => movie.genres),
+  ])).sort((a, b) => a.localeCompare(b, 'nl')), [dislikedGenres]);
+  const profileHeaderPosters = useMemo(() => {
+    const posters = new Map<number, { id: number; title: string; poster_path: string }>();
+    [...library.watched, ...ONBOARDING_FAVORITES.filter((movie) => selectedFavorites.includes(movie.id))]
+      .forEach((movie) => { if (movie.poster_path && !posters.has(movie.id)) posters.set(movie.id, { id: movie.id, title: movie.title, poster_path: movie.poster_path }); });
+    return Array.from(posters.values()).slice(0, 5);
+  }, [library.watched, selectedFavorites]);
 
   const loadFriendsActivity = async (userId: string) => {
     try {
@@ -740,11 +802,11 @@ export default function Home() {
   }
 
   return (
-    <div className="dashboard-shell min-h-screen text-neutral-100 flex selection:bg-rose-600 selection:text-white">
-      <Sidebar
+    <div className="dashboard-shell min-h-screen text-neutral-100 flex flex-col selection:bg-sky-700 selection:text-white">
+      <TopNavigation
         libraryView={libraryView}
         discoveryMode={discoveryMode}
-        friendsActive={currentView === 'friends'}
+        friendsActive={currentView === 'friends' || currentView === 'activity'}
         watchTogetherActive={currentView === 'watch-together'}
         profileActive={currentView === 'profile'}
         displayName={displayName}
@@ -756,6 +818,8 @@ export default function Home() {
         onNavigate={(view) => {
           setCurrentView('dashboard');
           setLibraryView(view);
+          setSelectedPerson(null);
+          setVisibleMovieLimit(TARGET_DISCOVERY_COUNT);
           setPreviousLibraryView(view);
           setSpotlightMovieId(null);
           setSelectedSpotlightMovie(null);
@@ -766,6 +830,8 @@ export default function Home() {
           setLibraryView('discover');
           setPreviousLibraryView('discover');
           setDiscoveryMode(mode);
+          setSelectedPerson(null);
+          setVisibleMovieLimit(TARGET_DISCOVERY_COUNT);
           setSpotlightMovieId(null);
           setSelectedSpotlightMovie(null);
           setSearchQuery('');
@@ -776,9 +842,7 @@ export default function Home() {
         onLogout={handleSignOut}
         onTogglePlatform={togglePlatform}
         onMinimumImdbRatingChange={(rating) => setMinimumImdbRating(rating)}
-      />
-
-      <div className="flex-1 flex flex-col min-w-0">
+      >
         <DashboardHeader
           currentView={currentView}
           libraryView={libraryView}
@@ -801,9 +865,57 @@ export default function Home() {
           setFeaturedIndex={() => {}}
           targetCount={TARGET_DISCOVERY_COUNT}
         />
+      </TopNavigation>
 
+      <div className="flex-1 flex flex-col min-w-0">
         <main className="dashboard-content flex-1 p-4 md:p-8 space-y-8 overflow-y-auto">
-          {currentView === 'watch-together' ? (
+          {currentView === 'profile' ? (
+            <ProfileView
+              displayName={displayName}
+              setDisplayName={setDisplayName}
+              accountEmail={accountEmail}
+              selectedPlatforms={selectedPlatforms}
+              togglePlatform={togglePlatform}
+              platforms={FIVE_PLATFORMS}
+              libraryWatched={library.watched}
+              movieRatings={movieRatings}
+              ratingsByMovieId={ratingsByMovieId}
+              authLoading={authLoading}
+              authError={authError}
+              authNotice={authNotice}
+              saveProfile={saveProfile}
+              goBackToPreviousView={goBackToPreviousView}
+              onOpenFriends={() => navigateToView('friends')}
+              onOpenWatched={() => {
+                setCurrentView('dashboard'); setLibraryView('watched'); setPreviousLibraryView('watched');
+                setSearchQuery(''); setSelectedPerson(null); setSpotlightMovieId(null); setSelectedSpotlightMovie(null);
+                setVisibleMovieLimit(TARGET_DISCOVERY_COUNT);
+              }}
+              onOpenFavoritesOnboarding={() => { setRegisterStep(3); setCurrentView('register'); }}
+              onSelectMovieSpotlight={(id) => {
+                const movie = library.watched.find((item) => item.id === id);
+                setCurrentView('dashboard'); setLibraryView('watched'); setPreviousLibraryView('watched');
+                setSearchQuery(''); setSelectedPerson(null);
+                if (movie) selectSpotlightMovie(movie);
+              }}
+              tasteCount={profileTasteMovies.size}
+              profileTopGenres={profileTopGenres}
+              dislikedGenres={dislikedGenres}
+              toggleDislikedGenre={(genre) => setDislikedGenres((genres) => genres.includes(genre) ? genres.filter((item) => item !== genre) : [...genres, genre])}
+              genreOptions={genreOptions}
+              favoriteDirectors={favoriteDirectors}
+              removeFavoriteDirector={(name) => setFavoriteDirectors((names) => names.filter((item) => item !== name))}
+              favoriteCast={favoriteCast}
+              removeFavoriteCast={(name) => setFavoriteCast((names) => names.filter((item) => item !== name))}
+              favoritePersonQuery={favoritePersonQuery}
+              setFavoritePersonQuery={updateFavoritePersonQuery}
+              favoritePersonMatches={favoritePersonMatches}
+              favoritePersonLoading={favoritePersonLoading}
+              addFavoritePerson={addFavoritePerson}
+              profileHeaderPosters={profileHeaderPosters}
+              profileFriendCount={friendsList.length}
+            />
+          ) : currentView === 'watch-together' ? (
             <WatchTogetherPage
               currentUserId={authUserId}
               currentUserName={displayName || 'Jij'}

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState, type KeyboardEvent } from 'react';
 import Image from 'next/image';
+import type { DiscoveryMode } from './types';
 
 interface PersonSearchResult {
   id: number;
@@ -22,176 +23,104 @@ interface DashboardHeaderProps {
   personSearchFocused: boolean;
   setPersonSearchFocused: (focused: boolean) => void;
   loading: boolean;
-  movieMatches?: any[];
+  movieMatches?: unknown[];
   peopleLoading?: boolean;
   personMatches?: PersonSearchResult[];
   selectPerson: (person: PersonSearchResult) => void;
   clearSearch: () => void;
   goBackToPreviousView: () => void;
-  setDiscoveryMode: (mode: any) => void;
+  setDiscoveryMode: (mode: DiscoveryMode) => void;
   setFeaturedIndex: (index: number) => void;
   targetCount: number;
 }
 
+function isPerson(value: unknown): value is PersonSearchResult {
+  if (!value || typeof value !== 'object') return false;
+  const person = value as Record<string, unknown>;
+  return typeof person.id === 'number' && typeof person.name === 'string' &&
+    typeof person.known_for_department === 'string' &&
+    (person.profile_path === null || typeof person.profile_path === 'string');
+}
+
+// Search only: TopNavigation owns the single sticky header and main menu.
 export default function DashboardHeader({
-  libraryView,
-  searchQuery,
-  setSearchQuery,
-  selectedPerson,
-  setSelectedPerson,
-  selectPerson,
-  clearSearch,
+  libraryView, searchQuery, setSearchQuery, selectedPerson, setSelectedPerson,
+  selectPerson, clearSearch, setPersonSearchFocused,
 }: DashboardHeaderProps) {
-  const [personSuggestions, setPersonSuggestions] = useState<PersonSearchResult[]>([]);
-  const [isFocused, setIsFocused] = useState(false);
+  const [result, setResult] = useState<{ query: string; people: PersonSearchResult[] }>({ query: '', people: [] });
+  const [focused, setFocused] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const listId = useId();
+  const query = searchQuery.trim();
+  const suggestions = !selectedPerson && query.length >= 2 && result.query === query ? result.people : [];
+  const open = focused && suggestions.length > 0;
+  const activePerson = open ? suggestions[activeIndex] : undefined;
 
-  // Zoeken naar acteurs en regisseurs zodra je typt
   useEffect(() => {
-    const q = searchQuery.trim();
-
-    if (!q || selectedPerson || q.length < 2) {
-      setPersonSuggestions([]);
-      return;
-    }
-
-    let active = true;
-
+    if (!query || query.length < 2 || selectedPerson) return;
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/movies?people=${encodeURIComponent(q)}`);
-        if (!res.ok) return;
-
-        const data = await res.json();
-
-        if (active && Array.isArray(data.people)) {
-          setPersonSuggestions(data.people);
+        const response = await fetch(`/api/movies?people=${encodeURIComponent(query)}`, { signal: controller.signal });
+        if (!response.ok) return;
+        const data: { people?: unknown } = await response.json();
+        if (!controller.signal.aborted) {
+          setResult({ query, people: Array.isArray(data.people) ? data.people.filter(isPerson) : [] });
+          setActiveIndex(-1);
         }
       } catch {
-        // Negeer fouten bij het ophalen van suggesties.
+        // Searching films remains available if person suggestions fail.
       }
     }, 200);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [query, selectedPerson]);
 
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [searchQuery, selectedPerson]);
-
-  const closeSuggestions = () => {
-    setPersonSuggestions([]);
-    setIsFocused(false);
-  };
-
-  const handleSelectPerson = (person: PersonSearchResult) => {
-    selectPerson(person);
-    closeSuggestions();
-  };
-
-  const handleSearchKeyDown = (
-    event: React.KeyboardEvent<HTMLInputElement>
-  ) => {
-    if (event.key === 'Enter' || event.key === 'Escape') {
+  const close = () => { setFocused(false); setActiveIndex(-1); setPersonSearchFocused(false); };
+  const choose = (person: PersonSearchResult) => { selectPerson(person); close(); };
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && suggestions.length > 0) {
       event.preventDefault();
-      closeSuggestions();
+      setFocused(true); setPersonSearchFocused(true);
+      setActiveIndex((index) => event.key === 'ArrowDown'
+        ? (index + 1) % suggestions.length
+        : (index <= 0 ? suggestions.length - 1 : index - 1));
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      if (activePerson) choose(activePerson); else close();
+    } else if (event.key === 'Escape') {
+      if (open) event.stopPropagation();
+      close();
     }
   };
+  const placeholder = libraryView === 'watched' ? 'Zoek in films die je hebt gezien...'
+    : libraryView === 'watchlist' ? 'Zoek in je watchlist...' : 'Zoek film, acteur of regisseur...';
 
-  const placeholderText =
-    libraryView === 'watched'
-      ? 'Zoek in films die je hebt gezien...'
-      : libraryView === 'watchlist'
-        ? 'Zoek in je watchlist...'
-        : 'Zoek film, acteur of regisseur...';
-
-  return (
-    <header className="sticky top-0 z-40 bg-neutral-950/80 backdrop-blur-xl border-b border-white/[0.08] px-4 md:px-8 py-3.5 flex items-center justify-between gap-4">
-      {/* Zoekbalk container */}
-      <div className="relative flex-1 max-w-xl">
-        <div className="relative flex items-center">
-          <span className="absolute left-3.5 text-neutral-400 text-sm">🔍</span>
-
-          <input
-            type="text"
-            value={searchQuery}
-            onFocus={() => setIsFocused(true)}
-            onBlur={closeSuggestions}
-            onKeyDown={handleSearchKeyDown}
-            onChange={(event) => {
-              setSearchQuery(event.target.value);
-
-              if (selectedPerson) {
-                setSelectedPerson(null);
-              }
-            }}
-            placeholder={placeholderText}
-            aria-label="Zoek een film, acteur of regisseur"
-            aria-expanded={isFocused && personSuggestions.length > 0}
-            className="w-full bg-neutral-900/90 border border-white/10 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-rose-500 transition"
-          />
-
-          {(searchQuery || selectedPerson) && (
-            <button
-              type="button"
-              onClick={clearSearch}
-              className="absolute right-3 text-neutral-400 hover:text-white text-sm"
-              title="Wissen"
-              aria-label="Zoekopdracht wissen"
-            >
-              &times;
-            </button>
-          )}
-        </div>
-
-        {/* Suggesties dropdown direct onder de zoekbalk */}
-        {isFocused && personSuggestions.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-2 bg-neutral-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50">
-            <div className="px-3 py-2 bg-neutral-950/60 border-b border-white/[0.06] text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-              Acteurs &amp; Regisseurs
-            </div>
-
-            <div className="max-h-64 overflow-y-auto divide-y divide-white/[0.04]">
-              {personSuggestions.map((person) => (
-                <button
-                  key={person.id}
-                  type="button"
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    handleSelectPerson(person);
-                  }}
-                  className="w-full p-2.5 flex items-center gap-3 hover:bg-white/[0.08] transition text-left"
-                >
-                  <div className="relative w-8 h-8 rounded-full overflow-hidden bg-neutral-800 shrink-0 border border-white/10">
-                    {person.profile_path ? (
-                      <Image
-                        src={`https://image.tmdb.org/t/p/w92${person.profile_path}`}
-                        alt={person.name}
-                        fill
-                        unoptimized
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[10px] text-neutral-400 font-bold">
-                        {person.name.slice(0, 1)}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-white truncate">
-                      {person.name}
-                    </p>
-                    <p className="text-[10px] text-neutral-400">
-                      {person.known_for_department === 'Directing'
-                        ? 'Regisseur'
-                        : 'Acteur / Actrice'}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </header>
-  );
+  return <div className="dashboard-header fm-search" role="search" aria-label="Films en personen zoeken">
+    <div className="fm-search-field">
+      <svg className="fm-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
+      <input type="search" role="combobox" value={searchQuery} placeholder={placeholder}
+        aria-label="Zoek een film, acteur of regisseur" aria-autocomplete="list" aria-expanded={open}
+        aria-controls={open ? listId : undefined} aria-activedescendant={activePerson ? `${listId}-${activePerson.id}` : undefined}
+        onFocus={() => { setFocused(true); setPersonSearchFocused(true); }} onBlur={close} onKeyDown={handleKeyDown}
+        onChange={(event) => {
+          setResult({ query: '', people: [] }); setActiveIndex(-1);
+          setFocused(true); setPersonSearchFocused(true);
+          setSearchQuery(event.target.value);
+          if (selectedPerson) setSelectedPerson(null);
+        }} />
+      {(searchQuery || selectedPerson) && <button type="button" className="fm-clear-search" aria-label="Zoekopdracht wissen" onClick={() => { clearSearch(); close(); }}>×</button>}
+    </div>
+    {open && <div className="fm-suggestions">
+      <p id={`${listId}-label`}>Acteurs &amp; regisseurs</p>
+      <ul id={listId} role="listbox" aria-labelledby={`${listId}-label`}>
+        {suggestions.map((person, index) => <li key={person.id} id={`${listId}-${person.id}`} role="option" aria-selected={activeIndex === index}
+          onPointerDown={(event) => event.preventDefault()} onClick={() => choose(person)}>
+          <span className="fm-person-avatar">
+            {person.profile_path ? <Image src={`https://image.tmdb.org/t/p/w92${person.profile_path}`} alt="" width={34} height={34} unoptimized /> : person.name.slice(0, 1)}
+          </span>
+          <span><strong>{person.name}</strong><small>{person.known_for_department === 'Directing' ? 'Regisseur' : 'Acteur / Actrice'}</small></span>
+        </li>)}
+      </ul>
+    </div>}
+  </div>;
 }

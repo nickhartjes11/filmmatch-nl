@@ -100,16 +100,16 @@ export default function ProfileView({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <header className="dashboard-header sticky top-0 z-20 flex min-h-16 items-center justify-end border-b border-white/[0.1] px-4 backdrop-blur-md md:px-8">
+      <div className="flex min-h-12 items-center justify-end border-b border-white/[0.1] pb-3">
         <button
           onClick={goBackToPreviousView}
           className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-neutral-200 transition hover:bg-white/10 hover:text-white"
         >
           &larr; Terug
         </button>
-      </header>
+      </div>
 
-      <main className="dashboard-content flex-1 overflow-y-auto p-4 md:p-8">
+      <section aria-label="Jouw profiel" className="flex-1">
         <div className="mx-auto max-w-6xl space-y-7 py-2 md:py-4">
           <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 border-b border-white/[0.12] pb-6 sm:flex sm:flex-wrap sm:gap-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-rose-400 to-amber-300 text-xl font-black text-slate-950">
@@ -515,7 +515,7 @@ export default function ProfileView({
             </section>
           </div>
         </div>
-      </main>
+      </section>
     </div>
   );
 }

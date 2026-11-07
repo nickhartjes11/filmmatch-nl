@@ -773,7 +773,10 @@ export default function Home() {
   }
 
   return (
-    <div className="dashboard-shell min-h-screen text-neutral-100 flex selection:bg-rose-600 selection:text-white">
+  <div className="dashboard-shell relative min-h-screen bg-[#060913] text-neutral-100 flex selection:bg-sky-500 selection:text-black overflow-x-hidden">
+    {/* Subtiele cinematische blauwe sfeergloed bovenin */}
+    <div className="pointer-events-none absolute -top-40 left-1/4 h-[500px] w-[700px] rounded-full bg-sky-600/10 blur-[130px]" />
+    <div className="pointer-events-none absolute top-1/3 -right-40 h-[600px] w-[600px] rounded-full bg-blue-700/5 blur-[150px]" />
       <Sidebar
         libraryView={libraryView}
         discoveryMode={discoveryMode}

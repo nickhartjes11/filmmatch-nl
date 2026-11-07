@@ -81,7 +81,7 @@ function RatingBadge({ rating, source }: { rating?: string | null; source?: Movi
       <span className={`rounded-sm px-1 text-[8px] font-black leading-3 ${source === 'IMDb' ? 'bg-[#f5c518] text-black' : 'text-neutral-300'}`}>
         {source || 'Score'}
       </span>
-      <span className="text-[10px] font-bold text-amber-200">{rating}</span>
+      <span className="text-[10px] font-bold text-sky-200">{rating}</span>
     </span>
   );
 }
@@ -97,10 +97,10 @@ function MovieCard({
   onToggleWatched,
   railCard = false,
   highlightUserRating = false,
-  compactPoster = false,
   showWatchedBadge = false,
 }: MovieCardProps) {
   const [imageError, setImageError] = useState(false);
+  useEffect(() => setImageError(false), [movie.poster_path]);
   const isWatchlisted = watchlistIds.includes(movie.id);
   const isWatched = watchedIds.includes(movie.id);
   const userRating = ratings[movie.id];
@@ -116,32 +116,36 @@ function MovieCard({
   );
 
   return (
-    <article className={`movie-card-reveal group flex flex-col justify-between overflow-hidden rounded-xl border border-white/10 bg-slate-950/40 hover:border-white/25 transition duration-300 ${railCard ? 'w-[148px] shrink-0 snap-start sm:w-[170px]' : 'w-full'}`}>
+    <article className={`group flex flex-col justify-between overflow-hidden rounded-2xl border border-blue-200/10 bg-[#0c1930] shadow-lg shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-blue-400/50 hover:shadow-xl hover:shadow-blue-950/40 motion-reduce:transform-none ${railCard ? 'w-[164px] shrink-0 snap-start sm:w-[196px] lg:w-[212px]' : 'w-full'}`}>
       <button
         type="button"
         onClick={() => onSelectMovie(movie)}
         title={`Toon ${movie.title} bovenaan`}
         aria-label={`Toon ${movie.title} als uitgelichte poster`}
-        className={`relative block aspect-[2/3] overflow-hidden bg-slate-900 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 ${compactPoster ? 'mx-auto w-[90%]' : 'w-full'}`}
+        className={`relative block aspect-[2/3] overflow-hidden bg-slate-900 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400 w-full`}
       >
         {hasValidPoster ? (
           <img
             src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
             alt={movie.title}
+            loading="lazy"
+            decoding="async"
+            draggable={false}
             onError={() => setImageError(true)}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105 motion-reduce:transform-none"
           />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center p-3 text-center bg-gradient-to-b from-neutral-800 to-neutral-900">
+          <div className="flex h-full w-full flex-col items-center justify-center p-3 text-center bg-gradient-to-br from-[#172f50] via-[#10213b] to-[#081222]">
             <span className="text-2xl opacity-40 mb-1">🎬</span>
             <span className="text-[10px] font-bold text-neutral-400 line-clamp-2 leading-tight">
               {movie.title}
             </span>
           </div>
         )}
-        <div className="absolute inset-x-2 top-2 flex items-center justify-between gap-1">
-          <span className={`rounded px-1.5 py-0.5 text-[10px] font-black backdrop-blur-md ${matchBand === 'strong' ? 'bg-emerald-300 text-[#07110d]' : matchBand === 'medium' ? 'bg-amber-300 text-[#1f1605]' : 'bg-rose-400 text-[#2b080d]'}`}>
-            {movie.match_percentage}%
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0c1930]/80 via-transparent to-black/30" />
+        <div className="absolute inset-x-2.5 top-2.5 flex items-center justify-between gap-1">
+          <span className={`rounded-lg border border-white/15 px-2 py-1 text-[10px] font-bold shadow-lg backdrop-blur-md ${matchBand === 'strong' ? 'bg-[#082b3e]/95 text-cyan-200' : matchBand === 'medium' ? 'bg-[#102c52]/95 text-blue-200' : 'bg-[#16243c]/95 text-slate-200'}`}>
+            {movie.match_percentage ?? 0}% match
           </span>
           <RatingBadge
             rating={movie.rating}
@@ -155,19 +159,19 @@ function MovieCard({
         )}
       </button>
 
-      <div className="flex flex-1 flex-col justify-between p-3">
+      <div className="flex flex-1 flex-col justify-between p-3 sm:p-3.5">
         <div>
-          <h3 className="truncate text-xs font-bold text-white transition group-hover:text-rose-200" title={movie.title}>
-            <button type="button" onClick={() => onSelectMovie(movie)} className="truncate text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400">
+          <h3 className="truncate text-sm font-semibold text-slate-100 transition group-hover:text-sky-200" title={movie.title}>
+            <button type="button" onClick={() => onSelectMovie(movie)} className="block w-full truncate text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400">
               {movie.title}
             </button>
           </h3>
-          <p className="mt-0.5 text-[10px] text-neutral-300 truncate">
+          <p className="mt-1 truncate text-[11px] text-slate-400">
             {movie.release_date?.split('-')[0]} &bull; {movie.genres?.[0] || 'Film'}
           </p>
         </div>
 
-        <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/[0.12] pt-2">
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-blue-200/10 pt-3">
           <div className="flex items-center gap-1">
             {movie.providers?.slice(0, 2).map((provider) => (
               <StreamingLogo
@@ -185,7 +189,7 @@ function MovieCard({
               title={isWatchlisted ? 'Verwijder uit watchlist' : 'Bewaar voor later'}
               aria-label={isWatchlisted ? `Verwijder ${movie.title} uit watchlist` : `Bewaar ${movie.title} voor later`}
               aria-pressed={isWatchlisted}
-              className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold transition ${isWatchlisted ? 'bg-amber-300 text-slate-950' : 'bg-amber-300/15 text-amber-100 hover:bg-amber-300/30'}`}
+              className={`flex h-9 w-9 items-center justify-center rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 text-sm font-bold transition ${isWatchlisted ? 'bg-blue-500 text-white' : 'bg-blue-400/10 text-blue-200 hover:bg-blue-400/25'}`}
             >
               {isWatchlisted ? '✓' : '+'}
             </button>
@@ -195,7 +199,7 @@ function MovieCard({
               title={isWatched ? 'Verwijder markering gezien' : 'Markeer als gezien'}
               aria-label={isWatched ? `Verwijder markering gezien voor ${movie.title}` : `Markeer ${movie.title} als gezien`}
               aria-pressed={isWatched}
-              className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold transition ${isWatched ? 'bg-emerald-300 text-slate-950' : 'bg-emerald-300/15 text-emerald-100 hover:bg-emerald-300/30'}`}
+              className={`flex h-9 w-9 items-center justify-center rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 text-xs font-bold transition ${isWatched ? 'bg-cyan-300 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
             >
               ✓
             </button>
@@ -235,6 +239,7 @@ function MovieRail({
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!drag.current.active || !railRef.current) return;
+    if (event.buttons === 0) { drag.current.active = false; return; }
     const distance = event.clientX - drag.current.startX;
     if (Math.abs(distance) > 4 && !drag.current.dragged) {
       drag.current.dragged = true;
@@ -263,13 +268,13 @@ function MovieRail({
     <section className="space-y-3" aria-label={title}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h2 className="text-sm font-bold text-white md:text-base">{title}</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-slate-100 md:text-xl">{title}</h2>
           {headerAction}
           <span className="text-[10px] text-neutral-300">{movies.length}</span>
         </div>
-        <div className="hidden gap-1 sm:flex">
-          <button type="button" onClick={() => scrollRail(-1)} aria-label={`Vorige films: ${title}`} className="flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-slate-900/40 text-xs text-white transition hover:bg-white/15">←</button>
-          <button type="button" onClick={() => scrollRail(1)} aria-label={`Volgende films: ${title}`} className="flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-slate-900/40 text-xs text-white transition hover:bg-white/15">→</button>
+        <div className="flex shrink-0 gap-2">
+          <button type="button" onClick={() => scrollRail(-1)} aria-label={`Vorige films: ${title}`} className="flex h-9 w-9 items-center justify-center rounded-full border border-blue-200/15 bg-[#10223d] text-sm text-blue-100 transition hover:border-blue-400/50 hover:bg-blue-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300">←</button>
+          <button type="button" onClick={() => scrollRail(1)} aria-label={`Volgende films: ${title}`} className="flex h-9 w-9 items-center justify-center rounded-full border border-blue-200/15 bg-[#10223d] text-sm text-blue-100 transition hover:border-blue-400/50 hover:bg-blue-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300">→</button>
         </div>
       </div>
       <div
@@ -278,8 +283,12 @@ function MovieRail({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onLostPointerCapture={handlePointerUp}
+        tabIndex={0}
+        role="region"
+        aria-label={`Filmrij: ${title}`}
         onClickCapture={handleClickCapture}
-        className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 [scrollbar-color:rgba(255,255,255,0.35)_transparent] [scrollbar-width:thin] touch-pan-x"
+        className="flex snap-x snap-proximity gap-3 overflow-x-auto overscroll-x-contain px-1 pb-4 pt-2 sm:gap-4 [scrollbar-color:rgba(96,165,250,0.3)_transparent] [scrollbar-width:thin]"
       >
         {movies.map((movie) => (
           <MovieCard
@@ -409,23 +418,23 @@ export default function MovieGrid({
         onClick={toggleGenreMenu}
         aria-expanded={isGenreMenuOpen}
         aria-haspopup="dialog"
-        className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold text-neutral-200 transition hover:border-amber-200/60 hover:text-white"
+        className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold text-neutral-200 transition hover:border-blue-400/60 hover:text-white"
       >
-        Genres <span className="text-amber-200">{selectedGenres.length}</span>
+        Genres <span className="text-sky-200">{selectedGenres.length}</span>
         <span aria-hidden="true">{isGenreMenuOpen ? '⌃' : '⌄'}</span>
       </button>
       {isGenreMenuOpen && (
         <div
           role="dialog"
           aria-label="Kies filmgenres"
-          className="absolute left-0 top-full z-50 mt-2 w-64 rounded-xl border border-white/15 bg-slate-950 p-3 shadow-2xl sm:w-72"
+          className="absolute left-0 top-full z-50 mt-2 w-64 rounded-xl border border-white/15 bg-[#0c1930] p-3 shadow-2xl shadow-black/60 sm:w-72"
         >
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-xs font-bold text-white">Kies genres</span>
             <button
               type="button"
               onClick={() => setDraftGenres([defaultGenre])}
-              className="text-[10px] font-semibold text-amber-200 hover:text-amber-100"
+              className="text-[10px] font-semibold text-sky-200 hover:text-sky-100"
             >
               Standaard
             </button>
@@ -437,7 +446,7 @@ export default function MovieGrid({
                   type="checkbox"
                   checked={draftGenres.includes(genre)}
                   onChange={() => toggleDraftGenre(genre)}
-                  className="accent-amber-300"
+                  className="accent-blue-400"
                 />
                 {genre}
               </label>
@@ -448,7 +457,7 @@ export default function MovieGrid({
             <button
               type="button"
               onClick={applyGenreSelection}
-              className="rounded-full bg-amber-200 px-3 py-1.5 text-[10px] font-bold text-slate-950 transition hover:bg-amber-100"
+              className="rounded-full bg-blue-400 px-3 py-1.5 text-[10px] font-bold text-slate-950 transition hover:bg-blue-300"
             >
               Toepassen
             </button>
@@ -689,7 +698,7 @@ export default function MovieGrid({
     );
 
     return (
-      <div className="space-y-8">
+      <div className="min-w-0 space-y-10 rounded-2xl bg-[#070f1e] p-3 text-slate-100 sm:p-5 lg:space-y-12 lg:p-6">
         {visibleRails.map((rail) => (
           <Fragment key={rail.id}>
             {rail.movies.length > 0 ? (
@@ -710,14 +719,14 @@ export default function MovieGrid({
             ) : rail.loading ? (
               <section key={rail.id} className="space-y-3" aria-label={rail.title}>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-white md:text-base">{rail.title}</h2>
+                  <h2 className="text-lg font-semibold tracking-tight text-slate-100 md:text-xl">{rail.title}</h2>
                   {rail.headerAction}
                 </div>
                 <div className="flex gap-3 overflow-hidden py-1">
                   {[1, 2, 3, 4, 5].map((skeletonId) => (
                     <div
                       key={skeletonId}
-                      className="w-[148px] sm:w-[170px] aspect-[2/3] shrink-0 rounded-xl bg-white/[0.04] animate-pulse border border-white/5"
+                      className="w-[164px] sm:w-[196px] lg:w-[212px] aspect-[2/3] shrink-0 rounded-2xl bg-[#10213b] motion-safe:animate-pulse border border-blue-200/10"
                     />
                   ))}
                 </div>
@@ -725,7 +734,7 @@ export default function MovieGrid({
             ) : rail.id === selectedGenreRailRequest?.key ? (
               <section className="space-y-2" aria-label={rail.title}>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-white md:text-base">{rail.title}</h2>
+                  <h2 className="text-lg font-semibold tracking-tight text-slate-100 md:text-xl">{rail.title}</h2>
                   {rail.headerAction}
                 </div>
                 <p className="text-xs text-neutral-400">Geen films gevonden voor deze selectie. Kies andere genres.</p>
@@ -739,7 +748,7 @@ export default function MovieGrid({
               type="button"
               onClick={onLoadMore}
               disabled={loadingMore}
-              className="rounded-full border border-white/20 bg-white/[0.08] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-white/[0.15] disabled:cursor-wait disabled:opacity-60"
+              className="rounded-full border border-blue-400/30 bg-blue-500/15 px-6 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 disabled:cursor-wait disabled:opacity-60"
             >
               {loadingMore ? 'Films ophalen…' : 'Laad meer films'}
             </button>
@@ -750,10 +759,10 @@ export default function MovieGrid({
   }
 
   return (
-    <section className="space-y-4">
+    <section className="min-w-0 space-y-5 rounded-2xl bg-[#070f1e] p-3 text-slate-100 sm:p-5 lg:p-6">
       {heading && (
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold tracking-wider text-white">{heading}</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-slate-100">{heading}</h2>
           <span className="text-xs text-neutral-100">{displayedMovies.length} films</span>
         </div>
       )}

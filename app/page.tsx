@@ -439,7 +439,7 @@ export default function Home() {
     });
   }, []);
 
-  // TMDB & Catalogus ophalen
+  // TMDB ophalen
   useEffect(() => {
     const query = searchQuery.trim();
     if (libraryView !== 'discover' && libraryView !== 'cinema') return;
@@ -584,18 +584,13 @@ export default function Home() {
     }
   };
 
-  const selectSpotlightMovie = (movie?: Movie | null) => {
-  if (!movie) {
-    setSpotlightMovieId(null);
-    setSelectedSpotlightMovie(null);
-    return;
-  }
-  setSpotlightMovieId(movie.id);
-  setSelectedSpotlightMovie(movie);
-  if (typeof window !== 'undefined') {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-};
+  const selectSpotlightMovie = (movie: Movie) => {
+    setSpotlightMovieId(movie.id);
+    setSelectedSpotlightMovie(movie);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   const filteredMovies = useMemo(() => {
     const watchedIds = new Set(library.watched.map((m) => m.id));
@@ -912,9 +907,7 @@ export default function Home() {
                 onToggleWatchlist={toggleWatchlist}
                 onToggleWatched={openMovieRating}
                 onSelectPerson={handleSelectPerson}
-                onSelectMovie={(m) => {
-                  if (m) selectSpotlightMovie(m);
-                }}
+                onSelectMovie={selectSpotlightMovie}
                 onFindMovie={() => {
                   const el = document.getElementById('film-catalog');
                   el?.scrollIntoView({ behavior: 'smooth' });

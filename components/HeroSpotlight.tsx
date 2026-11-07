@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import StreamingLogo from './StreamingLogo';
 import type { Movie } from './types';
 import { calculateMatchScore, getMatchColorBand, type MatchPreferences } from '../lib/recommendations/matchScore';
@@ -53,13 +54,18 @@ export default function HeroSpotlight({
   matchPreferences,
   onToggleWatchlist,
   onToggleWatched,
+
+  onSelectMovie,
   onSelectPerson,
 }: HeroSpotlightProps) {
+  const trailerButtonRef = useRef<HTMLButtonElement>(null);
+  const trailerDialogRef = useRef<HTMLDivElement>(null);
   const [tipIndex, setTipIndex] = useState(0);
   const [editorialMovies, setEditorialMovies] = useState<Record<number, Movie>>({});
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
   const [loadingTrailer, setLoadingTrailer] = useState(false);
   const [showTrailerModal, setShowTrailerModal] = useState(false);
+  const [userPausedTips, setUserPausedTips] = useState(false);
 
   useEffect(() => {
     const tipIds = MONTHLY_TIPS.map((tip) => tip.tmdbId);
@@ -83,23 +89,20 @@ export default function HeroSpotlight({
   }, []);
 
   useEffect(() => {
-    if (activeMovieProp || MONTHLY_TIPS.length <= 1) return;
+    if (activeMovieProp || userPausedTips || showTrailerModal || MONTHLY_TIPS.length <= 1) return;
 
     const interval = setInterval(() => {
       setTipIndex((current) => (current + 1) % MONTHLY_TIPS.length);
     }, 10_000);
 
     return () => clearInterval(interval);
-  }, [activeMovieProp]);
+  }, [activeMovieProp, userPausedTips, showTrailerModal]);
 
   const currentTipConfig = MONTHLY_TIPS[tipIndex % MONTHLY_TIPS.length];
-  const activeTipMovie = currentTipConfig
-    ? editorialMovies[currentTipConfig.tmdbId]
-    : undefined;
+  const activeTipMovie = currentTipConfig ? editorialMovies[currentTipConfig.tmdbId] : undefined;
 
   const isSelectedByUser = Boolean(activeMovieProp);
-  const displayedMovie: Movie | undefined =
-    activeMovieProp || activeTipMovie || allMovies[0];
+  const displayedMovie: Movie | undefined = activeMovieProp || activeTipMovie || allMovies[0];
 
   useEffect(() => {
     if (!displayedMovie?.id) {
@@ -108,6 +111,8 @@ export default function HeroSpotlight({
     }
 
     let isMounted = true;
+    setTrailerKey(null);
+    setShowTrailerModal(false);
     setLoadingTrailer(true);
 
     fetch(`/api/movies?trailerMovieId=${displayedMovie.id}`)
@@ -129,6 +134,30 @@ export default function HeroSpotlight({
     };
   }, [displayedMovie?.id]);
 
+  useEffect(() => {
+    if (!showTrailerModal) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    trailerDialogRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowTrailerModal(false);
+      if (event.key !== 'Tab') return;
+      const elements = trailerDialogRef.current?.querySelectorAll<HTMLElement>('button, iframe');
+      if (!elements?.length) return;
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onKeyDown);
+      (previousFocus || trailerButtonRef.current)?.focus();
+    };
+  }, [showTrailerModal]);
+
   if (!displayedMovie) return null;
 
   const isWatchlisted = Boolean(watchlistIds?.includes(displayedMovie.id));
@@ -145,9 +174,19 @@ export default function HeroSpotlight({
         },
         matchPreferences
       )
-    : displayedMovie.match_percentage || 88;
+    : displayedMovie.match_percentage ?? 88;
 
   const matchBand = getMatchColorBand(matchScore);
+
+  const handlePrevTip = () => {
+    setUserPausedTips(true);
+    setTipIndex((current) => (current === 0 ? MONTHLY_TIPS.length - 1 : current - 1));
+  };
+
+  const handleNextTip = () => {
+    setUserPausedTips(true);
+    setTipIndex((current) => (current + 1) % MONTHLY_TIPS.length);
+  };
 
   const backdropSrc = displayedMovie.backdrop_path
     ? `https://image.tmdb.org/t/p/original${displayedMovie.backdrop_path}`
@@ -157,37 +196,73 @@ export default function HeroSpotlight({
 
   return (
     <>
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-6 md:p-8 shadow-2xl">
+      <section aria-label="Film in de spotlight" className="fm-hero relative isolate overflow-hidden rounded-3xl border border-blue-200/15 bg-[#081426] p-6 text-white shadow-2xl shadow-black/30 sm:p-8 lg:p-12">
         {backdropSrc && (
-          <div className="pointer-events-none absolute inset-0 -z-0 opacity-20">
-            <img
+          <div className="pointer-events-none absolute inset-0 -z-10 opacity-70">
+            <Image
               src={backdropSrc}
               alt=""
-              className="h-full w-full object-cover object-center filter blur-[2px]"
+              fill
+              priority
+              unoptimized
+              className="object-cover object-[65%_center]"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/85 to-slate-950/50" />
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/90 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#081426] via-[#081426]/30 to-[#081426]/20" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#081426] via-[#081426]/90 to-[#081426]/10" />
           </div>
         )}
 
-        <div className="relative z-10 flex flex-col md:flex-row items-start gap-6 md:gap-8">
+        <div className="relative z-10 flex min-h-[480px] flex-col items-start gap-8 lg:min-h-[440px] lg:flex-row-reverse lg:items-center lg:gap-12">
           {/* Filmposter LINKS */}
           {displayedMovie.poster_path && (
-            <div className="shrink-0 w-36 sm:w-44 md:w-52 mx-auto md:mx-0">
-              <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-white/15 shadow-2xl bg-slate-900">
-                <img
+            <div className="hidden w-52 shrink-0 rotate-3 lg:block xl:w-60">
+              <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
+                <Image
                   src={`https://image.tmdb.org/t/p/w500${displayedMovie.poster_path}`}
                   alt={displayedMovie.title}
-                  className="h-full w-full object-cover"
+                  fill
+                  priority
+                  unoptimized
+                  className="object-cover"
                 />
               </div>
             </div>
           )}
 
           {/* Informatie en acties RECHTS */}
-          <div className="flex-1 space-y-3 min-w-0">
+          <div className="min-w-0 flex-1 space-y-5">
+            {/* Compacte bediening voor de maandtips */}
+            {!isSelectedByUser && (
+              <div className="inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-400/[0.08] py-1 pl-3 pr-1">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-200">
+                  <span aria-hidden="true">⭐</span>
+                  Tip van de maand
+                </span>
+                <span className="mx-1 h-3 w-px bg-amber-200/25" aria-hidden="true" />
+                <button
+                  type="button"
+                  onClick={handlePrevTip}
+                  aria-label="Vorige tip"
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold text-amber-100/75 transition hover:bg-white/10 hover:text-white"
+                >
+                  ‹
+                </button>
+                <span className="min-w-8 text-center text-[10px] font-semibold tabular-nums text-amber-100/80" aria-live="polite">
+                  {tipIndex + 1} / {MONTHLY_TIPS.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleNextTip}
+                  aria-label="Volgende tip"
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold text-amber-100/75 transition hover:bg-white/10 hover:text-white"
+                >
+                  ›
+                </button>
+              </div>
+            )}
+
             {/* Titel van de film */}
-            <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl">
+            <h1 className="max-w-3xl text-4xl font-black leading-[1.05] tracking-tight text-white sm:text-5xl xl:text-6xl">
               {displayedMovie.title}
             </h1>
 
@@ -197,33 +272,27 @@ export default function HeroSpotlight({
                 <span>{displayedMovie.release_date.split('-')[0]}</span>
               )}
               {displayedMovie.genres?.[0] && (
-                <span>
-                  {displayedMovie.release_date ? '• ' : ''}
-                  {displayedMovie.genres[0]}
-                </span>
+                <span>{displayedMovie.release_date ? '• ' : ''}{displayedMovie.genres[0]}</span>
               )}
               {displayedMovie.runtime && (
-                <span>
-                  {displayedMovie.release_date || displayedMovie.genres?.[0]
-                    ? '• '
-                    : ''}
-                  {displayedMovie.runtime}
-                </span>
+                <span>{displayedMovie.release_date || displayedMovie.genres?.[0] ? '• ' : ''}{displayedMovie.runtime}</span>
               )}
             </div>
 
-            {/* Korte uitleg bij de maandtip */}
-            {!isSelectedByUser &&
-              activeTipMovie &&
-              activeTipMovie.id === displayedMovie.id &&
-              currentTipConfig?.reason && (
-                <p className="max-w-3xl text-xs leading-relaxed text-neutral-400">
+            {/* Korte reden voor de maandtip */}
+            {!isSelectedByUser && activeTipMovie && activeTipMovie.id === displayedMovie.id && currentTipConfig?.reason && (
+              <div className="max-w-2xl rounded-xl border border-blue-200/15 bg-blue-300/[0.06] px-4 py-3">
+                <p className="text-xs leading-relaxed text-neutral-300">
+                  <span className="mr-2 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                    Waarom nu?
+                  </span>
                   {currentTipConfig.reason}
                 </p>
-              )}
+              </div>
+            )}
 
             {/* Synopsis */}
-            <p className="line-clamp-3 text-xs leading-relaxed text-neutral-300 sm:text-sm">
+            <p className="max-w-2xl text-sm leading-7 text-slate-200 sm:text-base">
               {displayedMovie.overview || 'Geen beschrijving beschikbaar.'}
             </p>
 
@@ -234,10 +303,8 @@ export default function HeroSpotlight({
                   <span className="text-neutral-400">Regie:</span>
                   <button
                     type="button"
-                    onClick={() =>
-                      onSelectPerson?.(displayedMovie.director!, 'Directing')
-                    }
-                    className="font-medium text-white hover:text-rose-300 underline underline-offset-2 transition"
+                    onClick={() => onSelectPerson?.(displayedMovie.director!, 'Directing')}
+                    className="font-medium text-white hover:text-sky-300 underline underline-offset-2 transition"
                   >
                     {displayedMovie.director}
                   </button>
@@ -252,7 +319,7 @@ export default function HeroSpotlight({
                       <button
                         type="button"
                         onClick={() => onSelectPerson?.(actor, 'Acting')}
-                        className="font-medium text-white hover:text-rose-300 underline underline-offset-2 transition"
+                        className="font-medium text-white hover:text-sky-300 underline underline-offset-2 transition"
                       >
                         {actor}
                       </button>
@@ -288,37 +355,39 @@ export default function HeroSpotlight({
                 </span>
               )}
 
-              {displayedMovie.providers &&
-                displayedMovie.providers.length > 0 && (
-                  <div className="flex items-center gap-1.5 pl-1">
-                    {displayedMovie.providers.slice(0, 4).map((provider) => (
-                      <StreamingLogo
-                        key={provider.provider_id}
-                        name={provider.provider_name}
-                        logoPath={provider.logo_path}
-                        className="h-7 w-7 rounded-lg"
-                      />
-                    ))}
-                  </div>
-                )}
+              {displayedMovie.providers && displayedMovie.providers.length > 0 && (
+                <div className="flex items-center gap-1.5 pl-1">
+                  {displayedMovie.providers.slice(0, 4).map((provider) => (
+                    <StreamingLogo
+                      key={provider.provider_id}
+                      name={provider.provider_name}
+                      logoPath={provider.logo_path}
+                      className="h-7 w-7 rounded-lg"
+                    />
+                  ))}
+                </div>
+              )}
             </div>
+
+            {isSelectedByUser && onSelectMovie && (
+              <button type="button" onClick={() => onSelectMovie(undefined)} className="text-xs font-semibold text-sky-200 hover:text-white">← Terug naar de maandtips</button>
+            )}
 
             {/* Knoppen */}
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
                 onClick={() => trailerKey && setShowTrailerModal(true)}
                 disabled={!trailerKey || loadingTrailer}
-                className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-rose-600/30 transition hover:bg-rose-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                ref={trailerButtonRef} type="button" className="inline-flex min-h-12 items-center gap-3 rounded-xl bg-blue-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/25 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span>▶</span>
-                <span>
-                  {loadingTrailer ? 'Trailer laden…' : 'Bekijk Trailer'}
-                </span>
+                <span>{loadingTrailer ? 'Trailer laden…' : 'Bekijk Trailer'}</span>
               </button>
 
               <button
+                type="button" aria-pressed={isWatchlisted}
                 onClick={() => onToggleWatchlist(displayedMovie)}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold transition border ${
+                className={`inline-flex items-center gap-1.5 rounded-xl min-h-12 px-4 py-3 text-sm font-bold transition border ${
                   isWatchlisted
                     ? 'bg-amber-400 text-slate-950 border-amber-300'
                     : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
@@ -329,8 +398,9 @@ export default function HeroSpotlight({
               </button>
 
               <button
+                type="button" aria-pressed={isWatched}
                 onClick={() => onToggleWatched(displayedMovie)}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold transition border ${
+                className={`inline-flex items-center gap-1.5 rounded-xl min-h-12 px-4 py-3 text-sm font-bold transition border ${
                   isWatched
                     ? 'bg-emerald-400 text-slate-950 border-emerald-300'
                     : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
@@ -344,14 +414,17 @@ export default function HeroSpotlight({
         </div>
       </section>
 
+      <style jsx>{`
+        .fm-hero :global(button:focus-visible) { outline: 2px solid #7dd3fc; outline-offset: 4px; }
+        .fm-hero :global(button) { touch-action: manipulation; }
+      `}</style>
+
       {/* Trailer Modal */}
       {showTrailerModal && trailerKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
-          <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black border border-white/20 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md" onClick={(event) => { if (event.target === event.currentTarget) setShowTrailerModal(false); }}>
+          <div ref={trailerDialogRef} role="dialog" aria-modal="true" aria-labelledby="fm-trailer-title" className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black border border-white/20 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-              <h3 className="text-sm font-bold text-white">
-                {displayedMovie.title} — Officiële Trailer
-              </h3>
+              <h3 id="fm-trailer-title" className="text-sm font-bold text-white">{displayedMovie.title} — Officiële Trailer</h3>
               <button
                 onClick={() => setShowTrailerModal(false)}
                 className="rounded-lg p-1 text-neutral-400 hover:text-white"

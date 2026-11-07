@@ -196,7 +196,7 @@ export default function HeroSpotlight({
 
   return (
     <>
-      <section aria-label="Film in de spotlight" className="fm-hero relative isolate overflow-hidden rounded-3xl border border-blue-200/15 bg-[#081426] p-6 text-white shadow-2xl shadow-black/30 sm:p-8 lg:p-12">
+      <section aria-label="Film in de spotlight" className="fm-hero relative isolate overflow-hidden rounded-3xl border border-blue-200/15 bg-[#081426] p-6 text-white shadow-2xl shadow-black/30 sm:p-7 lg:p-10">
         {backdropSrc && (
           <div className="pointer-events-none absolute inset-0 -z-10 opacity-70">
             <Image
@@ -212,10 +212,10 @@ export default function HeroSpotlight({
           </div>
         )}
 
-        <div className="relative z-10 flex min-h-[480px] flex-col items-start gap-8 lg:min-h-[440px] lg:flex-row-reverse lg:items-center lg:gap-12">
+        <div className="relative z-10 flex min-h-[440px] flex-col items-start gap-7 lg:min-h-[400px] lg:flex-row-reverse lg:items-center lg:gap-10">
           {/* Filmposter LINKS */}
           {displayedMovie.poster_path && (
-            <div className="hidden w-52 shrink-0 rotate-3 lg:block xl:w-60">
+            <div className="hidden w-48 shrink-0 rotate-3 lg:block xl:w-56">
               <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
                 <Image
                   src={`https://image.tmdb.org/t/p/w500${displayedMovie.poster_path}`}
@@ -230,7 +230,7 @@ export default function HeroSpotlight({
           )}
 
           {/* Informatie en acties RECHTS */}
-          <div className="min-w-0 flex-1 space-y-5">
+          <div className="min-w-0 flex-1 space-y-4">
             {/* Compacte bediening voor de maandtips */}
             {!isSelectedByUser && (
               <div className="inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-400/[0.08] py-1 pl-3 pr-1">
@@ -262,7 +262,7 @@ export default function HeroSpotlight({
             )}
 
             {/* Titel van de film */}
-            <h1 className="max-w-3xl text-4xl font-black leading-[1.05] tracking-tight text-white sm:text-5xl xl:text-6xl">
+            <h1 className="max-w-3xl text-[2.125rem] font-black leading-[1.05] tracking-tight text-white sm:text-[2.75rem] xl:text-[3.375rem]">
               {displayedMovie.title}
             </h1>
 

@@ -95,7 +95,6 @@ export default function TopNavigation({
   displayName,
   watchlistCount,
   selectedPlatforms,
-  minimumImdbRating,
   platforms,
   onNavigate,
   onSelectDiscoveryMode,
@@ -104,14 +103,12 @@ export default function TopNavigation({
   onOpenProfile,
   onLogout,
   onTogglePlatform,
-  onMinimumImdbRatingChange,
   onResetToHome,
   children,
 }: TopNavigationProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const menuId = useId();
-  const ratingId = useId();
 
   const menuButton = useRef<HTMLButtonElement>(null);
   const root = useRef<HTMLElement>(null);
@@ -125,7 +122,7 @@ export default function TopNavigation({
   };
 
   useEffect(() => {
-    const desktop = window.matchMedia('(min-width: 1380px)');
+    const desktop = window.matchMedia('(min-width: 1560px)');
 
     const closeOnDesktop = () => {
       if (desktop.matches) {
@@ -286,6 +283,34 @@ export default function TopNavigation({
 
           <div className="fm-search-slot">{children}</div>
 
+        <div
+          className="fm-platforms"
+          role="group"
+          aria-label="Mijn streamingdiensten"
+        >
+          {platforms.map((platform) => {
+            const active = selectedPlatforms.includes(
+              platform.name
+            );
+
+            return (
+              <button
+                key={platform.name}
+                type="button"
+                className="fm-platform"
+                aria-pressed={active}
+                aria-label={platform.name}
+                title={`${platform.name}: ${
+                  active ? 'ingeschakeld' : 'uitgeschakeld'
+                }`}
+                onClick={() => onTogglePlatform(platform.name)}
+              >
+                <PlatformLogo platform={platform} />
+              </button>
+            );
+          })}
+        </div>
+
           <div className="fm-account">
             <button
               type="button"
@@ -315,73 +340,7 @@ export default function TopNavigation({
         </div>
       </div>
 
-      <div className="fm-tools-row">
-        <div
-          className="fm-platforms"
-          role="group"
-          aria-label="Mijn streamingdiensten"
-        >
-          {platforms.map((platform) => {
-            const active = selectedPlatforms.includes(
-              platform.name
-            );
-
-            return (
-              <button
-                key={platform.name}
-                type="button"
-                className="fm-platform"
-                aria-pressed={active}
-                title={`${platform.name}: ${
-                  active ? 'ingeschakeld' : 'uitgeschakeld'
-                }`}
-                onClick={() => onTogglePlatform(platform.name)}
-              >
-                <PlatformLogo platform={platform} />
-
-                <span>{platform.name}</span>
-
-                <span
-                  className="fm-platform-state"
-                  aria-hidden="true"
-                >
-                  {active ? '✓' : '+'}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="fm-rating">
-          <label htmlFor={ratingId}>
-            Min. IMDb
-            <span>
-              {minimumImdbRating > 0
-                ? `${minimumImdbRating.toFixed(1)}+`
-                : 'Alles'}
-            </span>
-          </label>
-
-          <input
-            id={ratingId}
-            type="range"
-            min={0}
-            max={9}
-            step={0.5}
-            value={minimumImdbRating}
-            aria-valuetext={
-              minimumImdbRating > 0
-                ? `${minimumImdbRating.toFixed(1)} of hoger`
-                : 'Alle beoordelingen'
-            }
-            onChange={(event) =>
-              onMinimumImdbRatingChange(
-                Number(event.target.value)
-              )
-            }
-          />
-        </div>
-      </div>
     </header>
   );
 }
+

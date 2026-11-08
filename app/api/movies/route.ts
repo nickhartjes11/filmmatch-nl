@@ -70,60 +70,112 @@ async function fetchWithTimeout(
   }
 }
 
-async function getImdbRating(imdbId: string, apiKey: string): Promise<string | null> {
-  if (supabase) {
-    try {
-      const { data } = await supabase
-        .from('movie_imdb_cache')
-        .select('imdb_rating')
-        .eq('imdb_id', imdbId)
-        .maybeSingle();
+const IMDB_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
-      if (data?.imdb_rating) {
-        return Number(data.imdb_rating).toFixed(1);
-      }
-    } catch {
-      // Continue to OMDb if the cache is unavailable.
-    }
-  }
+function validImdbRating(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 && number <= 10
+    ? number.toFixed(1)
+    : null;
+}
 
+async function getImdbRating(
+  imdbId: string,
+  apiKey: string,
+  fallbackRating: unknown = null
+): Promise<string | null> {
   const pending = pendingImdbRatings.get(imdbId);
   if (pending) return pending;
 
   const request = (async () => {
+    let previousRating = validImdbRating(fallbackRating);
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('movie_imdb_cache')
+          .select('imdb_rating, imdb_fetched_at')
+          .eq('imdb_id', imdbId)
+          .maybeSingle();
+
+        if (!error && data) {
+          const cachedRating = validImdbRating(data.imdb_rating);
+          previousRating = cachedRating || previousRating;
+          const fetchedAt = Date.parse(data.imdb_fetched_at || '');
+          const age = Date.now() - fetchedAt;
+          if (cachedRating && Number.isFinite(age) && age >= 0 && age < IMDB_CACHE_MAX_AGE_MS) {
+            return cachedRating;
+          }
+        } else if (error) {
+          console.warn('IMDb-cache kon niet worden gelezen:', error.message);
+        }
+      } catch {
+        // Keep the last known rating available during database outages.
+      }
+    }
+
     try {
       const response = await fetchWithTimeout(
-        `https://www.omdbapi.com/?i=${imdbId}&apikey=${apiKey}`,
-        { next: { revalidate: 86400 } },
+        `https://www.omdbapi.com/?i=${encodeURIComponent(imdbId)}&apikey=${encodeURIComponent(apiKey)}`,
+        { cache: 'no-store' },
         2500
       );
-
-      if (!response.ok) return null;
-
+      if (!response.ok) return previousRating;
       const data = await response.json();
-      if (!data.imdbRating || data.imdbRating === 'N/A') return null;
+      const rating = data.Response === 'False' ? null : validImdbRating(data.imdbRating);
+      if (!rating) return previousRating;
 
-      const ratingString = String(data.imdbRating);
-      const ratingNumber = Number.parseFloat(ratingString);
-
-      if (supabase && Number.isFinite(ratingNumber)) {
-        void supabase
-          .from('movie_imdb_cache')
-          .upsert({ imdb_id: imdbId, imdb_rating: ratingNumber })
-          .then();
+      if (supabase) {
+        try {
+          const { error } = await supabase
+            .from('movie_imdb_cache')
+            .upsert({
+              imdb_id: imdbId,
+              imdb_rating: Number(rating),
+              imdb_fetched_at: new Date().toISOString(),
+            }, { onConflict: 'imdb_id' });
+          if (error) console.warn('IMDb-cache kon niet worden bijgewerkt:', error.message);
+        } catch {
+          console.warn('IMDb-cache kon niet worden bijgewerkt.');
+        }
       }
-
-      return ratingString;
+      return rating;
     } catch {
-      return null;
+      // A failed refresh never deletes the last known IMDb rating.
+      return previousRating;
     }
   })();
 
   pendingImdbRatings.set(imdbId, request);
-  const rating = await request;
-  pendingImdbRatings.delete(imdbId);
+  try {
+    return await request;
+  } finally {
+    pendingImdbRatings.delete(imdbId);
+  }
+}
 
-  return rating;
+async function refreshCachedMovieRating(movie: any, apiKey?: string) {
+  if (!movie.imdb_id || !apiKey) return movie;
+  const rating = await getImdbRating(
+    movie.imdb_id,
+    apiKey,
+    movie.rating_source === 'IMDb' ? movie.rating : null
+  );
+  if (!rating) return movie;
+
+  if (supabase && (String(movie.rating) !== rating || movie.rating_source !== 'IMDb')) {
+    try {
+      const { error } = await supabase
+        .from('cached_movies')
+        .update({ rating, rating_source: 'IMDb' })
+        .eq('imdb_id', movie.imdb_id);
+      // Do not change updated_at: this refresh says nothing about providers or metadata.
+      if (error) console.warn('Filmcijfer kon niet worden bijgewerkt:', error.message);
+    } catch {
+      console.warn('Filmcijfer kon niet worden bijgewerkt.');
+    }
+  }
+  return { ...movie, rating, rating_source: 'IMDb' };
 }
 
 export async function GET(request: Request) {
@@ -414,7 +466,10 @@ export async function GET(request: Request) {
         .map((id) => cachedMap.get(id))
         .filter((movie) => movie !== undefined && movie !== null);
 
-      return NextResponse.json({ movies: resultList });
+      const refreshedMovies = await Promise.all(
+        resultList.map((movie) => refreshCachedMovieRating(movie, omdbKey))
+      );
+      return NextResponse.json({ movies: refreshedMovies });
     }
 
     let rawMovies: any[] = [];
@@ -593,23 +648,8 @@ export async function GET(request: Request) {
         if (cachedMoviesMap.has(movie.id)) {
           const cachedMovie = cachedMoviesMap.get(movie.id);
 
-          if (
-            sortBy === 'imdbCandidates' &&
-            cachedMovie?.rating_source !== 'IMDb' &&
-            cachedMovie?.imdb_id &&
-            omdbKey
-          ) {
-            const imdbRating = await getImdbRating(cachedMovie.imdb_id, omdbKey);
-
-            return {
-              ...cachedMovie,
-              title: movie.title || cachedMovie.title,
-              rating: imdbRating,
-              rating_source: imdbRating ? 'IMDb' : null,
-            };
-          }
-
-          return { ...cachedMovie, title: movie.title || cachedMovie.title };
+          const refreshedMovie = await refreshCachedMovieRating(cachedMovie, omdbKey);
+          return { ...refreshedMovie, title: movie.title || refreshedMovie.title };
         }
 
         try {

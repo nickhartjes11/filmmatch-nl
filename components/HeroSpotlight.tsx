@@ -207,9 +207,9 @@ export default function HeroSpotlight({
 
   return (
     <>
-      <section aria-label="Film in de spotlight" className="fm-hero relative isolate overflow-hidden rounded-3xl border border-blue-200/15 bg-[#081426] p-5 text-white shadow-2xl shadow-black/30 sm:p-6 lg:p-8">
+      <section aria-label="Film in de spotlight" className="fm-hero relative isolate overflow-hidden rounded-3xl border border-blue-200/15 bg-[#274c6b] p-5 text-white shadow-2xl shadow-black/30 sm:p-6 lg:p-8">
         {backdropSrc && (
-          <div className="pointer-events-none absolute inset-0 -z-10 opacity-70">
+          <div className="pointer-events-none absolute inset-0 -z-10 opacity-90">
             <Image
               src={backdropSrc}
               alt=""
@@ -218,16 +218,16 @@ export default function HeroSpotlight({
               unoptimized
               className="object-cover object-[65%_center]"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#081426] via-[#081426]/30 to-[#081426]/20" />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#081426] via-[#081426]/90 to-[#081426]/10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#244967]/70 via-[#244967]/10 to-[#244967]/5" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#274c6b] via-[#274c6b]/85 to-[#274c6b]/10" />
           </div>
         )}
 
         {!isSelectedByUser && (
           <div className="relative z-10 mb-4 flex items-center justify-end gap-2" role="group" aria-label="Maandtips bladeren">
-            <p className="mr-auto text-[10px] font-medium text-slate-400">Filmtips van {tipMonth}</p>
+            <p className="mr-auto text-[10px] font-medium text-sky-100/80">Filmtips van {tipMonth}</p>
             <button type="button" onClick={handlePrevTip} aria-label="Vorige tip" className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-300 transition hover:bg-white/10 hover:text-white">‹</button>
-            <span className="min-w-10 text-center text-xs tabular-nums text-slate-400" aria-live="polite">{tipIndex + 1} / {MONTHLY_TIPS.length}</span>
+            <span className="min-w-10 text-center text-xs tabular-nums text-sky-100/80" aria-live="polite">{tipIndex + 1} / {MONTHLY_TIPS.length}</span>
             <button type="button" onClick={handleNextTip} aria-label="Volgende tip" className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-300 transition hover:bg-white/10 hover:text-white">›</button>
           </div>
         )}
@@ -259,7 +259,7 @@ export default function HeroSpotlight({
             </h1>
 
             {/* Filminformatie */}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-400">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-sky-100/80">
               {displayedMovie.release_date && (
                 <span>{displayedMovie.release_date.split('-')[0]}</span>
               )}
@@ -276,7 +276,7 @@ export default function HeroSpotlight({
             {/* Korte reden voor de maandtip */}
             {!isSelectedByUser && activeTipMovie && activeTipMovie.id === displayedMovie.id && currentTipConfig?.reason && (
               <div className="max-w-2xl space-y-1">
-                <p className="text-base font-bold leading-snug text-rose-300">{currentTipConfig.headline}</p>
+                <p className="text-base font-bold leading-snug text-rose-200">{currentTipConfig.headline}</p>
                 <p className="text-sm leading-6 text-rose-100/85">{currentTipConfig.reason}</p>
               </div>
             )}
@@ -290,7 +290,7 @@ export default function HeroSpotlight({
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs pt-0.5">
               {displayedMovie.director && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-neutral-400">Regie:</span>
+                  <span className="text-sky-100/80">Regie:</span>
                   <button
                     type="button"
                     onClick={() => onSelectPerson?.(displayedMovie.director!, 'Directing')}
@@ -303,7 +303,7 @@ export default function HeroSpotlight({
 
               {displayedMovie.cast && displayedMovie.cast.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-neutral-400">Cast:</span>
+                  <span className="text-sky-100/80">Cast:</span>
                   {displayedMovie.cast.slice(0, 4).map((actor, idx) => (
                     <span key={actor} className="inline-flex items-center">
                       <button
@@ -314,7 +314,7 @@ export default function HeroSpotlight({
                         {actor}
                       </button>
                       {idx < Math.min(displayedMovie.cast!.length, 4) - 1 && (
-                        <span className="text-neutral-400 ml-1">,</span>
+                        <span className="text-sky-100/80 ml-1">,</span>
                       )}
                     </span>
                   ))}
@@ -337,7 +337,7 @@ export default function HeroSpotlight({
               </span>
 
               {displayedMovie.rating && (
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-xs font-bold text-white border border-white/10 backdrop-blur-md">
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#173553]/85 px-2.5 py-1 text-xs font-bold text-white border border-white/10 backdrop-blur-md">
                   <span className="rounded bg-[#f5c518] px-1 text-[9px] font-black text-black">
                     {displayedMovie.rating_source || 'IMDb'}
                   </span>
@@ -368,7 +368,7 @@ export default function HeroSpotlight({
               <button
                 onClick={() => trailerKey && setShowTrailerModal(true)}
                 disabled={!trailerKey || loadingTrailer}
-                ref={trailerButtonRef} type="button" className="inline-flex min-h-12 items-center gap-3 rounded-xl bg-blue-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/25 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+                ref={trailerButtonRef} type="button" className="inline-flex min-h-12 items-center gap-3 rounded-xl bg-rose-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-rose-950/20 transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span>▶</span>
                 <span>{loadingTrailer ? 'Trailer laden…' : 'Bekijk Trailer'}</span>
@@ -380,7 +380,7 @@ export default function HeroSpotlight({
                 className={`inline-flex items-center gap-1.5 rounded-xl min-h-12 px-4 py-3 text-sm font-bold transition border ${
                   isWatchlisted
                     ? 'bg-amber-400 text-slate-950 border-amber-300'
-                    : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
+                    : 'bg-sky-300/15 text-white border-sky-200/30 hover:bg-sky-300/25'
                 }`}
               >
                 <span>{isWatchlisted ? '✓' : '+'}</span>
@@ -393,7 +393,7 @@ export default function HeroSpotlight({
                 className={`inline-flex items-center gap-1.5 rounded-xl min-h-12 px-4 py-3 text-sm font-bold transition border ${
                   isWatched
                     ? 'bg-emerald-400 text-slate-950 border-emerald-300'
-                    : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
+                    : 'bg-sky-300/15 text-white border-sky-200/30 hover:bg-sky-300/25'
                 }`}
               >
                 <span>✓</span>
@@ -435,7 +435,7 @@ export default function HeroSpotlight({
               <h3 id="fm-trailer-title" className="text-sm font-bold text-white">{displayedMovie.title} — Officiële Trailer</h3>
               <button
                 onClick={() => setShowTrailerModal(false)}
-                className="rounded-lg p-1 text-neutral-400 hover:text-white"
+                className="rounded-lg p-1 text-sky-100/80 hover:text-white"
                 aria-label="Sluit trailer"
               >
                 ✕
@@ -456,6 +456,7 @@ export default function HeroSpotlight({
     </>
   );
 }
+
 
 
 

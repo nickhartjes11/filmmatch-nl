@@ -746,7 +746,7 @@ export default function MovieGrid({
   }
 
   return (
-    <section className="min-w-0 space-y-5 rounded-2xl bg-[#070f1e] p-3 text-slate-100 sm:p-5 lg:p-6">
+    <section className="min-w-0 space-y-4 text-slate-100">
       {heading && (
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold tracking-tight text-slate-100">{heading}</h2>
@@ -776,4 +776,5 @@ export default function MovieGrid({
     </section>
   );
 }
+
 

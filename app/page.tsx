@@ -868,7 +868,7 @@ export default function Home() {
       </TopNavigation>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <main className="dashboard-content flex-1 p-4 md:p-8 space-y-8 overflow-y-auto">
+        <main className="dashboard-content flex-1 p-4 md:p-8 space-y-6 overflow-y-auto">
           {currentView === 'profile' ? (
             <ProfileView
               displayName={displayName}
@@ -1003,20 +1003,26 @@ export default function Home() {
                     />
                   )}
 
+                  <div className="min-w-0 space-y-4">
                   {(libraryView === 'watchlist' || libraryView === 'watched' || libraryView === 'cinema') && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 pb-2 pt-2 border-b border-white/[0.08]">
-                      <span className="text-xs font-semibold text-neutral-400">
-                        {libraryView === 'watchlist' ? `${library.watchlist.length} films in je watchlist` : libraryView === 'watched' ? `${library.watched.length} films gezien` : `${visibleMovies.length} actuele bioscoopfilms`}
-                      </span>
-                      <div className="flex items-center gap-1.5 bg-neutral-900/90 p-1 rounded-xl border border-white/10 shadow-lg">
-                        <button type="button" onClick={() => setLibrarySort('default')} className={`px-3 py-1.5 text-xs rounded-lg font-medium transition ${librarySort === 'default' ? 'bg-white/15 text-white font-bold' : 'text-neutral-400 hover:text-white'}`}>
-                          {libraryView === 'cinema' ? 'Populair in de zaal' : 'Recent toegevoegd'}
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                      <div className="flex items-baseline gap-2.5">
+                        <h2 className="text-lg font-bold tracking-tight text-slate-100">
+                          {libraryView === 'watchlist' ? 'Watchlist' : libraryView === 'watched' ? 'Gezien' : 'In de bioscoop'}
+                        </h2>
+                        <span className="text-xs text-slate-400">
+                          {libraryView === 'watchlist' ? library.watchlist.length : libraryView === 'watched' ? library.watched.length : visibleMovies.length} films
+                        </span>
+                      </div>
+                      <div className="flex max-w-full flex-wrap items-center gap-1" role="group" aria-label="Films sorteren">
+                        <button type="button" onClick={() => setLibrarySort('default')} aria-pressed={librarySort === 'default'} className={`rounded-full px-3 py-2 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 ${librarySort === 'default' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+                          {libraryView === 'cinema' ? 'Populair' : 'Recent'}
                         </button>
-                        <button type="button" onClick={() => setLibrarySort('rating')} className={`px-3 py-1.5 text-xs rounded-lg font-medium transition ${librarySort === 'rating' ? 'bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30' : 'text-neutral-400 hover:text-white'}`}>
-                          ★ Hoogste cijfer
+                        <button type="button" onClick={() => setLibrarySort('rating')} aria-pressed={librarySort === 'rating'} className={`rounded-full px-3 py-2 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 ${librarySort === 'rating' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+                          Hoogste cijfer
                         </button>
-                        <button type="button" onClick={() => setLibrarySort('match')} className={`px-3 py-1.5 text-xs rounded-lg font-medium transition ${librarySort === 'match' ? 'bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30' : 'text-neutral-400 hover:text-white'}`}>
-                          ⚡ Hoogste match
+                        <button type="button" onClick={() => setLibrarySort('match')} aria-pressed={librarySort === 'match'} className={`rounded-full px-3 py-2 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 ${librarySort === 'match' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+                          Beste match
                         </button>
                       </div>
                     </div>
@@ -1050,6 +1056,7 @@ export default function Home() {
                     onToggleWatched={openMovieRating}
                     onSelectPerson={handleSelectPerson}
                   />
+                  </div>
                 </>
               )}
             </>

@@ -187,14 +187,11 @@ export async function GET(request: Request) {
   const similarToParam = searchParams.get('similarTo');
   const similarToId = similarToParam ? Number.parseInt(similarToParam, 10) : null;
   const nowPlaying = searchParams.get('nowPlaying') === 'true';
-  const topRated = searchParams.get('topRated') === 'true';
   const sortBy = searchParams.get('sortBy');
-
-  // Als topRated of sortBy='imdbCandidates' actief is, filter op hoge stemmen en scores
-  const isTopQualityQuery = topRated || sortBy === 'imdbCandidates';
-  const discoverySortQuery = isTopQualityQuery
-    ? 'vote_average.desc&vote_count.gte=800&vote_average.gte=7.8'
-    : 'popularity.desc';
+  const discoverySortQuery =
+    sortBy === 'imdbCandidates'
+      ? 'vote_average.desc&vote_count.gte=200'
+      : 'popularity.desc';
 
   const providersParam = searchParams.get('providers');
   const selectedProviderNames = providersParam
@@ -307,7 +304,7 @@ export async function GET(request: Request) {
             }
           });
         } catch {
-          // Continue with TMDb if database cache is unavailable.
+          // Continue with TMDb if the database cache is unavailable.
         }
       }
 
@@ -597,7 +594,7 @@ export async function GET(request: Request) {
           const cachedMovie = cachedMoviesMap.get(movie.id);
 
           if (
-            isTopQualityQuery &&
+            sortBy === 'imdbCandidates' &&
             cachedMovie?.rating_source !== 'IMDb' &&
             cachedMovie?.imdb_id &&
             omdbKey
@@ -745,7 +742,7 @@ export async function GET(request: Request) {
       })
     );
 
-    let finalMovies = nowPlaying
+    const finalMovies = nowPlaying
       ? enrichedMovies
       : enrichedMovies.filter((movie) => {
           if (!selectedProviderNames || selectedProviderNames.size === 0) {
@@ -756,16 +753,6 @@ export async function GET(request: Request) {
             selectedProviderNames.has(provider.provider_name)
           );
         });
-
-    // Als topRated actief is: uitsluitend echte IMDb scores van minimaal 7.8/8.0 en aflopend gesorteerd
-    if (topRated) {
-      finalMovies = finalMovies
-        .filter((m) => {
-          const score = Number.parseFloat(m.rating || '0');
-          return score >= 7.8;
-        })
-        .sort((a, b) => Number.parseFloat(b.rating || '0') - Number.parseFloat(a.rating || '0'));
-    }
 
     return NextResponse.json({
       page: Number(page),

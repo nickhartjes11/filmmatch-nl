@@ -313,13 +313,14 @@ export default function TopNavigation({
                 type="button"
                 className="fm-platform"
                 aria-pressed={active}
-                aria-label={platform.name}
+                aria-label={`${platform.name}: ${active ? 'ingeschakeld' : 'uitgeschakeld'}`}
                 title={`${platform.name}: ${
                   active ? 'ingeschakeld' : 'uitgeschakeld'
                 }`}
                 onClick={() => onTogglePlatform(platform.name)}
               >
                 <PlatformLogo platform={platform} />
+                <span className="fm-platform-indicator" aria-hidden="true">{active ? '✓' : '−'}</span>
               </button>
             );
           })}
@@ -357,5 +358,6 @@ export default function TopNavigation({
     </header>
   );
 }
+
 
 

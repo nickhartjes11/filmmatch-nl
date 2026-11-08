@@ -107,6 +107,11 @@ export default function HeroSpotlight({
   const currentTipConfig = MONTHLY_TIPS[tipIndex % MONTHLY_TIPS.length];
   const activeTipMovie = currentTipConfig ? editorialMovies[currentTipConfig.tmdbId] : undefined;
 
+  const tipMonth = new Intl.DateTimeFormat('nl-NL', {
+    month: 'long',
+    timeZone: 'Europe/Amsterdam',
+  }).format(new Date());
+
   const isSelectedByUser = Boolean(activeMovieProp);
   const displayedMovie: Movie | undefined = activeMovieProp || activeTipMovie || allMovies[0];
 
@@ -245,6 +250,11 @@ export default function HeroSpotlight({
           {/* Informatie en acties RECHTS */}
           <div className="fm-hero-info min-w-0">
             <div className="fm-hero-heading space-y-3">
+              {!isSelectedByUser && (
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Filmtips van {tipMonth}
+                </p>
+              )}
 
 
             {/* Titel van de film */}
@@ -450,6 +460,7 @@ export default function HeroSpotlight({
     </>
   );
 }
+
 
 
 

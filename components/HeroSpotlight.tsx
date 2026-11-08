@@ -212,10 +212,17 @@ export default function HeroSpotlight({
           </div>
         )}
 
-        <div className="relative z-10 flex min-h-[352px] flex-col items-start gap-5 lg:min-h-[320px] lg:flex-row-reverse lg:items-center lg:gap-8">
+        {!isSelectedByUser && (
+          <div className="relative z-10 mb-4 flex items-center justify-end gap-2" role="group" aria-label="Maandtips bladeren">
+            <button type="button" onClick={handlePrevTip} aria-label="Vorige tip" className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-300 transition hover:bg-white/10 hover:text-white">‹</button>
+            <span className="min-w-10 text-center text-xs tabular-nums text-slate-400" aria-live="polite">{tipIndex + 1} / {MONTHLY_TIPS.length}</span>
+            <button type="button" onClick={handleNextTip} aria-label="Volgende tip" className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-300 transition hover:bg-white/10 hover:text-white">›</button>
+          </div>
+        )}
+        <div className="fm-hero-layout relative z-10" data-poster={Boolean(displayedMovie.poster_path)}>
           {/* Filmposter LINKS */}
           {displayedMovie.poster_path && (
-            <div className="hidden w-40 shrink-0 rotate-3 lg:block xl:w-44">
+            <div className="fm-hero-poster w-full">
               <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
                 <Image
                   src={`https://image.tmdb.org/t/p/w500${displayedMovie.poster_path}`}
@@ -230,36 +237,9 @@ export default function HeroSpotlight({
           )}
 
           {/* Informatie en acties RECHTS */}
-          <div className="min-w-0 flex-1 space-y-3">
-            {/* Compacte bediening voor de maandtips */}
-            {!isSelectedByUser && (
-              <div className="inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-400/[0.08] py-1 pl-3 pr-1">
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-200">
-                  <span aria-hidden="true">⭐</span>
-                  Tip van de maand
-                </span>
-                <span className="mx-1 h-3 w-px bg-amber-200/25" aria-hidden="true" />
-                <button
-                  type="button"
-                  onClick={handlePrevTip}
-                  aria-label="Vorige tip"
-                  className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold text-amber-100/75 transition hover:bg-white/10 hover:text-white"
-                >
-                  ‹
-                </button>
-                <span className="min-w-8 text-center text-[10px] font-semibold tabular-nums text-amber-100/80" aria-live="polite">
-                  {tipIndex + 1} / {MONTHLY_TIPS.length}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleNextTip}
-                  aria-label="Volgende tip"
-                  className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold text-amber-100/75 transition hover:bg-white/10 hover:text-white"
-                >
-                  ›
-                </button>
-              </div>
-            )}
+          <div className="fm-hero-info min-w-0">
+            <div className="fm-hero-heading space-y-3">
+              {!isSelectedByUser && <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Onze maandtip</p>}
 
             {/* Titel van de film */}
             <h1 className="max-w-3xl text-[1.875rem] font-black leading-[1.05] tracking-tight text-white sm:text-[2.25rem] xl:text-[2.75rem]">
@@ -279,16 +259,11 @@ export default function HeroSpotlight({
               )}
             </div>
 
+            </div>
+
             {/* Korte reden voor de maandtip */}
             {!isSelectedByUser && activeTipMovie && activeTipMovie.id === displayedMovie.id && currentTipConfig?.reason && (
-              <div className="max-w-2xl rounded-xl border border-blue-200/15 bg-blue-300/[0.06] px-4 py-3">
-                <p className="text-xs leading-relaxed text-neutral-300">
-                  <span className="mr-2 text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                    Waarom nu?
-                  </span>
-                  {currentTipConfig.reason}
-                </p>
-              </div>
+              <p className="max-w-2xl text-sm italic leading-6 text-sky-100/80">{currentTipConfig.reason}</p>
             )}
 
             {/* Synopsis */}
@@ -415,6 +390,24 @@ export default function HeroSpotlight({
       </section>
 
       <style jsx>{`
+        .fm-hero-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 16px; }
+        .fm-hero-layout[data-poster="true"] { grid-template-columns: 80px minmax(0, 1fr); }
+        .fm-hero-poster { grid-column: 1; grid-row: 1; }
+        .fm-hero-info { display: contents; }
+        .fm-hero-info > :global(*) { grid-column: 1 / -1; }
+        .fm-hero-layout[data-poster="true"] .fm-hero-heading { grid-column: 2; grid-row: 1; align-self: center; }
+        @media (min-width: 640px) {
+          .fm-hero-layout[data-poster="true"] { grid-template-columns: 112px minmax(0, 1fr); gap: 20px; }
+        }
+        @media (min-width: 1024px) {
+          .fm-hero-layout { min-height: 330px; gap: 32px; align-items: center; }
+          .fm-hero-layout[data-poster="true"] { grid-template-columns: 220px minmax(0, 1fr); gap: 32px; }
+          .fm-hero-info { display: block; }
+          .fm-hero-info > :global(* + *) { margin-top: 12px; }
+        }
+        @media (min-width: 1280px) {
+          .fm-hero-layout[data-poster="true"] { grid-template-columns: 240px minmax(0, 1fr); }
+        }
         .fm-hero :global(button:focus-visible) { outline: 2px solid #7dd3fc; outline-offset: 4px; }
         .fm-hero :global(button) { touch-action: manipulation; }
       `}</style>
@@ -448,3 +441,4 @@ export default function HeroSpotlight({
     </>
   );
 }
+

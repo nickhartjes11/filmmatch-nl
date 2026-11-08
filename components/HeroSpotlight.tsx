@@ -239,7 +239,7 @@ export default function HeroSpotlight({
           {/* Informatie en acties RECHTS */}
           <div className="fm-hero-info min-w-0">
             <div className="fm-hero-heading space-y-3">
-              {!isSelectedByUser && <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Onze maandtip</p>}
+
 
             {/* Titel van de film */}
             <h1 className="max-w-3xl text-[1.875rem] font-black leading-[1.05] tracking-tight text-white sm:text-[2.25rem] xl:text-[2.75rem]">
@@ -263,7 +263,7 @@ export default function HeroSpotlight({
 
             {/* Korte reden voor de maandtip */}
             {!isSelectedByUser && activeTipMovie && activeTipMovie.id === displayedMovie.id && currentTipConfig?.reason && (
-              <p className="max-w-2xl text-sm italic leading-6 text-sky-100/80">{currentTipConfig.reason}</p>
+              <p className="max-w-2xl text-sm font-semibold leading-6 text-rose-300">{currentTipConfig.reason}</p>
             )}
 
             {/* Synopsis */}
@@ -441,4 +441,5 @@ export default function HeroSpotlight({
     </>
   );
 }
+
 

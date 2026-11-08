@@ -8,29 +8,35 @@ import { calculateMatchScore, getMatchColorBand, type MatchPreferences } from '.
 
 export interface EditorialTip {
   tmdbId: number;
+  headline: string;
   reason: string;
 }
 
 export const MONTHLY_TIPS: EditorialTip[] = [
   {
     tmdbId: 671, // Harry Potter and the Philosopher's Stone
-    reason: 'Met de nieuwe HBO-serie in aantocht is dit een mooi moment om terug te gaan naar Hogwarts.',
+    headline: 'Deze kerst verschijnt de nieuwe Harry Potter-serie op HBO Max.',
+    reason: 'Kijk de eerste film opnieuw en beleef het originele begin voordat je aan de serie begint.',
   },
   {
     tmdbId: 299534, // Avengers: Endgame
-    reason: 'Herbeleef de ultieme Marvel-climax voordat je aan het volgende hoofdstuk begint.',
+    headline: 'In december verschijnt Avengers: Doomsday in de bioscoop.',
+    reason: 'Kom alvast in de Marvel-sfeer en beleef Endgame opnieuw voordat het nieuwe avontuur begint.',
   },
   {
     tmdbId: 438631, // Dune (Part One)
-    reason: 'Begin bij het eerste deel voor Villeneuves indrukwekkende wereld en cinematografie.',
+    headline: 'In december verschijnt Dune: Part Three in de bioscoop.',
+    reason: 'Kijk nu het eerste deel en fris je geheugen op voor het nieuwe hoofdstuk.',
   },
   {
     tmdbId: 693134, // Dune: Part Two
-    reason: 'Een visueel verbluffend vervolg dat Arrakis nog grootser maakt.',
+    headline: 'Binnenkort verder met Dune: Part Three?',
+    reason: 'Kijk eerst deel twee opnieuw, zodat je het verhaal weer scherp hebt voordat je naar de bioscoop gaat.',
   },
   {
-    tmdbId: 157336, // Interstellar
-    reason: 'Een tijdloos sci-fi-epos over liefde, zwarte gaten en tijd.',
+    tmdbId: 771, // Home Alone
+    headline: 'Al zin in kerst?',
+    reason: 'Begin de voorpret met Home Alone: een huis vol kerstversiering, twee onhandige inbrekers en Kevin die ze te slim af is.',
   },
 ];
 
@@ -263,7 +269,10 @@ export default function HeroSpotlight({
 
             {/* Korte reden voor de maandtip */}
             {!isSelectedByUser && activeTipMovie && activeTipMovie.id === displayedMovie.id && currentTipConfig?.reason && (
-              <p className="max-w-2xl text-sm font-semibold leading-6 text-rose-300">{currentTipConfig.reason}</p>
+              <div className="max-w-2xl space-y-1">
+                <p className="text-base font-bold leading-snug text-rose-300">{currentTipConfig.headline}</p>
+                <p className="text-sm leading-6 text-rose-100/85">{currentTipConfig.reason}</p>
+              </div>
             )}
 
             {/* Synopsis */}
@@ -441,5 +450,7 @@ export default function HeroSpotlight({
     </>
   );
 }
+
+
 
 

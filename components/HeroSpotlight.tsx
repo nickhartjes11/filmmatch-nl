@@ -209,7 +209,7 @@ export default function HeroSpotlight({
     <>
       <section aria-label="Film in de spotlight" className="fm-hero relative isolate overflow-hidden rounded-3xl border border-blue-200/15 bg-[#274c6b] p-5 text-white shadow-2xl shadow-black/30 sm:p-6 lg:p-8">
         {backdropSrc && (
-          <div className="pointer-events-none absolute inset-0 -z-10 opacity-90">
+          <div className="fm-hero-backdrop pointer-events-none absolute inset-0 -z-10 opacity-90">
             <Image
               src={backdropSrc}
               alt=""
@@ -231,7 +231,7 @@ export default function HeroSpotlight({
             <button type="button" onClick={handleNextTip} aria-label="Volgende tip" className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-300 transition hover:bg-white/10 hover:text-white">›</button>
           </div>
         )}
-        <div className="fm-hero-layout relative z-10" data-poster={Boolean(displayedMovie.poster_path)}>
+        <div className="fm-hero-layout relative z-10" data-poster={Boolean(displayedMovie.poster_path)} data-still={Boolean(displayedMovie.backdrop_path)}>
           {/* Filmposter LINKS */}
           {displayedMovie.poster_path && (
             <div className="fm-hero-poster w-full">
@@ -401,6 +401,18 @@ export default function HeroSpotlight({
               </button>
             </div>
           </div>
+          {displayedMovie.backdrop_path && (
+            <div className="fm-hero-still pointer-events-none relative isolate overflow-hidden rounded-2xl" aria-hidden="true">
+              <Image
+                src={`https://image.tmdb.org/t/p/original${displayedMovie.backdrop_path}`}
+                alt=""
+                fill
+                unoptimized
+                sizes="(min-width: 1440px) 35vw, 1px"
+                className="object-cover object-center"
+              />
+            </div>
+          )}
         </div>
       </section>
 
@@ -422,6 +434,13 @@ export default function HeroSpotlight({
         }
         @media (min-width: 1280px) {
           .fm-hero-layout[data-poster="true"] { grid-template-columns: 240px minmax(0, 1fr); }
+        }
+        .fm-hero-still { display: none; }
+        @media (min-width: 1440px) {
+          .fm-hero-layout[data-still="true"] { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+          .fm-hero-layout[data-still="true"][data-poster="true"] { grid-template-columns: 220px minmax(0, 1.2fr) minmax(0, 1fr); }
+          .fm-hero-still { display: block; align-self: stretch; min-height: 330px; }
+          .fm-hero:has(.fm-hero-still) .fm-hero-backdrop { opacity: .15; }
         }
         .fm-hero :global(button:focus-visible) { outline: 2px solid #7dd3fc; outline-offset: 4px; }
         .fm-hero :global(button) { touch-action: manipulation; }
@@ -456,10 +475,3 @@ export default function HeroSpotlight({
     </>
   );
 }
-
-
-
-
-
-
-

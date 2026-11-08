@@ -7,6 +7,33 @@ import StreamingLogo from './StreamingLogo';
 import type { DiscoveryMode, LibraryView, Movie } from './types';
 import { calculateMatchScore, type MatchPreferences } from '../lib/recommendations/matchScore';
 
+// Standard theatrical runtimes for the curated monthly tips, used only
+// when the movie metadata does not include a usable runtime.
+const MONTHLY_RUNTIME_MINUTES: Record<number, number> = {
+  671: 152,
+  299534: 181,
+  438631: 155,
+  693134: 167,
+  771: 103,
+};
+
+function formatFilmRuntime(runtime: unknown, movieId: number): string | null {
+  let minutes: number | undefined;
+  if (typeof runtime === 'number' && Number.isFinite(runtime) && runtime > 0) {
+    minutes = runtime;
+  } else if (typeof runtime === 'string') {
+    const value = runtime.trim();
+    const plain = value.match(/^(\d+)\s*(?:m|min|mins|minuten|minutes)?$/i);
+    const hours = value.match(/^(\d+)\s*(?:h|u|uur)\s*(?:(\d+)\s*(?:m|min|minuten)?)?$/i);
+    if (plain) minutes = Number(plain[1]);
+    else if (hours) minutes = Number(hours[1]) * 60 + Number(hours[2] || 0);
+  }
+  if (!minutes || !Number.isFinite(minutes) || minutes <= 0) {
+    minutes = MONTHLY_RUNTIME_MINUTES[movieId];
+  }
+  return minutes ? `${Math.round(minutes)} min` : null;
+}
+
 interface MovieGridProps {
   movies: Movie[];
   libraryView: LibraryView;
@@ -174,7 +201,7 @@ function MovieCard({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 space-y-2 p-3 sm:p-3.5">
         <h3 className="line-clamp-2 text-sm font-bold leading-snug text-white drop-shadow-md" title={movie.title}>{movie.title}</h3>
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-300">
-          <span>{[movie.release_date?.split('-')[0], movie.genres?.[0] || 'Film'].filter(Boolean).join(' · ')}</span>
+          <span>{[movie.release_date?.split('-')[0], movie.genres?.[0] || 'Film', formatFilmRuntime(movie.runtime, movie.id)].filter(Boolean).join(' · ')}</span>
           <RatingBadge rating={movie.rating} source={movie.rating_source} />
         </div>
         <div className="flex min-h-5 flex-wrap items-center gap-1.5">
@@ -776,6 +803,4 @@ export default function MovieGrid({
     </section>
   );
 }
-
-
 

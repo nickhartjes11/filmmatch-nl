@@ -6,6 +6,33 @@ import StreamingLogo from './StreamingLogo';
 import type { Movie } from './types';
 import { calculateMatchScore, getMatchColorBand, type MatchPreferences } from '../lib/recommendations/matchScore';
 
+// Standard theatrical runtimes for the curated monthly tips, used only
+// when the movie metadata does not include a usable runtime.
+const MONTHLY_RUNTIME_MINUTES: Record<number, number> = {
+  671: 152,
+  299534: 181,
+  438631: 155,
+  693134: 167,
+  771: 103,
+};
+
+function formatFilmRuntime(runtime: unknown, movieId: number): string | null {
+  let minutes: number | undefined;
+  if (typeof runtime === 'number' && Number.isFinite(runtime) && runtime > 0) {
+    minutes = runtime;
+  } else if (typeof runtime === 'string') {
+    const value = runtime.trim();
+    const plain = value.match(/^(\d+)\s*(?:m|min|mins|minuten|minutes)?$/i);
+    const hours = value.match(/^(\d+)\s*(?:h|u|uur)\s*(?:(\d+)\s*(?:m|min|minuten)?)?$/i);
+    if (plain) minutes = Number(plain[1]);
+    else if (hours) minutes = Number(hours[1]) * 60 + Number(hours[2] || 0);
+  }
+  if (!minutes || !Number.isFinite(minutes) || minutes <= 0) {
+    minutes = MONTHLY_RUNTIME_MINUTES[movieId];
+  }
+  return minutes ? `${Math.round(minutes)} min` : null;
+}
+
 export interface EditorialTip {
   tmdbId: number;
   headline: string;
@@ -171,6 +198,7 @@ export default function HeroSpotlight({
 
   if (!displayedMovie) return null;
 
+  const runtimeLabel = formatFilmRuntime(displayedMovie.runtime, displayedMovie.id);
   const isWatchlisted = Boolean(watchlistIds?.includes(displayedMovie.id));
   const isWatched = Boolean(watchedIds?.includes(displayedMovie.id));
 
@@ -218,8 +246,8 @@ export default function HeroSpotlight({
               unoptimized
               className="object-cover object-[65%_center]"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#244967]/70 via-[#244967]/10 to-[#244967]/5" />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#274c6b] via-[#274c6b]/85 to-[#274c6b]/10" />
+            <div className="fm-hero-shade absolute inset-0 bg-gradient-to-t from-[#244967]/70 via-[#244967]/10 to-[#244967]/5" />
+            <div className="fm-hero-shade absolute inset-0 bg-gradient-to-r from-[#274c6b] via-[#274c6b]/85 to-[#274c6b]/10" />
           </div>
         )}
 
@@ -266,8 +294,8 @@ export default function HeroSpotlight({
               {displayedMovie.genres?.[0] && (
                 <span>{displayedMovie.release_date ? '• ' : ''}{displayedMovie.genres[0]}</span>
               )}
-              {displayedMovie.runtime && (
-                <span>{displayedMovie.release_date || displayedMovie.genres?.[0] ? '• ' : ''}{displayedMovie.runtime}</span>
+              {runtimeLabel && (
+                <span>{displayedMovie.release_date || displayedMovie.genres?.[0] ? '• ' : ''}{runtimeLabel}</span>
               )}
             </div>
 
@@ -401,18 +429,7 @@ export default function HeroSpotlight({
               </button>
             </div>
           </div>
-          {displayedMovie.backdrop_path && (
-            <div className="fm-hero-still pointer-events-none relative isolate overflow-hidden rounded-2xl" aria-hidden="true">
-              <Image
-                src={`https://image.tmdb.org/t/p/original${displayedMovie.backdrop_path}`}
-                alt=""
-                fill
-                unoptimized
-                sizes="(min-width: 1440px) 35vw, 1px"
-                className="object-cover object-center"
-              />
-            </div>
-          )}
+
         </div>
       </section>
 
@@ -435,12 +452,11 @@ export default function HeroSpotlight({
         @media (min-width: 1280px) {
           .fm-hero-layout[data-poster="true"] { grid-template-columns: 240px minmax(0, 1fr); }
         }
-        .fm-hero-still { display: none; }
         @media (min-width: 1440px) {
           .fm-hero-layout[data-still="true"] { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
           .fm-hero-layout[data-still="true"][data-poster="true"] { grid-template-columns: 220px minmax(0, 1.2fr) minmax(0, 1fr); }
-          .fm-hero-still { display: block; align-self: stretch; min-height: 330px; }
-          .fm-hero:has(.fm-hero-still) .fm-hero-backdrop { opacity: .15; }
+          .fm-hero-backdrop { left: 28%; opacity: 1; -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 55%); mask-image: linear-gradient(to right, transparent 0%, #000 55%); }
+          .fm-hero-backdrop .fm-hero-shade { display: none; }
         }
         .fm-hero :global(button:focus-visible) { outline: 2px solid #7dd3fc; outline-offset: 4px; }
         .fm-hero :global(button) { touch-action: manipulation; }

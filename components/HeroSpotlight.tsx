@@ -225,6 +225,7 @@ export default function HeroSpotlight({
 
         {!isSelectedByUser && (
           <div className="relative z-10 mb-4 flex items-center justify-end gap-2" role="group" aria-label="Maandtips bladeren">
+            <p className="mr-auto text-[10px] font-medium text-slate-400">Filmtips van {tipMonth}</p>
             <button type="button" onClick={handlePrevTip} aria-label="Vorige tip" className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-300 transition hover:bg-white/10 hover:text-white">‹</button>
             <span className="min-w-10 text-center text-xs tabular-nums text-slate-400" aria-live="polite">{tipIndex + 1} / {MONTHLY_TIPS.length}</span>
             <button type="button" onClick={handleNextTip} aria-label="Volgende tip" className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-300 transition hover:bg-white/10 hover:text-white">›</button>
@@ -250,11 +251,6 @@ export default function HeroSpotlight({
           {/* Informatie en acties RECHTS */}
           <div className="fm-hero-info min-w-0">
             <div className="fm-hero-heading space-y-3">
-              {!isSelectedByUser && (
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Filmtips van {tipMonth}
-                </p>
-              )}
 
 
             {/* Titel van de film */}
@@ -460,6 +456,7 @@ export default function HeroSpotlight({
     </>
   );
 }
+
 
 
 

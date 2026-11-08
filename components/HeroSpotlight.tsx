@@ -196,7 +196,7 @@ export default function HeroSpotlight({
 
   return (
     <>
-      <section aria-label="Film in de spotlight" className="fm-hero relative isolate overflow-hidden rounded-3xl border border-blue-200/15 bg-[#081426] p-6 text-white shadow-2xl shadow-black/30 sm:p-7 lg:p-10">
+      <section aria-label="Film in de spotlight" className="fm-hero relative isolate overflow-hidden rounded-3xl border border-blue-200/15 bg-[#081426] p-5 text-white shadow-2xl shadow-black/30 sm:p-6 lg:p-8">
         {backdropSrc && (
           <div className="pointer-events-none absolute inset-0 -z-10 opacity-70">
             <Image
@@ -212,10 +212,10 @@ export default function HeroSpotlight({
           </div>
         )}
 
-        <div className="relative z-10 flex min-h-[440px] flex-col items-start gap-7 lg:min-h-[400px] lg:flex-row-reverse lg:items-center lg:gap-10">
+        <div className="relative z-10 flex min-h-[352px] flex-col items-start gap-5 lg:min-h-[320px] lg:flex-row-reverse lg:items-center lg:gap-8">
           {/* Filmposter LINKS */}
           {displayedMovie.poster_path && (
-            <div className="hidden w-48 shrink-0 rotate-3 lg:block xl:w-56">
+            <div className="hidden w-40 shrink-0 rotate-3 lg:block xl:w-44">
               <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
                 <Image
                   src={`https://image.tmdb.org/t/p/w500${displayedMovie.poster_path}`}
@@ -230,7 +230,7 @@ export default function HeroSpotlight({
           )}
 
           {/* Informatie en acties RECHTS */}
-          <div className="min-w-0 flex-1 space-y-4">
+          <div className="min-w-0 flex-1 space-y-3">
             {/* Compacte bediening voor de maandtips */}
             {!isSelectedByUser && (
               <div className="inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-400/[0.08] py-1 pl-3 pr-1">
@@ -262,7 +262,7 @@ export default function HeroSpotlight({
             )}
 
             {/* Titel van de film */}
-            <h1 className="max-w-3xl text-[2.125rem] font-black leading-[1.05] tracking-tight text-white sm:text-[2.75rem] xl:text-[3.375rem]">
+            <h1 className="max-w-3xl text-[1.875rem] font-black leading-[1.05] tracking-tight text-white sm:text-[2.25rem] xl:text-[2.75rem]">
               {displayedMovie.title}
             </h1>
 
@@ -292,7 +292,7 @@ export default function HeroSpotlight({
             )}
 
             {/* Synopsis */}
-            <p className="max-w-2xl text-sm leading-7 text-slate-200 sm:text-base">
+            <p className="max-w-2xl text-sm leading-6 text-slate-200 sm:text-base">
               {displayedMovie.overview || 'Geen beschrijving beschikbaar.'}
             </p>
 

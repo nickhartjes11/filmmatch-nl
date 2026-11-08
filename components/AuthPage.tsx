@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import Image from 'next/image';
 import StreamingLogo from './StreamingLogo';
 import type { StreamingPlatform } from './types';
@@ -53,6 +53,31 @@ interface AuthPageProps {
   onOpenRegister: () => void;
 }
 
+function CinemaBackdrop() {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#173553]" aria-hidden="true">
+      <picture className="block h-full w-full">
+        <source media="(max-width: 639px)" srcSet="/auth/cinema-mobile.webp" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/auth/cinema-desktop.webp" alt="" fetchPriority="high" decoding="async" className="h-full w-full object-cover object-center" />
+      </picture>
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,42,65,.08),rgba(15,42,65,.08)_70%,rgba(15,42,65,.2))]" />
+    </div>
+  );
+}
+
+function AuthFieldIcon({ kind }: { kind: 'email' | 'lock' }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
+      {kind === 'email' ? (
+        <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="m4 7 8 6 8-6" /></>
+      ) : (
+        <><rect x="5" y="10" width="14" height="11" rx="3" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>
+      )}
+    </svg>
+  );
+}
+
 export default function AuthPage({
   mode,
   registerStep,
@@ -90,124 +115,108 @@ export default function AuthPage({
   onOpenLogin,
   onOpenRegister,
 }: AuthPageProps) {
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const emailId = useId();
+  const passwordId = useId();
   const welcomeMovies = favoriteFilms.filter((film) => selectedFavorites.includes(film.id)).slice(0, 5);
 
   if (mode === 'login') {
     return (
-      <div className="dashboard-shell relative min-h-screen overflow-x-hidden text-neutral-100 selection:bg-rose-500 selection:text-white">
-        <div aria-hidden="true" className="pointer-events-none fixed inset-0 opacity-45 blur-[1px]">
-          <div className="grid h-full grid-cols-4 grid-rows-5 gap-0 sm:hidden">
-            {favoriteFilms.slice(0, 20).map((film) => (
-              <div key={film.id} className="relative overflow-hidden bg-[#101a1d]">
-                <Image src={`https://image.tmdb.org/t/p/w342${film.poster_path}`} alt="" fill unoptimized sizes="25vw" className="object-cover" />
-              </div>
-            ))}
-          </div>
-          <div className="hidden h-full grid-cols-5 grid-rows-4 gap-0 sm:grid lg:hidden">
-            {favoriteFilms.slice(0, 20).map((film) => (
-              <div key={film.id} className="relative overflow-hidden bg-[#101a1d]">
-                <Image src={`https://image.tmdb.org/t/p/w342${film.poster_path}`} alt="" fill unoptimized sizes="20vw" className="object-cover" />
-              </div>
-            ))}
-          </div>
-          <div className="hidden h-full grid-cols-6 grid-rows-3 gap-0 lg:grid">
-            {favoriteFilms.slice(0, 18).map((film) => (
-              <div key={film.id} className="relative overflow-hidden bg-[#101a1d]">
-                <Image src={`https://image.tmdb.org/t/p/w342${film.poster_path}`} alt="" fill unoptimized sizes="17vw" className="object-cover" />
-              </div>
-            ))}
-          </div>
-          <div className="absolute inset-0 bg-[#071014]/55" />
-        </div>
+      <div className="relative isolate min-h-screen bg-[#173553] text-slate-100 selection:bg-rose-500 selection:text-white">
+        <CinemaBackdrop />
+        <main className="relative z-10 mx-auto flex min-h-[100svh] w-full max-w-6xl flex-col items-center justify-center px-4 pb-24 pt-10 sm:px-8 sm:pb-28 sm:pt-12">
+          <header className="mb-6 w-full max-w-[440px] text-center sm:mb-7">
+            <div className="flex items-center justify-center gap-2.5 sm:gap-3">
+              <span className="text-[38px] leading-none sm:text-5xl" aria-hidden="true">🍿</span>
+              <h1 className="whitespace-nowrap text-[clamp(1.5rem,6vw,2.125rem)] font-black leading-none tracking-tight text-white">FILM<span className="text-rose-400">MATCH</span>NL</h1>
+            </div>
+            <p className="mt-2 text-xs font-medium text-sky-100 sm:text-sm">De juiste film voor vanavond</p>
+            <svg viewBox="0 0 140 14" className="mx-auto mt-2 h-3 w-28 text-rose-400" fill="none" aria-hidden="true"><path d="M4 10Q70-4 136 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
+          </header>
 
-        <main className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-6 px-5 py-10 sm:px-8">
-          <section className="mx-auto w-full max-w-xl rounded-xl border border-white/10 bg-[#0d1e23]/90 p-8 shadow-2xl backdrop-blur-md sm:p-10">
-            <div className="mb-8 flex items-center gap-4">
-              <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-tr from-rose-400 to-amber-300 text-4xl text-slate-950 shadow-lg shadow-rose-950/30" aria-hidden="true">🍿</span>
+          <section aria-labelledby="fm-login-title" className="fm-auth-card w-full max-w-[440px] rounded-[24px] border border-sky-200/25 bg-[#244d6d]/75 p-5 shadow-[0_20px_70px_rgba(5,24,42,.3)] backdrop-blur-md sm:p-8">
+            <div className="mb-6 text-center">
+              <h2 id="fm-login-title" className="text-[1.875rem] font-black leading-tight tracking-tight text-white sm:text-4xl">Welkom terug</h2>
+              <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-sky-100">Log in en ontdek welke film bij je past.</p>
+            </div>
+
+            {authError && <p role="alert" className="mb-4 rounded-xl border border-rose-200/35 bg-rose-950/50 px-3 py-2.5 text-sm text-rose-100">{authError}</p>}
+            {authNotice && <p role="status" className="mb-4 rounded-xl border border-emerald-200/30 bg-emerald-950/45 px-3 py-2.5 text-sm text-emerald-100">{authNotice}</p>}
+
+            <form onSubmit={onSignIn} aria-busy={authLoading} className="space-y-4">
               <div>
-                <h1 className="text-3xl font-black tracking-wide text-white sm:text-4xl">FILM<span className="text-rose-400">MATCH</span>NL</h1>
-                <p className="mt-1 text-sm font-medium text-neutral-200">Jouw volgende filmavond begint hier</p>
+                <label htmlFor={emailId} className="sr-only">E-mailadres</label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-sky-100/80"><AuthFieldIcon kind="email" /></span>
+                  <input id={emailId} type="email" name="email" autoComplete="email" required value={loginEmail}
+                    onChange={(event) => onLoginEmailChange(event.target.value)} placeholder="E-mailadres"
+                    className="fm-auth-input min-h-12 w-full rounded-xl border border-sky-200/35 bg-[#133650]/80 py-3 pl-11 pr-4 text-base text-white shadow-inner outline-none transition placeholder:text-sky-100/70 focus:border-rose-300 focus:ring-2 focus:ring-rose-300/25" />
+                </div>
               </div>
-            </div>
-
-            <div className="mb-7">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-200">Fijn dat je er weer bent</p>
-              <h2 className="mt-2 text-4xl font-black text-white">Welkom terug</h2>
-              <p className="mt-2 text-base leading-relaxed text-neutral-200">Log in om verder te gaan met films die bij jou passen.</p>
-            </div>
-
-            {authError && <p role="alert" className="mb-4 rounded-lg border border-rose-300/25 bg-rose-300/10 px-3 py-2.5 text-sm text-rose-100">{authError}</p>}
-            {authNotice && <p role="status" className="mb-4 rounded-lg border border-emerald-300/25 bg-emerald-300/10 px-3 py-2.5 text-sm text-emerald-100">{authNotice}</p>}
-
-            <form onSubmit={onSignIn} className="space-y-5">
-              <label className="block space-y-2 text-sm font-semibold text-neutral-100">
-                E-mailadres
-                <input
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={loginEmail}
-                  onChange={(event) => onLoginEmailChange(event.target.value)}
-                  placeholder="jij@voorbeeld.nl"
-                  className="w-full rounded-lg border border-white/15 bg-[#14282d]/90 px-4 py-3.5 text-base text-white outline-none transition placeholder:text-neutral-400 focus:border-rose-300/70 focus:ring-2 focus:ring-rose-300/10"
-                />
-              </label>
-              <label className="block space-y-2 text-sm font-semibold text-neutral-100">
-                Wachtwoord
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={loginPassword}
-                  onChange={(event) => onLoginPasswordChange(event.target.value)}
-                  placeholder="Je wachtwoord"
-                  className="w-full rounded-lg border border-white/15 bg-[#14282d]/90 px-4 py-3.5 text-base text-white outline-none transition placeholder:text-neutral-400 focus:border-rose-300/70 focus:ring-2 focus:ring-rose-300/10"
-                />
-              </label>
-              <div className="grid gap-2.5 sm:grid-cols-2">
-                <button
-                  type="submit"
-                  disabled={authLoading}
-                  className="w-full rounded-lg bg-rose-400 py-3.5 text-base font-bold text-[#271017] transition hover:bg-rose-300 disabled:cursor-wait disabled:opacity-60"
-                >
-                  {authLoading ? 'Bezig met inloggen…' : 'Inloggen'}
-                </button>
-                <button
-                  type="button"
-                  onClick={onOpenRegister}
-                  className="w-full rounded-lg border border-white/20 bg-white/[0.06] py-3.5 text-base font-semibold text-white transition hover:bg-white/[0.12]"
-                >
-                  Account aanmaken
-                </button>
+              <div>
+                <label htmlFor={passwordId} className="sr-only">Wachtwoord</label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-sky-100/80"><AuthFieldIcon kind="lock" /></span>
+                  <input id={passwordId} type={showLoginPassword ? 'text' : 'password'} name="password" autoComplete="current-password" required value={loginPassword}
+                    onChange={(event) => onLoginPasswordChange(event.target.value)} placeholder="Wachtwoord"
+                    className="fm-auth-input min-h-12 w-full rounded-xl border border-sky-200/35 bg-[#133650]/80 py-3 pl-11 pr-12 text-base text-white shadow-inner outline-none transition placeholder:text-sky-100/70 focus:border-rose-300 focus:ring-2 focus:ring-rose-300/25" />
+                  <button type="button" onClick={() => setShowLoginPassword((visible) => !visible)} aria-label={showLoginPassword ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'} aria-pressed={showLoginPassword} aria-controls={passwordId}
+                    className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-xl text-sky-100/80 transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-300">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+                      {showLoginPassword && <path d="m3 3 18 18" />}
+                    </svg>
+                  </button>
+                </div>
               </div>
+              <button type="submit" disabled={authLoading}
+                className="flex min-h-12 w-full items-center justify-center gap-3 rounded-full bg-rose-500 px-5 py-3 text-base font-bold text-white shadow-lg shadow-rose-950/20 transition hover:bg-rose-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rose-200 disabled:cursor-wait disabled:opacity-60">
+                <span>{authLoading ? 'Bezig met inloggen…' : 'Inloggen'}</span>
+                {!authLoading && <span aria-hidden="true">→</span>}
+              </button>
             </form>
 
-            {!supabaseConfigured && <p className="mt-4 text-center text-[10px] leading-relaxed text-amber-100/90">Supabase is nog niet geconfigureerd. Voeg de project-URL en publishable key toe.</p>}
-          </section>
-
-          <aside className="mx-auto w-full max-w-xl opacity-70">
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2" role="group" aria-label="Streamingdiensten">
-              <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-400">Jouw diensten:</span>
-              {platforms.map((platform) => (
-                <StreamingLogo
-                  key={platform.id}
-                  name={platform.name}
-                  logoPath={platform.logo_path}
-                  mark={platform.mark}
-                  color={platform.color}
-                  className="h-5 w-5"
-                />
-              ))}
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs sm:text-sm">
+              <span className="text-sky-100">Nog geen account?</span>
+              <button type="button" onClick={onOpenRegister} className="min-h-11 rounded-full border border-sky-200/60 px-4 py-2 text-xs font-semibold text-white transition hover:border-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300">Account aanmaken</button>
             </div>
-          </aside>
+
+            {!supabaseConfigured && <p role="status" className="mt-4 text-center text-xs leading-relaxed text-amber-100">Inloggen is tijdelijk niet beschikbaar. Probeer het later opnieuw.</p>}
+
+            <aside className="mt-6" aria-label="Streamingdiensten">
+              <div className="mb-4 flex items-center gap-3" aria-hidden="true"><span className="h-px flex-1 bg-sky-200/25" /><span className="text-[9px] font-semibold uppercase tracking-[0.15em] text-sky-100">Jouw streamingdiensten</span><span className="h-px flex-1 bg-sky-200/25" /></div>
+              <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-5">
+                {platforms.map((platform) => (
+                  <span key={platform.name} title={platform.name}>
+                    <StreamingLogo name={platform.name} logoPath={platform.logo_path} mark={platform.mark} color={platform.color} className="h-7 w-7 rounded-md" />
+                  </span>
+                ))}
+              </div>
+            </aside>
+          </section>
+          <p className="mt-5 text-center text-[11px] font-medium text-sky-100/75">Jouw smaak. Jouw filmavond.</p>
         </main>
+        <style jsx>{`
+          .fm-auth-input:-webkit-autofill,
+          .fm-auth-input:-webkit-autofill:hover,
+          .fm-auth-input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #fff;
+            caret-color: #fff;
+            -webkit-box-shadow: 0 0 0 1000px #193f5b inset;
+            box-shadow: 0 0 0 1000px #193f5b inset;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .fm-auth-input { transition: none; }
+          }
+        `}</style>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#07080a] text-neutral-100 flex items-center justify-center p-4 relative">
-      <div className="w-full max-w-xl bg-neutral-900/90 border border-white/[0.08] rounded-2xl p-6 md:p-8 shadow-2xl backdrop-blur-xl flex flex-col max-h-[90vh]">
+    <div className="relative isolate flex min-h-[100svh] items-center justify-center bg-[#173553] p-4 text-neutral-100">
+      <CinemaBackdrop />
+      <div className="relative z-10 flex max-h-[90svh] w-full max-w-xl flex-col rounded-3xl border border-sky-200/25 bg-[#244d6d]/90 p-6 shadow-2xl backdrop-blur-xl md:p-8">
         <div className="flex items-center justify-between pb-4 border-b border-white/[0.06]">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-rose-500">Stap {registerStep} van 5</p>
@@ -244,7 +253,7 @@ export default function AuthPage({
                   required
                   value={displayName}
                   onChange={(event) => onDisplayNameChange(event.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2.5 text-sm text-white outline-none transition focus:border-rose-300/60"
+                  className="w-full rounded-lg border border-white/10 bg-[#133650]/85 px-3 py-2.5 text-sm text-white outline-none transition focus:border-rose-300/60"
                 />
               </label>
               <label className="block space-y-1.5 text-left text-xs font-semibold text-neutral-200">
@@ -256,7 +265,7 @@ export default function AuthPage({
                   value={accountEmail}
                   onChange={(event) => onAccountEmailChange(event.target.value)}
                   placeholder="jij@voorbeeld.nl"
-                  className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-rose-300/60"
+                  className="w-full rounded-lg border border-white/10 bg-[#133650]/85 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-rose-300/60"
                 />
               </label>
               <label className="block space-y-1.5 text-left text-xs font-semibold text-neutral-200">
@@ -269,7 +278,7 @@ export default function AuthPage({
                   value={accountPassword}
                   onChange={(event) => onAccountPasswordChange(event.target.value)}
                   placeholder="Minimaal 8 tekens"
-                  className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-rose-300/60"
+                  className="w-full rounded-lg border border-white/10 bg-[#133650]/85 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-rose-300/60"
                 />
               </label>
               <label className="block space-y-1.5 text-left text-xs font-semibold text-neutral-200">
@@ -282,7 +291,7 @@ export default function AuthPage({
                   value={confirmPassword}
                   onChange={(event) => onConfirmPasswordChange(event.target.value)}
                   placeholder="Herhaal je wachtwoord"
-                  className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-rose-300/60"
+                  className="w-full rounded-lg border border-white/10 bg-[#133650]/85 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-rose-300/60"
                 />
               </label>
               {confirmPassword && !passwordsMatch && <p role="status" className="text-xs text-rose-200">Wachtwoorden komen niet overeen.</p>}

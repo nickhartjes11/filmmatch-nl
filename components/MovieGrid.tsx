@@ -5,7 +5,7 @@ import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, 
 import MovieRatingControl from './MovieRatingControl';
 import StreamingLogo from './StreamingLogo';
 import type { DiscoveryMode, LibraryView, Movie } from './types';
-import { calculateMatchScore, getMatchColorBand, type MatchPreferences } from '../lib/recommendations/matchScore';
+import { calculateMatchScore, type MatchPreferences } from '../lib/recommendations/matchScore';
 
 interface MovieGridProps {
   movies: Movie[];
@@ -104,7 +104,8 @@ function MovieCard({
   const isWatchlisted = watchlistIds.includes(movie.id);
   const isWatched = watchedIds.includes(movie.id);
   const userRating = ratings[movie.id];
-  const matchBand = getMatchColorBand(movie.match_percentage || 0);
+  const matchScore = movie.match_percentage ?? 0;
+  const matchBand = matchScore >= 80 ? 'strong' : matchScore >= 60 ? 'medium' : 'low';
 
   const hasValidPoster = Boolean(
     movie.poster_path &&
@@ -116,13 +117,13 @@ function MovieCard({
   );
 
   return (
-    <article className={`group flex flex-col justify-between overflow-hidden rounded-2xl border border-blue-200/10 bg-[#0c1930] shadow-lg shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-blue-400/50 hover:shadow-xl hover:shadow-blue-950/40 motion-reduce:transform-none ${railCard ? 'w-[164px] shrink-0 snap-start sm:w-[196px] lg:w-[212px]' : 'w-full'}`}>
+    <article className={`fm-movie-card group relative isolate aspect-[2/3] overflow-hidden rounded-2xl bg-[#0c1930] shadow-lg shadow-black/20 ring-1 ring-white/10 transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-sky-950/50 hover:ring-sky-300/40 focus-within:ring-2 focus-within:ring-sky-300 motion-reduce:transform-none ${railCard ? 'w-[164px] shrink-0 snap-start sm:w-[196px] lg:w-[212px]' : 'w-full'}`}>
       <button
         type="button"
         onClick={() => onSelectMovie(movie)}
         title={`Toon ${movie.title} bovenaan`}
         aria-label={`Toon ${movie.title} als uitgelichte poster`}
-        className={`relative block aspect-[2/3] overflow-hidden bg-slate-900 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400 w-full`}
+        className="absolute inset-0 block h-full w-full text-left focus-visible:outline-none"
       >
         {hasValidPoster ? (
           <img
@@ -132,86 +133,72 @@ function MovieCard({
             decoding="async"
             draggable={false}
             onError={() => setImageError(true)}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-105 motion-reduce:transform-none"
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105 group-focus-within:scale-105 motion-reduce:transform-none"
           />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center p-3 text-center bg-gradient-to-br from-[#172f50] via-[#10213b] to-[#081222]">
-            <span className="text-2xl opacity-40 mb-1">🎬</span>
-            <span className="text-[10px] font-bold text-neutral-400 line-clamp-2 leading-tight">
-              {movie.title}
-            </span>
+          <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#172f50] via-[#10213b] to-[#081222] p-3 pb-28 text-center">
+            <span className="mb-1 text-2xl opacity-40" aria-hidden="true">🎬</span>
+            <span className="line-clamp-2 text-xs font-bold leading-tight text-neutral-400">{movie.title}</span>
           </div>
-        )}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0c1930]/80 via-transparent to-black/30" />
-        <div className="absolute inset-x-2.5 top-2.5 flex items-center justify-between gap-1">
-          <span className={`rounded-lg border border-white/15 px-2 py-1 text-[10px] font-bold shadow-lg backdrop-blur-md ${matchBand === 'strong' ? 'bg-[#082b3e]/95 text-cyan-200' : matchBand === 'medium' ? 'bg-[#102c52]/95 text-blue-200' : 'bg-[#16243c]/95 text-slate-200'}`}>
-            {movie.match_percentage ?? 0}% match
-          </span>
-          <RatingBadge
-            rating={movie.rating}
-            source={movie.rating_source}
-          />
-        </div>
-        {showWatchedBadge && isWatched && (
-          <span className="absolute bottom-2 left-2 rounded-full border border-emerald-200/30 bg-emerald-950/90 px-2 py-1 text-[9px] font-bold text-emerald-100 shadow-lg backdrop-blur-sm">
-            Gezien
-          </span>
         )}
       </button>
 
-      <div className="flex flex-1 flex-col justify-between p-3 sm:p-3.5">
-        <div>
-          <h3 className="truncate text-sm font-semibold text-slate-100 transition group-hover:text-sky-200" title={movie.title}>
-            <button type="button" onClick={() => onSelectMovie(movie)} className="block w-full truncate text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400">
-              {movie.title}
-            </button>
-          </h3>
-          <p className="mt-1 truncate text-[11px] text-slate-400">
-            {movie.release_date?.split('-')[0]} &bull; {movie.genres?.[0] || 'Film'}
-          </p>
-        </div>
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(3,9,18,.98)_0%,rgba(3,9,18,.86)_18%,rgba(3,9,18,.3)_44%,transparent_65%)]" />
+      <span className={`pointer-events-none absolute left-2.5 top-2.5 rounded-full border px-2 py-1 text-[10px] font-bold shadow-md backdrop-blur-md ${matchBand === 'strong' ? 'border-emerald-300/30 bg-emerald-950/90 text-emerald-200' : matchBand === 'medium' ? 'border-amber-300/30 bg-amber-950/90 text-amber-200' : 'border-red-300/30 bg-red-950/90 text-red-200'}`}>
+        {matchScore}% match
+      </span>
 
-        <div className="mt-3 flex items-center justify-between gap-2 border-t border-blue-200/10 pt-3">
-          <div className="flex items-center gap-1">
-            {movie.providers?.slice(0, 2).map((provider) => (
-              <StreamingLogo
-                key={provider.provider_id}
-                name={provider.provider_name}
-                logoPath={provider.logo_path}
-                className="h-6 w-6 rounded"
-              />
-            ))}
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onToggleWatchlist(movie)}
-              title={isWatchlisted ? 'Verwijder uit watchlist' : 'Bewaar voor later'}
-              aria-label={isWatchlisted ? `Verwijder ${movie.title} uit watchlist` : `Bewaar ${movie.title} voor later`}
-              aria-pressed={isWatchlisted}
-              className={`flex h-9 w-9 items-center justify-center rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 text-sm font-bold transition ${isWatchlisted ? 'bg-blue-500 text-white' : 'bg-blue-400/10 text-blue-200 hover:bg-blue-400/25'}`}
-            >
-              {isWatchlisted ? '✓' : '+'}
-            </button>
-            <button
-              type="button"
-              onClick={() => onToggleWatched(movie)}
-              title={isWatched ? 'Verwijder markering gezien' : 'Markeer als gezien'}
-              aria-label={isWatched ? `Verwijder markering gezien voor ${movie.title}` : `Markeer ${movie.title} als gezien`}
-              aria-pressed={isWatched}
-              className={`flex h-9 w-9 items-center justify-center rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 text-xs font-bold transition ${isWatched ? 'bg-cyan-300 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-            >
-              ✓
-            </button>
-          </div>
-        </div>
+      <div className="absolute right-2 top-2 flex flex-col gap-1.5">
+        <button
+          type="button"
+          onClick={() => onToggleWatchlist(movie)}
+          title={isWatchlisted ? 'Verwijder uit watchlist' : 'Bewaar voor later'}
+          aria-label={isWatchlisted ? `Verwijder ${movie.title} uit watchlist` : `Bewaar ${movie.title} voor later`}
+          aria-pressed={isWatchlisted}
+          className={`fm-card-action flex h-9 w-9 items-center justify-center rounded-full border text-lg font-semibold shadow-md backdrop-blur-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-200 ${isWatchlisted ? 'border-rose-300/50 bg-rose-500 text-white' : 'border-white/20 bg-slate-950/65 text-white hover:bg-slate-800'}`}
+        >
+          <span aria-hidden="true">{isWatchlisted ? '✓' : '+'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onToggleWatched(movie)}
+          title={isWatched ? 'Verwijder markering gezien' : 'Markeer als gezien'}
+          aria-label={isWatched ? `Verwijder markering gezien voor ${movie.title}` : `Markeer ${movie.title} als gezien`}
+          aria-pressed={isWatched}
+          className={`fm-card-action flex h-9 w-9 items-center justify-center rounded-full border text-sm font-bold shadow-md backdrop-blur-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-200 ${isWatched ? 'border-emerald-200/50 bg-emerald-400 text-slate-950' : 'border-white/20 bg-slate-950/65 text-white hover:bg-slate-800'}`}
+        >
+          <span aria-hidden="true">✓</span>
+        </button>
+      </div>
 
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 space-y-2 p-3 sm:p-3.5">
+        <h3 className="line-clamp-2 text-sm font-bold leading-snug text-white drop-shadow-md" title={movie.title}>{movie.title}</h3>
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-300">
+          <span>{[movie.release_date?.split('-')[0], movie.genres?.[0] || 'Film'].filter(Boolean).join(' · ')}</span>
+          <RatingBadge rating={movie.rating} source={movie.rating_source} />
+        </div>
+        <div className="flex min-h-5 flex-wrap items-center gap-1.5">
+          {movie.providers?.slice(0, 2).map((provider) => (
+            <StreamingLogo key={provider.provider_id} name={provider.provider_name} logoPath={provider.logo_path} className="h-5 w-5 rounded shadow-sm" />
+          ))}
+          {showWatchedBadge && isWatched && <span className="ml-auto text-[9px] font-semibold text-emerald-200">Gezien</span>}
+        </div>
         {highlightUserRating && (isWatched || userRating !== undefined) && (
-          <div className="mt-2 border-t border-white/[0.08] pt-2">
+          <div className="pointer-events-auto rounded-lg bg-black/40 p-1.5 backdrop-blur-md">
             <MovieRatingControl rating={userRating} onEdit={() => onEditRating(movie)} prominent={highlightUserRating} />
           </div>
         )}
       </div>
+      <style jsx>{`
+        @media (hover: hover) and (pointer: fine) {
+          .fm-card-action[aria-pressed="false"] { opacity: 0; pointer-events: none; transform: translateY(-4px); }
+          .fm-movie-card:hover .fm-card-action,
+          .fm-movie-card:focus-within .fm-card-action { opacity: 1; pointer-events: auto; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .fm-card-action { transition: none; transform: none; }
+        }
+      `}</style>
     </article>
   );
 }

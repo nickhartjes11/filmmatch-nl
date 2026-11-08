@@ -801,6 +801,26 @@ export default function Home() {
     );
   }
 
+  // Prefer the same provider artwork used by the movie cards and hero.
+  const providerLogos = new Map<number, string>();
+  for (const movie of [...library.watched, ...library.watchlist, ...movies]) {
+    for (const provider of movie.providers || []) {
+      if (provider.logo_path?.trim()) {
+        providerLogos.set(provider.provider_id, provider.logo_path);
+      }
+    }
+  }
+  const navigationPlatforms = FIVE_PLATFORMS.map((platform) => {
+    // TMDB can list Prime Video and HBO under different regional IDs.
+    const idsByName: Record<string, number[]> = {
+      'Prime Video': [119, 9],
+      'HBO Max': [1899, 384],
+    };
+    const ids = idsByName[platform.name] || (typeof platform.id === 'number' ? [platform.id] : []);
+    const logo = ids.map((id) => providerLogos.get(id)).find(Boolean);
+    return { ...platform, logo_path: logo || platform.logo_path };
+  });
+
   return (
     <div className="dashboard-shell min-h-screen text-neutral-100 flex flex-col selection:bg-sky-700 selection:text-white">
       <TopNavigation
@@ -813,7 +833,7 @@ export default function Home() {
         watchlistCount={library.watchlist.length}
         selectedPlatforms={selectedPlatforms}
         minimumImdbRating={minimumImdbRating}
-        platforms={FIVE_PLATFORMS}
+        platforms={navigationPlatforms}
         onResetToHome={handleResetToHome}
         onNavigate={(view) => {
           setCurrentView('dashboard');
@@ -1080,3 +1100,5 @@ export default function Home() {
     </div>
   );
 }
+
+

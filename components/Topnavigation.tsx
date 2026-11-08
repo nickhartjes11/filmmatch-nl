@@ -46,41 +46,55 @@ interface NavigationItem {
   count?: number;
 }
 
-function PlatformLogo({
-  platform,
-}: {
-  platform: StreamingPlatform;
-}) {
+function PlatformLogo({ platform }: { platform: StreamingPlatform }) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-
-  const path = platform.logo_path;
-
-  const src = path
-    ? /^https?:\/\//i.test(path)
+  const imageRef = useRef<HTMLImageElement>(null);
+  const path = platform.logo_path?.trim() || '';
+  const src = !path || path === 'null' || path === 'undefined'
+    ? ''
+    : /^https?:\/\//i.test(path)
       ? path
-      : `https://image.tmdb.org/t/p/w92/${path.replace(/^\//, '')}`
-    : '';
+      : `https://image.tmdb.org/t/p/w92/${path.replace(/^\/+/, '')}`;
 
+  useEffect(() => {
+    const image = imageRef.current;
+    // An image can fail before React attaches its error listener.
+    if (src && image?.complete && image.naturalWidth === 0) {
+      setFailedSrc(src);
+    }
+  }, [src]);
+
+  const marks: Record<string, string> = {
+    Netflix: 'N',
+    'Prime Video': 'prime',
+    'Disney+': 'D+',
+    'HBO Max': 'HBO',
+    Videoland: 'V',
+  };
   return (
     <span
       className="fm-platform-logo"
-      style={{
-        backgroundColor: platform.color || '#183149',
-      }}
+      style={{ backgroundColor: platform.color || '#285475' }}
       aria-hidden="true"
     >
       {src && failedSrc !== src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          key={src}
+          ref={imageRef}
           src={src}
           alt=""
           width={22}
           height={22}
-          loading="lazy"
+          loading="eager"
+          decoding="async"
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           onError={() => setFailedSrc(src)}
         />
       ) : (
-        platform.mark || platform.name.slice(0, 2).toUpperCase()
+        <span style={{ fontSize: platform.name === 'Prime Video' ? 7 : 10, fontWeight: 900, lineHeight: 1, color: '#fff' }}>
+          {marks[platform.name] || platform.mark || platform.name.slice(0, 2).toUpperCase()}
+        </span>
       )}
     </span>
   );
@@ -343,4 +357,5 @@ export default function TopNavigation({
     </header>
   );
 }
+
 

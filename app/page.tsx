@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useState, useEffect, useMemo, type FormEvent } from 'react';
+import { startTransition, useState, useEffect, useMemo, useRef, type FormEvent } from 'react';
 import type { User } from '@supabase/supabase-js';
 import LandingView from '../components/LandingView';
 import RegisterFlow from '../components/RegisterFlow';
@@ -134,7 +134,7 @@ const ONBOARDING_FAVORITES = [
 ];
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState<AppView>('dashboard');
+  const [currentView, setCurrentView] = useState<AppView>('login');
   const [viewHistory, setViewHistory] = useState<AppView[]>([]);
   const navigateToView = (view: AppView) => {
     if (view !== currentView) setViewHistory((history) => [...history, currentView]);
@@ -242,6 +242,9 @@ export default function Home() {
     updateFavoritePersonQuery('');
   };
   const [authUserId, setAuthUserId] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const authUserRef = useRef<string | null>(null);
+  const authRevision = useRef(0);
   const [displayName, setDisplayName] = useState('Gebruiker');
   const [accountEmail, setAccountEmail] = useState('');
   const [accountPassword, setAccountPassword] = useState('');
@@ -257,6 +260,31 @@ export default function Home() {
   );
   const passwordsMatch = accountPassword.length > 0 && accountPassword === confirmPassword;
   const canCreateAccount = Boolean(displayName.trim() && accountEmail.trim() && accountPassword.length >= 8 && passwordsMatch);
+
+  const resetAuthenticatedState = () => {
+    authUserRef.current = null;
+    setAuthUserId(null);
+    setAccountEmail('');
+    setDisplayName('Gebruiker');
+    setLibrary({ watchlist: [], watched: [] });
+    setMovieRatings([]);
+    setFriendsActivity([]);
+    setFriendsList([]);
+    setChosenPlatforms([]);
+    setSelectedPlatforms(FIVE_PLATFORMS.map((platform) => platform.name));
+    setSelectedFavorites([]);
+    setDislikedGenres([]);
+    setFavoriteDirectors([]);
+    setFavoriteCast([]);
+    setReleaseYearBefore(null);
+    setMaxRuntimeMinutes(null);
+    setRatingMovie(null);
+    setSelectedSpotlightMovie(null);
+    setSpotlightMovieId(null);
+    setSelectedPerson(null);
+    setSearchQuery('');
+    setViewHistory([]);
+  };
 
   const handleResetToHome = () => {
     setCurrentView('dashboard');
@@ -388,6 +416,7 @@ export default function Home() {
       const supabase = createSupabaseBrowserClient();
       if (!supabase) return;
       const { data: friendRows } = await supabase.from('friendships').select('friend_id').eq('user_id', userId);
+      if (authUserRef.current !== userId) return;
       const friendIds = (friendRows || []).map((row) => row.friend_id);
       if (friendIds.length === 0) {
         setFriendsActivity([]);
@@ -398,6 +427,7 @@ export default function Home() {
         supabase.from('profiles').select('id, display_name').in('id', friendIds),
         supabase.from('movie_ratings').select('user_id, movie_id, rating, created_at').in('user_id', friendIds).order('created_at', { ascending: false }).limit(20),
       ]);
+      if (authUserRef.current !== userId) return;
       setFriendsList(profiles || []);
       const profileMap = new Map((profiles || []).map((p) => [p.id, p.display_name || 'Vriend']));
       const movieIds = Array.from(new Set((ratings || []).map((r) => r.movie_id)));
@@ -413,6 +443,7 @@ export default function Home() {
         }
       }
 
+      if (authUserRef.current !== userId) return;
       setFriendsActivity((ratings || []).map((item, index) => {
         const friendName = profileMap.get(item.user_id) || 'Vriend';
         const movieInfo = movieMap[item.movie_id];
@@ -436,6 +467,7 @@ export default function Home() {
   };
 
   const loadAuthenticatedUser = async (user: User) => {
+    if (authUserRef.current !== user.id) return;
     try {
       const supabase = createSupabaseBrowserClient();
       if (!supabase) return;
@@ -450,6 +482,7 @@ export default function Home() {
         supabase.from('user_watched').select('movie_data').eq('user_id', user.id).order('created_at', { ascending: false }),
       ]);
 
+      if (authUserRef.current !== user.id) return;
       startTransition(() => {
         setAuthUserId(user.id);
         setAccountEmail(user.email || '');
@@ -489,7 +522,12 @@ export default function Home() {
     setAuthLoading(false);
     if (error) return setAuthError(error.message);
     if (data.session && data.user) {
+      authRevision.current++;
+      authUserRef.current = data.user.id;
+      setAuthUserId(data.user.id);
       await loadAuthenticatedUser(data.user);
+      if (authUserRef.current !== data.user.id) return;
+      setAuthReady(true);
       setCurrentView('dashboard');
     } else {
       setAuthNotice('Controleer je e-mail om je account te bevestigen.');
@@ -506,19 +544,28 @@ export default function Home() {
     const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail.trim(), password: loginPassword });
     setAuthLoading(false);
     if (error) return setAuthError(error.message);
-    if (data.user) {
+    if (data.session && data.user) {
+      authRevision.current++;
+      authUserRef.current = data.user.id;
+      setAuthUserId(data.user.id);
       await loadAuthenticatedUser(data.user);
+      if (authUserRef.current !== data.user.id) return;
+      setAuthReady(true);
       setCurrentView('dashboard');
     }
   };
 
   const handleSignOut = async () => {
-    const supabase = createSupabaseBrowserClient();
-    if (supabase) await supabase.auth.signOut();
-    setAuthUserId(null);
-    setAccountEmail('');
-    setDisplayName('Gebruiker');
+    authRevision.current++;
+    resetAuthenticatedState();
+    setLoginPassword('');
+    setAuthReady(true);
     setCurrentView('login');
+    const supabase = createSupabaseBrowserClient();
+    if (supabase) {
+      const { error } = await supabase.auth.signOut();
+      if (error) setAuthError('Uitloggen kon niet volledig worden afgerond. Probeer het opnieuw.');
+    }
   };
 
   const saveProfile = async () => {
@@ -545,14 +592,70 @@ export default function Home() {
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
-    if (!supabase) return;
-    void supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) void loadAuthenticatedUser(data.user);
+    if (!supabase) {
+      resetAuthenticatedState();
+      setCurrentView('login');
+      setAuthReady(true);
+      return;
+    }
+
+    let active = true;
+    let scheduledCheck: ReturnType<typeof setTimeout> | undefined;
+    const verifySession = async () => {
+      const revision = ++authRevision.current;
+      try {
+        // Validate the user with Supabase before showing a personal dashboard.
+        const { data, error } = await supabase.auth.getUser();
+        if (!active || revision !== authRevision.current) return;
+        if (error || !data.user) {
+          resetAuthenticatedState();
+          setCurrentView((view) => view === 'register' ? view : 'login');
+          return;
+        }
+        authUserRef.current = data.user.id;
+        setAuthUserId(data.user.id);
+        await loadAuthenticatedUser(data.user);
+        if (!active || revision !== authRevision.current || authUserRef.current !== data.user.id) return;
+        setCurrentView((view) => view === 'login' || view === 'landing' ? 'dashboard' : view);
+      } catch {
+        if (!active || revision !== authRevision.current) return;
+        resetAuthenticatedState();
+        setCurrentView((view) => view === 'register' ? view : 'login');
+      } finally {
+        if (active && revision === authRevision.current) setAuthReady(true);
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (!active || event === 'INITIAL_SESSION') return;
+      if (event === 'SIGNED_OUT') {
+        authRevision.current++;
+        clearTimeout(scheduledCheck);
+        resetAuthenticatedState();
+        setCurrentView('login');
+        setAuthReady(true);
+        return;
+      }
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        // Run database work after the synchronous auth event has finished.
+        clearTimeout(scheduledCheck);
+        scheduledCheck = setTimeout(() => { void verifySession(); }, 0);
+      }
     });
+    void verifySession();
+
+    return () => {
+      active = false;
+      authRevision.current++;
+      authUserRef.current = null;
+      clearTimeout(scheduledCheck);
+      subscription.unsubscribe();
+    };
   }, []);
 
   // TMDB ophalen
   useEffect(() => {
+    if (!authReady || !authUserId) return;
     const query = searchQuery.trim();
     if (libraryView !== 'discover' && libraryView !== 'cinema') return;
 
@@ -604,7 +707,7 @@ export default function Home() {
       isActive = false;
       clearTimeout(timer);
     };
-  }, [searchQuery, libraryView, selectedPerson, selectedPlatforms, preferredGenres, matchPreferences]);
+  }, [authReady, authUserId, searchQuery, libraryView, selectedPerson, selectedPlatforms, preferredGenres, matchPreferences]);
 
   const togglePlatform = (name: string) => {
     setSelectedPlatforms((prev) => (prev.includes(name) ? prev.filter((p) => p !== name) : [...prev, name]));
@@ -722,6 +825,17 @@ export default function Home() {
   const topMatch = spotlightMovie || (libraryView === 'cinema' ? visibleMovies[0] : null);
   const gridMatches = libraryView === 'watched' ? visibleMovies : topMatch ? visibleMovies.filter((m) => m.id !== topMatch.id) : visibleMovies;
 
+  if (!authReady) {
+    return (
+      <main className="flex min-h-[100svh] items-center justify-center bg-[#173553] px-5 text-sky-100" role="status" aria-live="polite">
+        <div className="text-center">
+          <p className="text-3xl" aria-hidden="true">🍿</p>
+          <p className="mt-3 text-sm">Je sessie controleren…</p>
+        </div>
+      </main>
+    );
+  }
+
   if (currentView === 'landing') {
     return <LandingView platforms={FIVE_PLATFORMS} onOpenDashboard={() => setCurrentView('dashboard')} onOpenRegister={() => { setRegisterStep(1); setCurrentView('register'); }} onOpenLogin={() => setCurrentView('login')} />;
   }
@@ -759,7 +873,7 @@ export default function Home() {
     );
   }
 
-  if (currentView === 'login') {
+  if (currentView === 'login' || !authUserId) {
     return (
       <AuthPage
         mode="login"

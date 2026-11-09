@@ -1221,9 +1221,9 @@ function FilmMatchApp() {
 function LocalRegistrationPreview({ initialStep }: { initialStep: 1 | 2 | 3 | 4 | 5 }) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(initialStep);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('filmfan@voorbeeld.nl');
-  const [password, setPassword] = useState('Voorbeeld123!');
-  const [confirmation, setConfirmation] = useState('Voorbeeld123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
   const [services, setServices] = useState<string[]>(['Netflix', 'Prime Video', 'Disney+']);
   const [favorites, setFavorites] = useState<number[]>(ONBOARDING_FAVORITES.slice(0, 5).map((movie) => movie.id));
   const changeStep = (next: 1 | 2 | 3 | 4 | 5) => {

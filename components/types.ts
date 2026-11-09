@@ -13,19 +13,21 @@ export interface UserProfile {
   release_year_before: number | null;
   max_runtime_minutes: number | null;
   onboarding_completed: boolean;
+  disliked_movie_ids?: number[];
+  unseen_movie_ids?: number[];
+  taste_movie_metadata?: Record<string, {
+    id: number;
+    title: string;
+    poster_path: string;
+    year: string;
+    genres: string[];
+    director?: string;
+    cast?: string[];
+  }>;
 }
 
-export interface MovieRating {
-  movie_id: number;
-  rating: number;
-}
-
-export interface Provider {
-  provider_id: number;
-  provider_name: string;
-  logo_path: string;
-}
-
+export interface MovieRating { movie_id: number; rating: number; }
+export interface Provider { provider_id: number; provider_name: string; logo_path: string; }
 export interface Movie {
   id: number;
   title: string;
@@ -42,23 +44,9 @@ export interface Movie {
   cast?: string[];
   match_percentage?: number;
   providers: Provider[];
-  friend_recommendation?: {
-    friend_name: string;
-    friend_match: number;
-    quote: string;
-    rating: number;
-    avatar: string;
-  };
+  friend_recommendation?: { friend_name: string; friend_match: number; quote: string; rating: number; avatar: string; };
 }
-
-export interface StreamingPlatform {
-  id: number;
-  name: string;
-  logo_path: string;
-  mark: string;
-  color: string;
-}
-
+export interface StreamingPlatform { id: number; name: string; logo_path: string; mark: string; color: string; }
 export interface FriendActivityItem {
   id: number;
   friendId: number | string;

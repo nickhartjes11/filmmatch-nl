@@ -4,6 +4,7 @@ import { startTransition, useState, useEffect, useMemo, useRef, type FormEvent }
 import type { User } from '@supabase/supabase-js';
 import LandingView from '../components/LandingView';
 import RegisterFlow from '../components/RegisterFlow';
+import { ONBOARDING_MOVIES, canFinishTasteSelection, toOnboardingMovie, type OnboardingMovie, type MovieReaction } from '../lib/recommendations/onboardingCatalog';
 import ProfileView from '../components/ProfileView';
 import DashboardHeader from '../components/DashboardHeader';
 import FriendActivityPage from '../components/FriendActivityPage';
@@ -47,6 +48,9 @@ function calculateAge(birthday?: string | null): number | null {
 }
 
 interface MovieTasteMetadata extends MovieTasteSignals {
+  title?: string;
+  poster_path?: string;
+  year?: string;
   release_date: string;
   runtime_minutes: number | null;
 }
@@ -106,32 +110,7 @@ const FIVE_PLATFORMS: StreamingPlatform[] = [
   { name: 'Videoland', logo_path: '/9A1DaAYi4SYahE4a9fl0Z4qVwZ6.jpg', id: 72, mark: 'V', color: '#e30a64' },
 ];
 
-const ONBOARDING_FAVORITES = [
-  { id: 157336, title: 'Interstellar', poster_path: '/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg', year: '2014', genres: ['Sciencefiction', 'Avontuur'] },
-  { id: 155, title: 'The Dark Knight', poster_path: '/qJ2tW6WMUDux911r6m7haRef0WH.jpg', year: '2008', genres: ['Misdaad', 'Actie', 'Drama'] },
-  { id: 27205, title: 'Inception', poster_path: '/edv5CZvWj09upOsy2Y6IwDhK8bt.jpg', year: '2010', genres: ['Sciencefiction', 'Actie', 'Mysterie'] },
-  { id: 438631, title: 'Dune', poster_path: '/d5NXSklXo0qyIYkgV94XAgMIckC.jpg', year: '2021', genres: ['Sciencefiction', 'Avontuur'] },
-  { id: 329865, title: 'Arrival', poster_path: '/pEzNVQfdzYDzVK0XqxERIw2x2se.jpg', year: '2016', genres: ['Sciencefiction', 'Drama', 'Mysterie'] },
-  { id: 872585, title: 'Oppenheimer', poster_path: '/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg', year: '2023', genres: ['Drama', 'Historisch'] },
-  { id: 278, title: 'The Shawshank Redemption', poster_path: '/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg', year: '1994', genres: ['Drama', 'Misdaad'] },
-  { id: 680, title: 'Pulp Fiction', poster_path: '/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg', year: '1994', genres: ['Misdaad', 'Drama'] },
-  { id: 98, title: 'Gladiator', poster_path: '/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg', year: '2000', genres: ['Actie', 'Avontuur', 'Drama'] },
-  { id: 807, title: 'Se7en', poster_path: '/191nKfP0ehp3uIvWqgPbFmI4lv9.jpg', year: '1995', genres: ['Misdaad', 'Mysterie', 'Thriller'] },
-  { id: 122, title: 'The Lord of the Rings', poster_path: '/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg', year: '2003', genres: ['Avontuur', 'Fantasy'] },
-  { id: 597, title: 'Titanic', poster_path: '/9xjZS2rlVxm8SFx8kPC3aIGCOYQ.jpg', year: '1997', genres: ['Drama', 'Romantiek'] },
-  { id: 603, title: 'The Matrix', poster_path: '/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg', year: '1999', genres: ['Sciencefiction', 'Actie'] },
-  { id: 496243, title: 'Parasite', poster_path: '/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg', year: '2019', genres: ['Misdaad', 'Drama', 'Thriller'] },
-  { id: 244786, title: 'Whiplash', poster_path: '/7fn624j5lj3xTme2SgiLCeuedmO.jpg', year: '2014', genres: ['Drama', 'Muziek', 'Thriller'] },
-  { id: 120467, title: 'The Grand Budapest Hotel', poster_path: '/eWdyYreja6JGCzqHWXpWHDrrPo.jpg', year: '2014', genres: ['Komedie', 'Drama'] },
-  { id: 354912, title: 'Coco', poster_path: '/6Ryitt95xrO8KXuqRGm1fUuNwqF.jpg', year: '2017', genres: ['Animatie', 'Avontuur', 'Familie', 'Muziek'] },
-  { id: 324857, title: 'Spider-Man: Into the Spider-Verse', poster_path: '/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg', year: '2018', genres: ['Animatie', 'Actie', 'Avontuur', 'Sciencefiction'] },
-  { id: 313369, title: 'La La Land', poster_path: '/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg', year: '2016', genres: ['Komedie', 'Drama', 'Romantiek'] },
-  { id: 11631, title: 'Mamma Mia!', poster_path: '/xYLiCWmAMHJubx5jNZ7HuXKjAbV.jpg', year: '2008', genres: ['Komedie', 'Romantiek', 'Muziek'] },
-  { id: 419430, title: 'Get Out', poster_path: '/5Axrbsz7ps5RzYB7a1L8IxBSfsD.jpg', year: '2017', genres: ['Horror', 'Mysterie', 'Thriller'] },
-  { id: 68718, title: 'Django Unchained', poster_path: '/7oWY8VDWW7thTzWh3OKYRkWUlD5.jpg', year: '2012', genres: ['Western', 'Drama'] },
-  { id: 530915, title: '1917', poster_path: '/iZf0KyrE25z1sage4SYFLCCrMi9.jpg', year: '2019', genres: ['Oorlog', 'Drama', 'Historisch'] },
-  { id: 515042, title: 'Free Solo', poster_path: '/v4QfYZMACODlWul9doN9RxE99ag.jpg', year: '2018', genres: ['Documentaire', 'Avontuur'] },
-];
+const ONBOARDING_FAVORITES = ONBOARDING_MOVIES;
 
 function FilmMatchApp() {
   const [currentView, setCurrentView] = useState<AppView>('login');
@@ -197,11 +176,13 @@ function FilmMatchApp() {
   const [selectedSpotlightMovie, setSelectedSpotlightMovie] = useState<Movie | null>(null);
   const [chosenPlatforms, setChosenPlatforms] = useState<string[]>([]);
   const [selectedFavorites, setSelectedFavorites] = useState<number[]>([]);
+  const [dislikedMovieIds, setDislikedMovieIds] = useState<number[]>([]);
+  const [unseenMovieIds, setUnseenMovieIds] = useState<number[]>([]);
   const [movieRatings, setMovieRatings] = useState<MovieRating[]>([]);
   const [ratingMovie, setRatingMovie] = useState<{ movie: Movie; alreadyWatched: boolean } | null>(null);
   const [draftMovieRating, setDraftMovieRating] = useState<number | null>(null);
   const [ratingSaving, setRatingSaving] = useState(false);
-  const [tasteMovieMetadata] = useState<Record<number, MovieTasteMetadata>>({});
+  const [tasteMovieMetadata, setTasteMovieMetadata] = useState<Record<number, MovieTasteMetadata>>({});
   const [releaseYearBefore, setReleaseYearBefore] = useState<number | null>(null);
   const [maxRuntimeMinutes, setMaxRuntimeMinutes] = useState<number | null>(null);
   const [dislikedGenres, setDislikedGenres] = useState<string[]>([]);
@@ -245,6 +226,7 @@ function FilmMatchApp() {
   const [authReady, setAuthReady] = useState(false);
   const authUserRef = useRef<string | null>(null);
   const authRevision = useRef(0);
+  const onboardingDraftRef = useRef(false);
   const [displayName, setDisplayName] = useState('');
   const [accountEmail, setAccountEmail] = useState('');
   const [accountPassword, setAccountPassword] = useState('');
@@ -263,6 +245,7 @@ function FilmMatchApp() {
 
   const resetAuthenticatedState = () => {
     authUserRef.current = null;
+    onboardingDraftRef.current = false;
     setAuthUserId(null);
     setAccountEmail('');
     setDisplayName('');
@@ -273,6 +256,9 @@ function FilmMatchApp() {
     setChosenPlatforms([]);
     setSelectedPlatforms(FIVE_PLATFORMS.map((platform) => platform.name));
     setSelectedFavorites([]);
+    setDislikedMovieIds([]);
+    setUnseenMovieIds([]);
+    setTasteMovieMetadata({});
     setDislikedGenres([]);
     setFavoriteDirectors([]);
     setFavoriteCast([]);
@@ -329,27 +315,63 @@ function FilmMatchApp() {
     setSearchQuery(name);
   };
 
+  const rememberOnboardingMovies = (items: OnboardingMovie[]) => {
+    setTasteMovieMetadata((current) => ({ ...current, ...Object.fromEntries(items.map((movie) => [movie.id, {
+      ...movie, release_date: movie.year ? movie.year + '-01-01' : '', runtime_minutes: null,
+    }])) }));
+  };
+  const recordOnboardingReaction = (movie: OnboardingMovie, reaction: MovieReaction | null) => {
+    rememberOnboardingMovies([movie]);
+    setSelectedFavorites((ids) => [...ids.filter((id) => id !== movie.id), ...(reaction === 'like' ? [movie.id] : [])]);
+    setDislikedMovieIds((ids) => [...ids.filter((id) => id !== movie.id), ...(reaction === 'dislike' ? [movie.id] : [])]);
+    setUnseenMovieIds((ids) => [...ids.filter((id) => id !== movie.id), ...(reaction === 'unseen' ? [movie.id] : [])]);
+  };
+  const onboardingChoices = useMemo(() => ONBOARDING_FAVORITES.map((movie) => ({
+    ...movie, ...(toOnboardingMovie(tasteMovieMetadata[movie.id]) || {}),
+  })), [tasteMovieMetadata]);
+  const savedTasteMovies = useMemo(() => Object.values(tasteMovieMetadata).map(toOnboardingMovie).filter((movie): movie is OnboardingMovie => movie !== null), [tasteMovieMetadata]);
+  const tasteById = useMemo(() => new Map<number, MovieTasteSignals>([
+    ...ONBOARDING_FAVORITES, ...library.watchlist, ...library.watched, ...Object.values(tasteMovieMetadata),
+  ].map((movie) => [movie.id, { ...movie, genres: movie.genres || [] }])), [library, tasteMovieMetadata]);
   const favoriteMovies = useMemo<MovieTasteSignals[]>(
-    () => ONBOARDING_FAVORITES.filter((f) => selectedFavorites.includes(f.id)).map((film) => ({
-      id: film.id,
-      genres: tasteMovieMetadata[film.id]?.genres || film.genres,
-      director: tasteMovieMetadata[film.id]?.director,
-      cast: tasteMovieMetadata[film.id]?.cast,
-    })),
-    [selectedFavorites, tasteMovieMetadata]
+    () => [...new Set(selectedFavorites)].map((id) => tasteById.get(id) || { id, genres: [] }),
+    [selectedFavorites, tasteById]
   );
+  const dislikedMovies = useMemo<MovieTasteSignals[]>(
+    () => [...new Set(dislikedMovieIds)].filter((id) => !selectedFavorites.includes(id)).map((id) => tasteById.get(id) || { id, genres: [] }),
+    [dislikedMovieIds, selectedFavorites, tasteById]
+  );
+  const tasteMetadataIds = [...new Set([...selectedFavorites, ...dislikedMovieIds, ...movieRatings.map((rating) => rating.movie_id)])].sort((a, b) => a - b).join(',');
+  useEffect(() => {
+    if (!authUserId || !tasteMetadataIds) return;
+    const controller = new AbortController();
+    const ids = tasteMetadataIds.split(',');
+    void (async () => {
+      try {
+        for (let offset = 0; offset < ids.length; offset += 25) {
+          const response = await fetch(`/api/movies?metadataIds=${ids.slice(offset, offset + 25).join(',')}`, { signal: controller.signal });
+          if (!response.ok) continue;
+          const data = await response.json();
+          if (controller.signal.aborted) return;
+          const items = (Array.isArray(data.movies) ? data.movies : []).map(toOnboardingMovie).filter((movie: OnboardingMovie | null): movie is OnboardingMovie => movie !== null);
+          rememberOnboardingMovies(items);
+        }
+      } catch { /* Existing catalog and saved metadata remain usable. */ }
+    })();
+    return () => controller.abort();
+  }, [authUserId, tasteMetadataIds]);
 
   const ratedMovies = useMemo<RatedMovieTasteSignals[]>(
     () => movieRatings.map((mr) => ({
-      ...(tasteMovieMetadata[mr.movie_id] || { id: mr.movie_id, genres: [] }),
+      ...(tasteById.get(mr.movie_id) || { id: mr.movie_id, genres: [] }),
       rating: mr.rating,
     })),
-    [movieRatings, tasteMovieMetadata]
+    [movieRatings, tasteById]
   );
 
   const matchPreferences = useMemo<MatchPreferences>(
-    () => ({ favoriteMovies, ratedMovies, dislikedGenres, favoriteDirectors, favoriteCast }),
-    [favoriteMovies, ratedMovies, dislikedGenres, favoriteDirectors, favoriteCast]
+    () => ({ favoriteMovies, ratedMovies, dislikedMovies, offeredMovies: ONBOARDING_FAVORITES, dislikedGenres, favoriteDirectors, favoriteCast }),
+    [favoriteMovies, ratedMovies, dislikedMovies, dislikedGenres, favoriteDirectors, favoriteCast]
   );
 
   const ratingsByMovieId = useMemo(
@@ -367,7 +389,7 @@ function FilmMatchApp() {
       Array.from(new Set(genres.map((g) => g.trim()).filter(Boolean))).forEach((name) => {
         const key = name.toLocaleLowerCase();
         const cur = genreWeights.get(key);
-        genreWeights.set(key, { name: cur?.name || name, weight: (cur?.weight || 0) + weight });
+        genreWeights.set(key, { name: cur?.name || name, weight: (cur?.weight || 0) + weight / Math.max(1, genres.length) / Math.sqrt(Math.max(1, ONBOARDING_FAVORITES.filter((film) => film.genres.some((genre) => genre.toLocaleLowerCase() === key)).length / 3)) });
       });
     };
 
@@ -406,10 +428,10 @@ function FilmMatchApp() {
   ])).sort((a, b) => a.localeCompare(b, 'nl')), [dislikedGenres]);
   const profileHeaderPosters = useMemo(() => {
     const posters = new Map<number, { id: number; title: string; poster_path: string }>();
-    [...library.watched, ...ONBOARDING_FAVORITES.filter((movie) => selectedFavorites.includes(movie.id))]
+    [...library.watched, ...onboardingChoices.filter((movie) => selectedFavorites.includes(movie.id)), ...savedTasteMovies.filter((movie) => selectedFavorites.includes(movie.id))]
       .forEach((movie) => { if (movie.poster_path && !posters.has(movie.id)) posters.set(movie.id, { id: movie.id, title: movie.title, poster_path: movie.poster_path }); });
     return Array.from(posters.values()).slice(0, 5);
-  }, [library.watched, selectedFavorites]);
+  }, [library.watched, selectedFavorites, onboardingChoices, savedTasteMovies]);
 
   const loadFriendsActivity = async (userId: string) => {
     try {
@@ -474,7 +496,12 @@ function FilmMatchApp() {
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
       const name = profile?.display_name || String(user.user_metadata?.display_name || user.email?.split('@')[0] || 'Gebruiker');
       const services = profile?.streaming_services || FIVE_PLATFORMS.map((p) => p.name);
-      const favorites = profile?.favorite_movie_ids?.map(Number) || [];
+      const favorites: number[] = [...new Set<number>((profile?.favorite_movie_ids || []).map(Number))];
+      const negatives: number[] = [...new Set<number>((profile?.disliked_movie_ids || []).map(Number))].filter((id) => !favorites.includes(id));
+      const unseen: number[] = [...new Set<number>((profile?.unseen_movie_ids || []).map(Number))].filter((id) => !favorites.includes(id) && !negatives.includes(id));
+      const rawMetadata = profile?.taste_movie_metadata;
+      const storedMovies = rawMetadata && typeof rawMetadata === 'object' && !Array.isArray(rawMetadata)
+        ? Object.values(rawMetadata).map(toOnboardingMovie).filter((movie): movie is OnboardingMovie => movie !== null) : [];
 
       const { data: ratingRows } = await supabase.from('movie_ratings').select('movie_id, rating').eq('user_id', user.id);
       const [{ data: watchlistRows }, { data: watchedRows }] = await Promise.all([
@@ -490,6 +517,9 @@ function FilmMatchApp() {
         setChosenPlatforms(services);
         setSelectedPlatforms(services);
         setSelectedFavorites(favorites);
+        setDislikedMovieIds(negatives);
+        setUnseenMovieIds(unseen);
+        setTasteMovieMetadata(Object.fromEntries(storedMovies.map((movie) => [movie.id, { ...movie, release_date: movie.year ? movie.year + '-01-01' : '', runtime_minutes: null }])));
         setLibrary({
           watchlist: (watchlistRows || []).map((r) => r.movie_data as Movie).filter(Boolean),
           watched: (watchedRows || []).map((r) => r.movie_data as Movie).filter(Boolean),
@@ -502,6 +532,7 @@ function FilmMatchApp() {
         setMaxRuntimeMinutes(profile?.max_runtime_minutes ?? null);
       });
       void loadFriendsActivity(user.id);
+      return Boolean(profile?.onboarding_completed);
     } catch (err) {
       console.warn('Profile load error:', err);
     }
@@ -528,7 +559,9 @@ function FilmMatchApp() {
       await loadAuthenticatedUser(data.user);
       if (authUserRef.current !== data.user.id) return;
       setAuthReady(true);
-      setCurrentView('dashboard');
+      onboardingDraftRef.current = true;
+      setRegisterStep(2);
+      setCurrentView('register');
     } else {
       setAuthNotice('Controleer je e-mail om je account te bevestigen.');
     }
@@ -548,10 +581,11 @@ function FilmMatchApp() {
       authRevision.current++;
       authUserRef.current = data.user.id;
       setAuthUserId(data.user.id);
-      await loadAuthenticatedUser(data.user);
+      const onboardingCompleted = await loadAuthenticatedUser(data.user);
       if (authUserRef.current !== data.user.id) return;
       setAuthReady(true);
-      setCurrentView('dashboard');
+      if (!onboardingCompleted) { onboardingDraftRef.current = true; setRegisterStep(2); }
+      setCurrentView(onboardingCompleted ? 'dashboard' : 'register');
     }
   };
 
@@ -568,27 +602,48 @@ function FilmMatchApp() {
     }
   };
 
-  const saveProfile = async () => {
-    if (!authUserId) return;
+  const persistProfile = async (): Promise<boolean> => {
+    if (!authUserId) return false;
+    const onboarding = currentView === 'register';
+    const services = onboarding ? chosenPlatforms : selectedPlatforms;
+    if (onboarding && (services.length === 0 || !canFinishTasteSelection(selectedFavorites, dislikedMovieIds))) {
+      setAuthError('Kies minimaal één dienst en beoordeel vijf films, waarvan minstens drie positief.');
+      return false;
+    }
     const supabase = createSupabaseBrowserClient();
-    if (!supabase) return;
+    if (!supabase) return false;
     setAuthLoading(true);
-    await supabase.from('profiles').upsert({
-      id: authUserId,
-      display_name: displayName.trim(),
-      streaming_services: selectedPlatforms,
-      favorite_movie_ids: selectedFavorites,
-      preferred_genres: preferredGenres,
-      disliked_genres: dislikedGenres,
-      favorite_directors: favoriteDirectors,
-      favorite_cast: favoriteCast,
-      release_year_before: releaseYearBefore,
-      max_runtime_minutes: maxRuntimeMinutes,
-      onboarding_completed: true,
-    });
-    setAuthLoading(false);
-    setAuthNotice('Je profiel is opgeslagen.');
+    setAuthError('');
+    setAuthNotice('');
+    try {
+      const reactionIds = new Set([...selectedFavorites, ...dislikedMovieIds, ...unseenMovieIds]);
+      const metadata = Object.fromEntries([...reactionIds].map((id) => {
+        const stored = toOnboardingMovie(tasteMovieMetadata[id]) || ONBOARDING_FAVORITES.find((movie) => movie.id === id);
+        return [id, stored];
+      }).filter((entry) => Boolean(entry[1])));
+      const { error } = await supabase.from('profiles').upsert({
+        id: authUserId, display_name: displayName.trim(), streaming_services: services,
+        favorite_movie_ids: [...new Set(selectedFavorites)],
+        disliked_movie_ids: [...new Set(dislikedMovieIds)].filter((id) => !selectedFavorites.includes(id)),
+        unseen_movie_ids: [...new Set(unseenMovieIds)].filter((id) => !selectedFavorites.includes(id) && !dislikedMovieIds.includes(id)),
+        taste_movie_metadata: metadata,
+        preferred_genres: preferredGenres, disliked_genres: dislikedGenres,
+        favorite_directors: favoriteDirectors, favorite_cast: favoriteCast,
+        release_year_before: releaseYearBefore, max_runtime_minutes: maxRuntimeMinutes,
+        onboarding_completed: true,
+      });
+      if (error) throw error;
+      setSelectedPlatforms(services);
+      onboardingDraftRef.current = false;
+      setAuthNotice('Je profiel is opgeslagen.');
+      return true;
+    } catch {
+      setAuthError('Je profiel kon niet worden opgeslagen. Probeer het opnieuw.');
+      return false;
+    } finally { setAuthLoading(false); }
   };
+
+  const saveProfile = async (): Promise<void> => { await persistProfile(); };
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -612,11 +667,13 @@ function FilmMatchApp() {
           setCurrentView((view) => view === 'register' ? view : 'login');
           return;
         }
+        if (authUserRef.current === data.user.id && onboardingDraftRef.current) return;
         authUserRef.current = data.user.id;
         setAuthUserId(data.user.id);
-        await loadAuthenticatedUser(data.user);
+        const onboardingCompleted = await loadAuthenticatedUser(data.user);
         if (!active || revision !== authRevision.current || authUserRef.current !== data.user.id) return;
-        setCurrentView((view) => view === 'login' || view === 'landing' ? 'dashboard' : view);
+        if (!onboardingCompleted) { onboardingDraftRef.current = true; setRegisterStep((step) => step === 1 ? 2 : step); }
+        setCurrentView((view) => view === 'login' || view === 'landing' ? (onboardingCompleted ? 'dashboard' : 'register') : view);
       } catch {
         if (!active || revision !== authRevision.current) return;
         resetAuthenticatedState();
@@ -862,11 +919,16 @@ function FilmMatchApp() {
         platforms={FIVE_PLATFORMS}
         chosenPlatforms={chosenPlatforms}
         toggleRegisterPlatform={(p) => setChosenPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]))}
-        onboardingFavorites={ONBOARDING_FAVORITES}
+        onboardingFavorites={onboardingChoices}
         selectedFavorites={selectedFavorites}
+        dislikedMovieIds={dislikedMovieIds}
+        unseenMovieIds={unseenMovieIds}
+        savedTasteMovies={savedTasteMovies}
+        onMovieReaction={recordOnboardingReaction}
+        onMovieMetadata={rememberOnboardingMovies}
         toggleFavorite={(id) => setSelectedFavorites((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))}
         onSignUp={handleSignUp}
-        onCompleteOnboarding={async () => { await saveProfile(); setCurrentView('dashboard'); }}
+        onCompleteOnboarding={async () => { if (await persistProfile()) setRegisterStep(5); }}
         onOpenDashboard={() => setCurrentView('dashboard')}
         onCancel={() => setCurrentView('login')}
       />
@@ -906,7 +968,7 @@ function FilmMatchApp() {
         onToggleFavorite={(id) => setSelectedFavorites((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))}
         onPreviousStep={() => setRegisterStep((s) => (s - 1) as 1 | 2 | 3 | 4 | 5)}
         onNextStep={() => setRegisterStep((s) => (s + 1) as 1 | 2 | 3 | 4 | 5)}
-        onCompleteOnboarding={async () => { await saveProfile(); setCurrentView('dashboard'); }}
+        onCompleteOnboarding={async () => { if (await persistProfile()) setRegisterStep(5); }}
         onOpenDashboard={() => setCurrentView('dashboard')}
         onCancelRegistration={() => setCurrentView('login')}
         onOpenLogin={() => setCurrentView('login')}
@@ -1025,7 +1087,7 @@ function FilmMatchApp() {
                 setSearchQuery(''); setSelectedPerson(null); setSpotlightMovieId(null); setSelectedSpotlightMovie(null);
                 setVisibleMovieLimit(TARGET_DISCOVERY_COUNT);
               }}
-              onOpenFavoritesOnboarding={() => { setRegisterStep(3); setCurrentView('register'); }}
+              onOpenFavoritesOnboarding={() => { onboardingDraftRef.current = true; setRegisterStep(3); setCurrentView('register'); }}
               onSelectMovieSpotlight={(id) => {
                 const movie = library.watched.find((item) => item.id === id);
                 setCurrentView('dashboard'); setLibraryView('watched'); setPreviousLibraryView('watched');
@@ -1225,7 +1287,17 @@ function LocalRegistrationPreview({ initialStep }: { initialStep: 1 | 2 | 3 | 4 
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [services, setServices] = useState<string[]>(['Netflix', 'Prime Video', 'Disney+']);
-  const [favorites, setFavorites] = useState<number[]>(ONBOARDING_FAVORITES.slice(0, 5).map((movie) => movie.id));
+  const [favorites, setFavorites] = useState<number[]>([]);
+  const [negatives, setNegatives] = useState<number[]>([]);
+  const [unseen, setUnseen] = useState<number[]>([]);
+  const [details, setDetails] = useState<Record<number, OnboardingMovie>>({});
+  const remember = (items: OnboardingMovie[]) => setDetails((current) => ({ ...current, ...Object.fromEntries(items.map((movie) => [movie.id, movie])) }));
+  const reactToMovie = (movie: OnboardingMovie, reaction: MovieReaction | null) => {
+    remember([movie]);
+    setFavorites((ids) => [...ids.filter((id) => id !== movie.id), ...(reaction === 'like' ? [movie.id] : [])]);
+    setNegatives((ids) => [...ids.filter((id) => id !== movie.id), ...(reaction === 'dislike' ? [movie.id] : [])]);
+    setUnseen((ids) => [...ids.filter((id) => id !== movie.id), ...(reaction === 'unseen' ? [movie.id] : [])]);
+  };
   const changeStep = (next: 1 | 2 | 3 | 4 | 5) => {
     setStep(next);
     const url = new URL(window.location.href);
@@ -1244,7 +1316,7 @@ function LocalRegistrationPreview({ initialStep }: { initialStep: 1 | 2 | 3 | 4 
   return (
     <div className="min-h-screen bg-[#173553] text-white">
       <nav aria-label="Lokale registratiepreview" className="relative z-50 flex flex-wrap items-center justify-center gap-2 border-b border-sky-200/25 bg-[#173553] px-4 py-3">
-        <p className="w-full text-center text-xs text-sky-100">Lokale preview — er wordt niets opgeslagen</p>
+        <p className="w-full text-center text-xs text-sky-100">Lokale preview — geen account- of profielgegevens opgeslagen</p>
         <button type="button" disabled={step === 1} onClick={() => changeStep((step - 1) as 1 | 2 | 3 | 4 | 5)} className="min-h-11 rounded-full border border-sky-200/30 px-3 text-sm disabled:opacity-40">← Vorige</button>
         {[1, 2, 3, 4, 5].map((number) => (
           <button key={number} type="button" aria-label={`Bekijk stap ${number}`} aria-pressed={step === number} onClick={() => changeStep(number as 1 | 2 | 3 | 4 | 5)} className={`h-11 w-11 rounded-full text-sm font-semibold ${step === number ? 'bg-rose-500 text-white' : 'bg-sky-100/10 text-sky-100'}`}>{number}</button>
@@ -1274,6 +1346,11 @@ function LocalRegistrationPreview({ initialStep }: { initialStep: 1 | 2 | 3 | 4 
         toggleRegisterPlatform={(platform) => setServices((current) => current.includes(platform) ? current.filter((item) => item !== platform) : [...current, platform])}
         onboardingFavorites={ONBOARDING_FAVORITES}
         selectedFavorites={favorites}
+        dislikedMovieIds={negatives}
+        unseenMovieIds={unseen}
+        savedTasteMovies={Object.values(details)}
+        onMovieReaction={reactToMovie}
+        onMovieMetadata={remember}
         toggleFavorite={(id) => setFavorites((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])}
         onSignUp={(event) => { event.preventDefault(); changeStep(2); }}
         onCompleteOnboarding={() => changeStep(5)}

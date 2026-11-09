@@ -3,15 +3,9 @@
 import { useId, useState, type FormEvent } from 'react';
 import Image from 'next/image';
 import StreamingLogo from './StreamingLogo';
+import OnboardingFilmPicker from './OnboardingFilmPicker';
+import { canFinishTasteSelection, type OnboardingMovie, type MovieReaction } from '../lib/recommendations/onboardingCatalog';
 import type { StreamingPlatform } from './types';
-
-interface OnboardingMovie {
-  id: number;
-  title: string;
-  poster_path: string;
-  year: string;
-  genres: string[];
-}
 
 interface RegisterFlowProps {
   registerStep: 1 | 2 | 3 | 4 | 5;
@@ -35,6 +29,11 @@ interface RegisterFlowProps {
   toggleRegisterPlatform: (name: string) => void;
   onboardingFavorites: OnboardingMovie[];
   selectedFavorites: number[];
+  dislikedMovieIds: number[];
+  unseenMovieIds: number[];
+  savedTasteMovies?: OnboardingMovie[];
+  onMovieReaction: (movie: OnboardingMovie, reaction: MovieReaction | null) => void;
+  onMovieMetadata?: (movies: OnboardingMovie[]) => void;
   toggleFavorite: (id: number) => void;
   onSignUp: (e: FormEvent<HTMLFormElement>) => void;
   onCompleteOnboarding: () => void;
@@ -97,13 +96,19 @@ export default function RegisterFlow({
   toggleRegisterPlatform,
   onboardingFavorites,
   selectedFavorites,
+  dislikedMovieIds,
+  unseenMovieIds,
+  savedTasteMovies,
+  onMovieReaction,
+  onMovieMetadata,
   toggleFavorite,
   onSignUp,
   onCompleteOnboarding,
   onOpenDashboard,
   onCancel,
 }: RegisterFlowProps) {
-  const welcomeMovies = onboardingFavorites
+  const allFavorites = Array.from(new Map([...onboardingFavorites, ...(savedTasteMovies || [])].map((movie) => [movie.id, movie])).values());
+  const welcomeMovies = allFavorites
     .filter((film) => selectedFavorites.includes(film.id))
     .slice(0, 5);
 
@@ -250,52 +255,7 @@ export default function RegisterFlow({
           )}
 
           {registerStep === 3 && (
-            <div className="space-y-4">
-              <p className="text-sm leading-relaxed text-sky-100 text-center">
-                Kies minimaal 5 films die je goed vindt. Daarmee leren we jouw filmsmaak kennen.
-              </p>
-
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-[52svh] overflow-y-auto p-1">
-                {onboardingFavorites.map((film) => {
-                  const isSelected = selectedFavorites.includes(film.id);
-                  return (
-                    <button
-                      type="button"
-                      key={film.id}
-                      onClick={() => toggleFavorite(film.id)}
-                      aria-pressed={isSelected}
-                      aria-label={`${isSelected ? 'Verwijder' : 'Kies'} ${film.title} als favoriet`}
-                      className={`group relative aspect-[2/3] rounded-xl overflow-hidden cursor-pointer border transition select-none ${
-                        isSelected
-                          ? 'border-rose-500 ring-2 ring-rose-500/50 scale-[0.98]'
-                          : 'border-white/[0.08] hover:border-white/20'
-                      }`}
-                    >
-                      <Image
-                        src={`https://image.tmdb.org/t/p/w500${film.poster_path}`}
-                        alt={film.title}
-                        fill
-                        unoptimized
-                        className="object-cover"
-                      />
-                      <div className={`absolute inset-0 ${isSelected ? 'bg-rose-950/20' : 'bg-gradient-to-t from-[#102f49]/90 via-transparent to-transparent'}`} />
-                      <div className="absolute top-2 right-2">
-                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isSelected ? 'bg-rose-600 text-white' : 'bg-black/60 text-white/50'}`}>
-                          {isSelected ? '✓' : '+'}
-                        </span>
-                      </div>
-                      <div className="absolute bottom-1 inset-x-1 text-center">
-                        <p className="text-[10px] font-bold text-white truncate drop-shadow">{film.title}</p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <p className="text-center text-xs font-semibold text-sky-100/80">
-                Gekozen: <span className="text-white">{selectedFavorites.length}</span> van minimaal 5
-              </p>
-            </div>
+            <OnboardingFilmPicker movies={onboardingFavorites} savedMovies={savedTasteMovies} likedIds={selectedFavorites} dislikedIds={dislikedMovieIds} unseenIds={unseenMovieIds} onReact={onMovieReaction} onMetadata={onMovieMetadata} />
           )}
 
           {registerStep === 4 && (
@@ -306,10 +266,10 @@ export default function RegisterFlow({
               <div>
                 <h3 className="text-lg font-bold text-white">Je voorkeuren zijn gekozen</h3>
                 <p className="text-sm text-sky-100/80 mt-2 leading-relaxed">
-                  Je startprofiel bevat {chosenPlatforms.length} streamingdiensten en {selectedFavorites.length} favoriete films. Sla je profiel op om je dashboard klaar te zetten.
+                  Je startprofiel bevat {chosenPlatforms.length} streamingdiensten, {selectedFavorites.length} films die je goed vindt en {dislikedMovieIds.length} films die minder bij je passen. Sla je profiel op om je dashboard klaar te zetten.
                 </p>
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  {Array.from(new Set(onboardingFavorites.filter((film) => selectedFavorites.includes(film.id)).flatMap((film) => film.genres))).slice(0, 5).map((genre) => (
+                  {Array.from(new Set(allFavorites.filter((film) => selectedFavorites.includes(film.id)).flatMap((film) => film.genres))).slice(0, 5).map((genre) => (
                     <span key={genre} className="rounded-full border border-rose-200/20 bg-rose-300/10 px-3 py-1 text-[10px] font-semibold text-rose-100">{genre}</span>
                   ))}
                 </div>
@@ -330,13 +290,13 @@ export default function RegisterFlow({
               <div className="grid w-full grid-cols-5 gap-2" aria-label="Jouw gekozen films">
                 {welcomeMovies.map((film) => (
                   <div key={film.id} className="relative aspect-[2/3] overflow-hidden rounded-lg border border-white/10 bg-neutral-800">
-                    <Image
+                    {film.poster_path ? <Image
                       src={`https://image.tmdb.org/t/p/w500${film.poster_path}`}
                       alt={film.title}
                       fill
                       unoptimized
                       className="object-cover"
-                    />
+                    /> : <span className="flex h-full items-center justify-center p-1 text-center text-[10px]">{film.title}</span>}
                   </div>
                 ))}
               </div>
@@ -365,12 +325,12 @@ export default function RegisterFlow({
             <button
               disabled={
                 (registerStep === 2 && chosenPlatforms.length === 0) ||
-                (registerStep === 3 && selectedFavorites.length < 5)
+                (registerStep === 3 && !canFinishTasteSelection(selectedFavorites, dislikedMovieIds))
               }
               onClick={() => setRegisterStep((registerStep + 1) as 1 | 2 | 3 | 4 | 5)}
               type="button" className={`min-h-12 px-6 py-3 rounded-full text-sm font-bold transition ${
                 (registerStep === 2 && chosenPlatforms.length === 0) ||
-                (registerStep === 3 && selectedFavorites.length < 5)
+                (registerStep === 3 && !canFinishTasteSelection(selectedFavorites, dislikedMovieIds))
                   ? 'bg-sky-100/10 text-sky-100/45 cursor-not-allowed'
                   : 'bg-rose-500 text-white hover:bg-rose-400 shadow-lg shadow-rose-950/20'
               }`}

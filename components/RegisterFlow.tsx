@@ -122,7 +122,7 @@ export default function RegisterFlow({
         </picture>
         <div className="absolute inset-0 bg-[#173553]/10" />
       </div>
-      <main className="relative z-10 mx-auto flex min-h-[100svh] w-full max-w-4xl flex-col items-center justify-center px-4 pb-24 pt-8 sm:px-8 sm:pb-28 sm:pt-10">
+      <main className="relative z-10 mx-auto flex min-h-[100svh] w-full max-w-7xl flex-col items-center justify-center px-4 pb-24 pt-8 sm:px-8 sm:pb-28 sm:pt-10">
         <header className="mb-6 w-full text-center">
           <div className="flex items-center justify-center gap-2.5 sm:gap-3">
             <span className="text-[38px] leading-none sm:text-5xl" aria-hidden="true">🍿</span>
@@ -131,7 +131,7 @@ export default function RegisterFlow({
           <p className="mt-2 text-xs font-medium text-sky-100 sm:text-sm">De juiste film voor vanavond</p>
           <svg viewBox="0 0 140 14" className="mx-auto mt-2 h-3 w-28 text-rose-400" fill="none" aria-hidden="true"><path d="M4 10Q70-4 136 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
         </header>
-        <section aria-labelledby="fm-register-title" className={`w-full rounded-3xl border border-sky-200/25 bg-[#244d6d]/85 p-5 shadow-[0_20px_70px_rgba(5,24,42,.3)] backdrop-blur-md sm:p-8 ${registerStep === 3 ? 'max-w-3xl' : 'max-w-xl'}`}>
+        <section aria-labelledby="fm-register-title" className={`w-full rounded-3xl border border-sky-200/25 bg-[#244d6d]/85 p-5 shadow-[0_20px_70px_rgba(5,24,42,.3)] backdrop-blur-md sm:p-8 ${registerStep === 3 ? 'max-w-6xl' : 'max-w-xl'}`}>
           <header className="mb-6">
             <ol className="mb-6 grid grid-cols-5 gap-2" aria-label="Registratievoortgang">
               {['Account', 'Diensten', 'Films', 'Profiel', 'Klaar'].map((label, index) => (

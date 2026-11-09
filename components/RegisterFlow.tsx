@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import Image from 'next/image';
 import StreamingLogo from './StreamingLogo';
 import type { StreamingPlatform } from './types';
@@ -40,6 +40,39 @@ interface RegisterFlowProps {
   onCompleteOnboarding: () => void;
   onOpenDashboard: () => void;
   onCancel: () => void;
+}
+
+function RegistrationPasswordField({ label, value, onChange, hint }: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  hint?: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  const inputId = useId();
+  const hintId = inputId + '-hint';
+  return (
+    <div className="space-y-2">
+      <label htmlFor={inputId} className="block text-left text-sm font-medium text-sky-100">{label}</label>
+      <div className="relative">
+        <input id={inputId} type={visible ? 'text' : 'password'} autoComplete="new-password" minLength={8} required
+          value={value} onChange={(event) => onChange(event.target.value)}
+          aria-describedby={hint ? hintId : undefined}
+          placeholder={label === 'Wachtwoord' ? 'Kies een wachtwoord' : 'Herhaal je wachtwoord'}
+          className="fm-register-input min-h-12 w-full rounded-xl border border-sky-200/35 bg-[#133650]/80 py-3 pl-4 pr-12 text-base text-white outline-none transition placeholder:text-sky-100/60 focus:border-rose-300/60 focus:ring-2 focus:ring-rose-300/25" />
+        <button type="button" onClick={() => setVisible((current) => !current)}
+          aria-label={`${label === 'Wachtwoord' ? 'Wachtwoord' : 'Herhaald wachtwoord'} ${visible ? 'verbergen' : 'tonen'}`}
+          aria-pressed={visible} aria-controls={inputId}
+          className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-xl text-sky-100/80 transition hover:text-white">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+            {visible && <path d="m3 3 18 18" />}
+          </svg>
+        </button>
+      </div>
+      {hint && <p id={hintId} className="text-xs leading-relaxed text-sky-100/80">{hint}</p>}
+    </div>
+  );
 }
 
 export default function RegisterFlow({
@@ -122,7 +155,7 @@ export default function RegisterFlow({
           {registerStep === 1 && (
             <form onSubmit={onSignUp} aria-busy={authLoading} className="mx-auto max-w-md space-y-4">
               <p className="text-center text-sm leading-relaxed text-sky-100">
-                Maak een account aan. Daarna kiezen we samen de films en diensten die bij je passen.
+                Maak je account aan en stel daarna je filmsmaak in.
               </p>
               <label className="block space-y-2 text-left text-sm font-medium text-sky-100">
                 Gebruikersnaam
@@ -147,32 +180,8 @@ export default function RegisterFlow({
                   className="fm-register-input min-h-12 w-full rounded-xl border border-sky-200/35 bg-[#133650]/80 px-4 py-3 text-base text-white outline-none transition focus:ring-2 focus:ring-rose-300/25 placeholder:text-sky-100/60 focus:border-rose-300/60"
                 />
               </label>
-              <label className="block space-y-2 text-left text-sm font-medium text-sky-100">
-                Wachtwoord
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                  value={accountPassword}
-                  onChange={(e) => setAccountPassword(e.target.value)}
-                  placeholder="Minimaal 8 tekens"
-                  className="fm-register-input min-h-12 w-full rounded-xl border border-sky-200/35 bg-[#133650]/80 px-4 py-3 text-base text-white outline-none transition focus:ring-2 focus:ring-rose-300/25 placeholder:text-sky-100/60 focus:border-rose-300/60"
-                />
-              </label>
-              <label className="block space-y-2 text-left text-sm font-medium text-sky-100">
-                Herhaal wachtwoord
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Herhaal je wachtwoord"
-                  className="fm-register-input min-h-12 w-full rounded-xl border border-sky-200/35 bg-[#133650]/80 px-4 py-3 text-base text-white outline-none transition focus:ring-2 focus:ring-rose-300/25 placeholder:text-sky-100/60 focus:border-rose-300/60"
-                />
-              </label>
+              <RegistrationPasswordField label="Wachtwoord" value={accountPassword} onChange={setAccountPassword} hint="Minimaal 8 tekens." />
+              <RegistrationPasswordField label="Herhaal wachtwoord" value={confirmPassword} onChange={setConfirmPassword} />
               {confirmPassword && !passwordsMatch && (
                 <p role="status" className="text-xs text-rose-200">Wachtwoorden komen niet overeen.</p>
               )}

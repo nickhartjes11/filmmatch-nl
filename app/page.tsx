@@ -245,7 +245,7 @@ function FilmMatchApp() {
   const [authReady, setAuthReady] = useState(false);
   const authUserRef = useRef<string | null>(null);
   const authRevision = useRef(0);
-  const [displayName, setDisplayName] = useState('Gebruiker');
+  const [displayName, setDisplayName] = useState('');
   const [accountEmail, setAccountEmail] = useState('');
   const [accountPassword, setAccountPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -265,7 +265,7 @@ function FilmMatchApp() {
     authUserRef.current = null;
     setAuthUserId(null);
     setAccountEmail('');
-    setDisplayName('Gebruiker');
+    setDisplayName('');
     setLibrary({ watchlist: [], watched: [] });
     setMovieRatings([]);
     setFriendsActivity([]);
@@ -1220,7 +1220,7 @@ function FilmMatchApp() {
 
 function LocalRegistrationPreview({ initialStep }: { initialStep: 1 | 2 | 3 | 4 | 5 }) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(initialStep);
-  const [name, setName] = useState('Filmfan');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('filmfan@voorbeeld.nl');
   const [password, setPassword] = useState('Voorbeeld123!');
   const [confirmation, setConfirmation] = useState('Voorbeeld123!');

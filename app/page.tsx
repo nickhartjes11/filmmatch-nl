@@ -133,7 +133,7 @@ const ONBOARDING_FAVORITES = [
   { id: 515042, title: 'Free Solo', poster_path: '/v4QfYZMACODlWul9doN9RxE99ag.jpg', year: '2018', genres: ['Documentaire', 'Avontuur'] },
 ];
 
-export default function Home() {
+function FilmMatchApp() {
   const [currentView, setCurrentView] = useState<AppView>('login');
   const [viewHistory, setViewHistory] = useState<AppView[]>([]);
   const navigateToView = (view: AppView) => {
@@ -1216,3 +1216,96 @@ export default function Home() {
 }
 
 
+
+
+function LocalRegistrationPreview({ initialStep }: { initialStep: 1 | 2 | 3 | 4 | 5 }) {
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(initialStep);
+  const [name, setName] = useState('Filmfan');
+  const [email, setEmail] = useState('filmfan@voorbeeld.nl');
+  const [password, setPassword] = useState('Voorbeeld123!');
+  const [confirmation, setConfirmation] = useState('Voorbeeld123!');
+  const [services, setServices] = useState<string[]>(['Netflix', 'Prime Video', 'Disney+']);
+  const [favorites, setFavorites] = useState<number[]>(ONBOARDING_FAVORITES.slice(0, 5).map((movie) => movie.id));
+  const changeStep = (next: 1 | 2 | 3 | 4 | 5) => {
+    setStep(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set('preview', 'register');
+    url.searchParams.set('step', String(next));
+    window.history.replaceState(null, '', url.toString());
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  };
+  const leavePreview = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('preview');
+    url.searchParams.delete('step');
+    window.location.assign(url.toString());
+  };
+  const matching = password.length > 0 && password === confirmation;
+  return (
+    <div className="min-h-screen bg-[#173553] text-white">
+      <nav aria-label="Lokale registratiepreview" className="relative z-50 flex flex-wrap items-center justify-center gap-2 border-b border-sky-200/25 bg-[#173553] px-4 py-3">
+        <p className="w-full text-center text-xs text-sky-100">Lokale preview — er wordt niets opgeslagen</p>
+        <button type="button" disabled={step === 1} onClick={() => changeStep((step - 1) as 1 | 2 | 3 | 4 | 5)} className="min-h-11 rounded-full border border-sky-200/30 px-3 text-sm disabled:opacity-40">← Vorige</button>
+        {[1, 2, 3, 4, 5].map((number) => (
+          <button key={number} type="button" aria-label={`Bekijk stap ${number}`} aria-pressed={step === number} onClick={() => changeStep(number as 1 | 2 | 3 | 4 | 5)} className={`h-11 w-11 rounded-full text-sm font-semibold ${step === number ? 'bg-rose-500 text-white' : 'bg-sky-100/10 text-sky-100'}`}>{number}</button>
+        ))}
+        <button type="button" disabled={step === 5} onClick={() => changeStep((step + 1) as 1 | 2 | 3 | 4 | 5)} className="min-h-11 rounded-full border border-sky-200/30 px-3 text-sm disabled:opacity-40">Volgende →</button>
+        <button type="button" onClick={leavePreview} className="min-h-11 rounded-full px-3 text-xs text-sky-100 underline underline-offset-4">Preview sluiten</button>
+      </nav>
+      <RegisterFlow
+        registerStep={step}
+        setRegisterStep={changeStep}
+        displayName={name}
+        setDisplayName={setName}
+        accountEmail={email}
+        setAccountEmail={setEmail}
+        accountPassword={password}
+        setAccountPassword={setPassword}
+        confirmPassword={confirmation}
+        setConfirmPassword={setConfirmation}
+        passwordsMatch={matching}
+        canCreateAccount={Boolean(name.trim() && email.trim() && password.length >= 8 && matching)}
+        authError=""
+        authNotice=""
+        authLoading={false}
+        supabaseConfigured={true}
+        platforms={FIVE_PLATFORMS}
+        chosenPlatforms={services}
+        toggleRegisterPlatform={(platform) => setServices((current) => current.includes(platform) ? current.filter((item) => item !== platform) : [...current, platform])}
+        onboardingFavorites={ONBOARDING_FAVORITES}
+        selectedFavorites={favorites}
+        toggleFavorite={(id) => setFavorites((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])}
+        onSignUp={(event) => { event.preventDefault(); changeStep(2); }}
+        onCompleteOnboarding={() => changeStep(5)}
+        onOpenDashboard={leavePreview}
+        onCancel={leavePreview}
+      />
+    </div>
+  );
+}
+
+export default function Home() {
+  const [preview, setPreview] = useState<{ step: 1 | 2 | 3 | 4 | 5 } | null | undefined>(undefined);
+  useEffect(() => {
+    const local = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(window.location.hostname);
+    if (process.env.NODE_ENV !== 'development' || !local) {
+      setPreview(null);
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('preview') !== 'register') {
+      setPreview(null);
+      return;
+    }
+    const requested = Number(params.get('step') || 1);
+    const step = (Number.isInteger(requested) && requested >= 1 && requested <= 5 ? requested : 1) as 1 | 2 | 3 | 4 | 5;
+    setPreview({ step });
+  }, []);
+
+  if (process.env.NODE_ENV !== 'development') return <FilmMatchApp />;
+  if (preview === undefined) {
+    return <main className="flex min-h-[100svh] items-center justify-center bg-[#173553] text-sm text-sky-100" role="status">FilmMatch laden…</main>;
+  }
+  // The real app and its Supabase effects are never mounted in preview mode.
+  return preview ? <LocalRegistrationPreview initialStep={preview.step} /> : <FilmMatchApp />;
+}

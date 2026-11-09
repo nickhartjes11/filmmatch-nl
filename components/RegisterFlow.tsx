@@ -203,10 +203,10 @@ export default function RegisterFlow({
           {registerStep === 2 && (
             <div className="space-y-4">
               <p className="text-sm leading-relaxed text-sky-100 text-center">
-                Kies je streamingdiensten. Zo vind je films die je direct kunt kijken.
+                Kies de diensten waarop je een abonnement hebt. Je kunt dit later aanpassen.
               </p>
 
-              <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2" role="group" aria-label="Jouw streamingdiensten">
                 {platforms.map((p) => {
                   const active = chosenPlatforms.includes(p.name);
                   return (
@@ -215,26 +215,36 @@ export default function RegisterFlow({
                       key={p.name}
                       onClick={() => toggleRegisterPlatform(p.name)}
                       aria-pressed={active}
-                      className={`min-h-20 w-full p-4 rounded-2xl border transition flex items-center justify-between text-left ${
+                      className={`min-h-24 w-full p-4 rounded-2xl border-2 transition flex items-center justify-between text-left ${
                         active
-                          ? 'bg-sky-300/15 border-sky-200/70 text-white ring-1 ring-sky-200/30'
+                          ? 'bg-sky-300/20 border-sky-200 text-white shadow-md shadow-sky-950/15'
                           : 'bg-[#173b57]/70 border-sky-200/20 text-sky-100/80 hover:border-sky-200/50'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <StreamingLogo name={p.name} logoPath={p.logo_path} mark={p.mark} color={p.color} className="h-9 w-9 rounded-lg" />
-                        <span className="font-semibold text-sm">{p.name}</span>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <StreamingLogo name={p.name} logoPath={p.logo_path} mark={p.mark} color={p.color} className="h-12 w-12 shrink-0 rounded-xl" />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold">{p.name}</span>
+                          <span className="mt-1 block text-xs text-sky-100/80">{active ? 'Geselecteerd' : 'Niet geselecteerd'}</span>
+                        </span>
                       </div>
                       <div
-                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                          active ? 'bg-rose-600 text-white' : 'border border-white/10'
+                        className={`ml-2 w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-sm font-bold ${
+                          active ? 'bg-sky-200 text-[#173553]' : 'border border-sky-200/35 text-sky-100/60'
                         }`}
                       >
-                        {active && '✓'}
+                        <span aria-hidden="true">{active ? '✓' : '−'}</span>
                       </div>
                     </button>
                   );
                 })}
+              </div>
+              <div role="status" aria-live="polite" className="pt-1 text-center text-sm leading-relaxed text-sky-100">
+                {chosenPlatforms.length > 0 ? (
+                  <p>{chosenPlatforms.length} {chosenPlatforms.length === 1 ? 'dienst geselecteerd' : 'diensten geselecteerd'}</p>
+                ) : (
+                  <p>Kies minimaal één dienst om verder te gaan.</p>
+                )}
               </div>
             </div>
           )}

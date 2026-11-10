@@ -196,7 +196,7 @@ export default function TopNavigation({
       action: () => onNavigate('cinema'),
     },
     {
-      label: 'Vriendenactiviteit',
+      label: 'Mijn Vrienden',
       active: friendsActive,
       action: onOpenFriends,
     },

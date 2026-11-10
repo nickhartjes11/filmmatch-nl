@@ -60,12 +60,13 @@ interface MovieGridProps {
   onSelectPerson?: (name: string, department: 'Acting' | 'Directing') => void;
 }
 
-interface MovieCardProps extends Pick<MovieGridProps, 'watchlistIds' | 'watchedIds' | 'onSelectMovie' | 'ratings' | 'onEditRating' | 'onToggleWatchlist' | 'onToggleWatched' | 'onSelectPerson'> {
+interface MovieCardProps extends Pick<MovieGridProps, 'watchlistIds' | 'watchedIds' | 'onSelectMovie' | 'onToggleWatchlist' | 'onSelectPerson'>, Partial<Pick<MovieGridProps, 'ratings' | 'onEditRating' | 'onToggleWatched'>> {
   movie: Movie;
   railCard?: boolean;
   highlightUserRating?: boolean;
   compactPoster?: boolean;
   showWatchedBadge?: boolean;
+  showMatchScore?: boolean;
 }
 
 interface MovieRailProps extends Omit<MovieCardProps, 'movie' | 'railCard'> {
@@ -113,7 +114,7 @@ function RatingBadge({ rating, source }: { rating?: string | null; source?: Movi
   );
 }
 
-function MovieCard({
+export function MovieCard({
   movie,
   watchlistIds,
   watchedIds,
@@ -125,12 +126,13 @@ function MovieCard({
   railCard = false,
   highlightUserRating = false,
   showWatchedBadge = false,
+  showMatchScore = true,
 }: MovieCardProps) {
   const [imageError, setImageError] = useState(false);
   useEffect(() => setImageError(false), [movie.poster_path]);
   const isWatchlisted = watchlistIds.includes(movie.id);
   const isWatched = watchedIds.includes(movie.id);
-  const userRating = ratings[movie.id];
+  const userRating = ratings?.[movie.id];
   const matchScore = movie.match_percentage ?? 0;
   const matchBand = matchScore >= 80 ? 'strong' : matchScore >= 60 ? 'medium' : 'low';
 
@@ -171,9 +173,9 @@ function MovieCard({
       </button>
 
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(19,49,76,.98)_0%,rgba(19,49,76,.88)_18%,rgba(19,49,76,.25)_42%,transparent_62%)]" />
-      <span className={`pointer-events-none absolute left-2.5 top-2.5 rounded-full border px-2 py-1 text-[10px] font-bold shadow-md backdrop-blur-md ${matchBand === 'strong' ? 'border-emerald-300/30 bg-emerald-950/90 text-emerald-200' : matchBand === 'medium' ? 'border-amber-300/30 bg-amber-950/90 text-amber-200' : 'border-red-300/30 bg-red-950/90 text-red-200'}`}>
+      {showMatchScore && <span className={`pointer-events-none absolute left-2.5 top-2.5 rounded-full border px-2 py-1 text-[10px] font-bold shadow-md backdrop-blur-md ${matchBand === 'strong' ? 'border-emerald-300/30 bg-emerald-950/90 text-emerald-200' : matchBand === 'medium' ? 'border-amber-300/30 bg-amber-950/90 text-amber-200' : 'border-red-300/30 bg-red-950/90 text-red-200'}`}>
         {matchScore}% match
-      </span>
+      </span>}
 
       <div className="absolute right-2 top-2 flex flex-col gap-1.5">
         <button
@@ -186,7 +188,7 @@ function MovieCard({
         >
           <span aria-hidden="true">{isWatchlisted ? '✓' : '+'}</span>
         </button>
-        <button
+        {onToggleWatched && <button
           type="button"
           onClick={() => onToggleWatched(movie)}
           title={isWatched ? 'Verwijder markering gezien' : 'Markeer als gezien'}
@@ -195,7 +197,7 @@ function MovieCard({
           className={`fm-card-action flex h-9 w-9 items-center justify-center rounded-full border text-sm font-bold shadow-md backdrop-blur-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-200 ${isWatched ? 'border-emerald-200/50 bg-emerald-400 text-slate-950' : 'border-white/20 bg-[#285475]/85 text-white hover:bg-[#376c92]'}`}
         >
           <span aria-hidden="true">✓</span>
-        </button>
+        </button>}
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 space-y-2 p-3 sm:p-3.5">
@@ -210,7 +212,7 @@ function MovieCard({
           ))}
           {showWatchedBadge && isWatched && <span className="ml-auto text-[9px] font-semibold text-emerald-200">Gezien</span>}
         </div>
-        {highlightUserRating && (isWatched || userRating !== undefined) && (
+        {highlightUserRating && onEditRating && (isWatched || userRating !== undefined) && (
           <div className="pointer-events-auto rounded-lg bg-[#173553]/65 p-1.5 backdrop-blur-md">
             <MovieRatingControl rating={userRating} onEdit={() => onEditRating(movie)} prominent={highlightUserRating} />
           </div>
@@ -803,4 +805,8 @@ export default function MovieGrid({
     </section>
   );
 }
+
+
+
+
 

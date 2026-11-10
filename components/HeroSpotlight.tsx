@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import StreamingLogo from './StreamingLogo';
-import type { Movie } from './types';
+import type { FriendActivityItem, Movie } from './types';
 import { calculateMatchScore, getMatchColorBand, type MatchPreferences } from '../lib/recommendations/matchScore';
 
 // Standard theatrical runtimes for the curated monthly tips, used only
@@ -73,6 +73,7 @@ interface HeroSpotlightProps {
   watchlistIds?: number[];
   watchedIds?: number[];
   matchPreferences?: MatchPreferences;
+  friendActivity?: Pick<FriendActivityItem, 'name' | 'initial' | 'avatarGradient' | 'rating'>;
   onToggleWatchlist: (movie: Movie) => void;
   onToggleWatched: (movie: Movie) => void;
   onSelectMovie?: (movie: Movie | undefined) => void;
@@ -85,6 +86,7 @@ export default function HeroSpotlight({
   watchlistIds = [],
   watchedIds = [],
   matchPreferences,
+  friendActivity,
   onToggleWatchlist,
   onToggleWatched,
 
@@ -213,9 +215,9 @@ export default function HeroSpotlight({
         },
         matchPreferences
       )
-    : displayedMovie.match_percentage ?? 88;
+    : displayedMovie.match_percentage ?? (friendActivity ? null : 88);
 
-  const matchBand = getMatchColorBand(matchScore);
+  const matchBand = matchScore === null ? null : getMatchColorBand(matchScore);
 
   const handlePrevTip = () => {
     setUserPausedTips(true);
@@ -352,7 +354,7 @@ export default function HeroSpotlight({
 
             {/* Match score, Rating & Streamingdiensten */}
             <div className="flex flex-wrap items-center gap-3 pt-1">
-              <span
+              {matchScore !== null && <span
                 className={`rounded-lg px-2.5 py-1 text-xs font-black backdrop-blur-md ${
                   matchBand === 'strong'
                     ? 'bg-emerald-400 text-slate-950'
@@ -362,7 +364,7 @@ export default function HeroSpotlight({
                 }`}
               >
                 {matchScore}% FilmMatch
-              </span>
+              </span>}
 
               {displayedMovie.rating && (
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#173553]/85 px-2.5 py-1 text-xs font-bold text-white border border-white/10 backdrop-blur-md">
@@ -387,8 +389,22 @@ export default function HeroSpotlight({
               )}
             </div>
 
+            {friendActivity && (
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-sm text-sky-100">
+                <span aria-hidden="true" className={`flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-tr text-xs font-black text-white ${friendActivity.avatarGradient || 'from-sky-500 to-indigo-600'}`}>
+                  {friendActivity.initial}
+                </span>
+                {friendActivity.rating > 0 ? (
+                  <>
+                    <span>{friendActivity.name} gaf</span>
+                    <strong className="rounded-lg bg-sky-200 px-2 py-0.5 text-base font-black text-[#15354f]">{friendActivity.rating.toFixed(1).replace('.', ',')}</strong>
+                  </>
+                ) : <span>{friendActivity.name} heeft deze film gezien</span>}
+              </div>
+            )}
+
             {isSelectedByUser && onSelectMovie && (
-              <button type="button" onClick={() => onSelectMovie(undefined)} className="text-xs font-semibold text-sky-200 hover:text-white">← Terug naar de maandtips</button>
+              <button type="button" onClick={() => onSelectMovie(undefined)} className="text-xs font-semibold text-sky-200 hover:text-white">{friendActivity ? '← Terug naar Recent gekeken' : '← Terug naar de maandtips'}</button>
             )}
 
             {/* Knoppen */}
@@ -491,3 +507,13 @@ export default function HeroSpotlight({
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+

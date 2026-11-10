@@ -101,6 +101,7 @@ export default function HeroSpotlight({
   const [loadingTrailer, setLoadingTrailer] = useState(false);
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [userPausedTips, setUserPausedTips] = useState(false);
+  const [showFullOverview, setShowFullOverview] = useState(false);
 
   useEffect(() => {
     const tipIds = MONTHLY_TIPS.map((tip) => tip.tmdbId);
@@ -200,6 +201,9 @@ export default function HeroSpotlight({
 
   if (!displayedMovie) return null;
 
+  const overview = displayedMovie.overview || 'Geen beschrijving beschikbaar.';
+  const compactOverview = !isSelectedByUser && overview.length > 240;
+  const preview = compactOverview && !showFullOverview ? overview.slice(0, 240).replace(/\s+\S*$/, '') + '…' : overview;
   const runtimeLabel = formatFilmRuntime(displayedMovie.runtime, displayedMovie.id);
   const isWatchlisted = Boolean(watchlistIds?.includes(displayedMovie.id));
   const isWatched = Boolean(watchedIds?.includes(displayedMovie.id));
@@ -221,11 +225,13 @@ export default function HeroSpotlight({
 
   const handlePrevTip = () => {
     setUserPausedTips(true);
+    setShowFullOverview(false);
     setTipIndex((current) => (current === 0 ? MONTHLY_TIPS.length - 1 : current - 1));
   };
 
   const handleNextTip = () => {
     setUserPausedTips(true);
+    setShowFullOverview(false);
     setTipIndex((current) => (current + 1) % MONTHLY_TIPS.length);
   };
 
@@ -237,7 +243,7 @@ export default function HeroSpotlight({
 
   return (
     <>
-      <section aria-label="Film in de spotlight" className="fm-hero relative isolate overflow-hidden rounded-3xl border border-blue-200/15 bg-[#274c6b] p-5 text-white shadow-2xl shadow-black/30 sm:p-6 lg:p-8">
+      <section aria-label="Film in de spotlight" className={`fm-hero relative isolate overflow-hidden rounded-3xl border border-blue-200/15 bg-[#274c6b] text-white shadow-2xl shadow-black/30 ${isSelectedByUser ? 'p-5 sm:p-6 lg:p-8' : 'p-4 sm:p-5 lg:p-6'}`}>
         {backdropSrc && (
           <div className="fm-hero-backdrop pointer-events-none absolute inset-0 -z-10 opacity-90">
             <Image
@@ -253,15 +259,7 @@ export default function HeroSpotlight({
           </div>
         )}
 
-        {!isSelectedByUser && (
-          <div className="relative z-10 mb-4 flex items-center justify-end gap-2" role="group" aria-label="Maandtips bladeren">
-            <p className="mr-auto text-[10px] font-medium text-sky-100/80">Filmtips van {tipMonth}</p>
-            <button type="button" onClick={handlePrevTip} aria-label="Vorige tip" className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-300 transition hover:bg-white/10 hover:text-white">‹</button>
-            <span className="min-w-10 text-center text-xs tabular-nums text-sky-100/80" aria-live="polite">{tipIndex + 1} / {MONTHLY_TIPS.length}</span>
-            <button type="button" onClick={handleNextTip} aria-label="Volgende tip" className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-300 transition hover:bg-white/10 hover:text-white">›</button>
-          </div>
-        )}
-        <div className="fm-hero-layout relative z-10" data-poster={Boolean(displayedMovie.poster_path)} data-still={Boolean(displayedMovie.backdrop_path)}>
+        <div className="fm-hero-layout relative z-10" data-monthly={!isSelectedByUser} data-poster={Boolean(displayedMovie.poster_path)} data-still={Boolean(displayedMovie.backdrop_path)}>
           {/* Filmposter LINKS */}
           {displayedMovie.poster_path && (
             <div className="fm-hero-poster w-full">
@@ -280,8 +278,17 @@ export default function HeroSpotlight({
 
           {/* Informatie en acties RECHTS */}
           <div className="fm-hero-info min-w-0">
-            <div className="fm-hero-heading space-y-3">
-
+            <div className={`fm-hero-heading ${isSelectedByUser ? 'space-y-3' : 'space-y-1.5'}`}>
+            {!isSelectedByUser && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <p className="text-[10px] font-semibold text-sky-100/85">Filmtips van {tipMonth}</p>
+                <div className="flex items-center gap-0.5" role="group" aria-label="Maandtips bladeren">
+                  <button type="button" onClick={handlePrevTip} aria-label="Vorige tip" className="flex h-7 w-7 items-center justify-center rounded-full text-lg text-sky-100/85 transition hover:bg-white/10 hover:text-white">‹</button>
+                  <span className="min-w-7 text-center text-[10px] tabular-nums text-sky-100/80" aria-live="polite">{tipIndex + 1} / {MONTHLY_TIPS.length}</span>
+                  <button type="button" onClick={handleNextTip} aria-label="Volgende tip" className="flex h-7 w-7 items-center justify-center rounded-full text-lg text-sky-100/85 transition hover:bg-white/10 hover:text-white">›</button>
+                </div>
+              </div>
+            )}
 
             {/* Titel van de film */}
             <h1 className="max-w-3xl text-[1.875rem] font-black leading-[1.05] tracking-tight text-white sm:text-[2.25rem] xl:text-[2.75rem]">
@@ -312,8 +319,21 @@ export default function HeroSpotlight({
             )}
 
             {/* Synopsis */}
-            <p className="max-w-2xl text-sm leading-6 text-slate-200 sm:text-base">
-              {displayedMovie.overview || 'Geen beschrijving beschikbaar.'}
+            <p className={`max-w-2xl text-sm text-slate-200 ${isSelectedByUser ? 'leading-6 sm:text-base' : 'leading-5'}`}>
+              {preview}
+              {compactOverview && (
+                <button
+                  type="button"
+                  aria-expanded={showFullOverview}
+                  onClick={() => {
+                    setUserPausedTips(true);
+                    setShowFullOverview(!showFullOverview);
+                  }}
+                  className="ml-2 font-semibold text-sky-100 underline underline-offset-2 hover:text-white"
+                >
+                  {showFullOverview ? 'Lees minder' : 'Lees meer'}
+                </button>
+              )}
             </p>
 
             {/* Regisseur & Cast (klikbaar) */}
@@ -464,13 +484,18 @@ export default function HeroSpotlight({
           .fm-hero-layout[data-poster="true"] { grid-template-columns: 220px minmax(0, 1fr); gap: 32px; }
           .fm-hero-info { display: block; }
           .fm-hero-info > :global(* + *) { margin-top: 12px; }
+          .fm-hero-layout[data-monthly="true"] { min-height: 0; align-items: start; gap: 20px; }
+          .fm-hero-layout[data-monthly="true"][data-poster="true"] { grid-template-columns: 168px minmax(0, 1fr); }
+          .fm-hero-layout[data-monthly="true"] .fm-hero-info > :global(* + *) { margin-top: 8px; }
         }
         @media (min-width: 1280px) {
           .fm-hero-layout[data-poster="true"] { grid-template-columns: 240px minmax(0, 1fr); }
+          .fm-hero-layout[data-monthly="true"][data-poster="true"] { grid-template-columns: 176px minmax(0, 1fr); }
         }
         @media (min-width: 1440px) {
           .fm-hero-layout[data-still="true"] { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
           .fm-hero-layout[data-still="true"][data-poster="true"] { grid-template-columns: 220px minmax(0, 1.2fr) minmax(0, 1fr); }
+          .fm-hero-layout[data-monthly="true"][data-still="true"][data-poster="true"] { grid-template-columns: 176px minmax(0, 1.2fr) minmax(0, 1fr); }
           .fm-hero-backdrop { left: 28%; opacity: 1; -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 55%); mask-image: linear-gradient(to right, transparent 0%, #000 55%); }
           .fm-hero-backdrop .fm-hero-shade { display: none; }
         }

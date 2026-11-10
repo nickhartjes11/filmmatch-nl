@@ -30,10 +30,27 @@ interface FriendActivityPageProps {
   onSelectPerson?: (name: string, department: 'Acting' | 'Directing') => void;
 }
 
+const EMPTY_FRIENDS: FriendProfile[] = [];
+const AVATAR_COLORS = 'from-sky-500 to-indigo-600';
+
+function getFriendKey(item: FriendActivityItem) {
+  return String(item.friendId ?? item.name);
+}
+
+function formatElapsedTime(minutesAgo: number) {
+  if (minutesAgo < 1) return 'Zojuist';
+  if (minutesAgo < 60) return `${minutesAgo} min geleden`;
+  if (minutesAgo < 24 * 60) return `${Math.floor(minutesAgo / 60)} uur geleden`;
+  const days = Math.floor(minutesAgo / (24 * 60));
+  return days === 1 ? 'Gisteren' : `${days} dagen geleden`;
+}
+
 export default function FriendActivityPage({
   allMovies,
   myWatchlistIds,
+  myWatchedIds,
   activities,
+  friends = EMPTY_FRIENDS,
   onToggleWatchlist,
   onToggleWatched,
   onSelectPerson,
@@ -48,35 +65,34 @@ export default function FriendActivityPage({
   >({});
   const requestedMetadataIds = useRef(new Set<number>());
 
-  const formatElapsedTime = (minutesAgo: number) => {
-    if (minutesAgo < 60) return `${minutesAgo}m`;
-    if (minutesAgo < 24 * 60) return `${Math.floor(minutesAgo / 60)}u`;
-    return `${Math.floor(minutesAgo / (24 * 60))}d`;
-  };
-
-  const uniqueFriendsInFeed = useMemo(() => {
-    const map = new Map<string, string>();
+  const friendList = useMemo(() => {
+    const avatars = new Map<string, FriendActivityItem>();
     activities.forEach((item) => {
-      const friendKey = String(item.friendId ?? item.name);
-      if (!map.has(friendKey)) {
-        map.set(friendKey, item.name);
-      }
+      const id = getFriendKey(item);
+      if (!avatars.has(id)) avatars.set(id, item);
     });
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [activities]);
+    const people = new Map(friends.map(({ id, display_name }) => [id, display_name]));
+    avatars.forEach((item, id) => {
+      if (!people.has(id)) people.set(id, item.name);
+    });
+    return Array.from(people, ([id, displayName]) => {
+      const item = avatars.get(id);
+      const name = displayName.trim() || 'Vriend';
+      return { id, name, initial: item?.initial || name.charAt(0).toUpperCase(), colors: item?.avatarGradient || AVATAR_COLORS };
+    });
+  }, [activities, friends]);
+  const activeFriend = friendList.find((friend) => friend.id === selectedFriendFilter);
+  const activeFriendId = activeFriend?.id;
 
   const displayedActivities = useMemo(() => {
-    let list = [...activities];
-    if (selectedFriendFilter !== 'all') {
-      list = list.filter((item) => String(item.friendId ?? item.name) === selectedFriendFilter);
-    }
+    const list = activeFriendId ? activities.filter((item) => getFriendKey(item) === activeFriendId) : [...activities];
     if (sortOrder === 'rating') {
-      list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      list.sort((a, b) => (b.rating || 0) - (a.rating || 0) || a.minutesAgo - b.minutesAgo);
     } else {
       list.sort((a, b) => a.minutesAgo - b.minutesAgo);
     }
     return list;
-  }, [activities, selectedFriendFilter, sortOrder]);
+  }, [activities, activeFriendId, sortOrder]);
 
   useEffect(() => {
     const idsToLoad = Array.from(new Set(activities.map((item) => item.movieId))).filter(
@@ -161,297 +177,153 @@ export default function FriendActivityPage({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Uitgelichte Spotlight bovenaan (exact zoals op foto 1) */}
-      {spotlightMovie && (
-        <section className="relative">
-          <HeroSpotlight
-            movie={spotlightMovie}
-            watchlistIds={myWatchlistIds}
-            onToggleWatchlist={onToggleWatchlist}
-            onToggleWatched={onToggleWatched || (() => {})}
-            onSelectPerson={onSelectPerson}
-            onSelectMovie={(m) => setSpotlightMovie(m || null)}
-          />
-        </section>
-      )}
-
-      {/* Header & Filters */}
-      <section className="flex flex-col gap-3 border-b border-white/10 pb-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-lg font-bold text-white sm:text-xl">Vriendenactiviteit</h1>
-          <p className="mt-0.5 text-xs text-neutral-400">
-            Ontdek wat je vrienden kijken en wat ze ervan vinden.
-          </p>
-          <p className="mt-1 text-[10px] text-neutral-500">
-            {uniqueFriendsInFeed.length} vrienden <span aria-hidden="true">·</span>{' '}
-            {activities.length} updates
-          </p>
+    <div className="space-y-4 pb-6 text-sky-50">
+      <section aria-labelledby="mijn-vrienden-titel" className="rounded-2xl border border-sky-200/20 bg-[#21445e] px-4 py-3.5">
+        <div className="flex items-baseline gap-2">
+          <h1 id="mijn-vrienden-titel" className="text-lg font-black tracking-tight sm:text-xl">Mijn vrienden</h1>
+          <span className="text-xs text-sky-100/75">{friendList.length === 1 ? '1 vriend' : friendList.length + ' vrienden'}</span>
         </div>
 
-        <div className="flex flex-wrap items-end gap-2">
-          {uniqueFriendsInFeed.length > 1 && (
-            <label className="flex flex-col gap-1">
-              <span className="px-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
-                Vriend
-              </span>
-              <select
-                value={selectedFriendFilter}
-                onChange={(event) => setSelectedFriendFilter(event.target.value)}
-                aria-label="Filter op vriend"
-                className="min-w-36 rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-xs font-medium text-neutral-100 outline-none focus:border-white/25"
-              >
-                <option value="all">Alle vrienden</option>
-                {uniqueFriendsInFeed.map((friend) => (
-                  <option key={friend.id} value={friend.id}>
-                    {friend.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-
-          <div className="flex flex-col gap-1">
-            <span className="px-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
-              Sorteren
-            </span>
-            <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-slate-950 p-1">
+        {friendList.length > 0 && (
+          <div role="group" aria-label="Filter op vriend" className="mt-2 flex gap-2 overflow-x-auto p-1">
+            <button type="button" aria-pressed={!activeFriend} onClick={() => setSelectedFriendFilter('all')} className="shrink-0 rounded-full border border-sky-200/25 px-3 py-2 text-xs font-bold transition hover:bg-sky-200/15 aria-pressed:border-rose-300/60 aria-pressed:bg-rose-400/20">
+              Iedereen
+            </button>
+            {friendList.map((friend) => (
               <button
+                key={friend.id}
                 type="button"
-                onClick={() => setSortOrder('recent')}
-                aria-pressed={sortOrder === 'recent'}
-                className={
-                  sortOrder === 'recent'
-                    ? 'rounded-md bg-white/15 px-3 py-2 text-xs font-semibold text-white'
-                    : 'rounded-md px-3 py-2 text-xs text-neutral-400 transition hover:text-white'
-                }
+                aria-pressed={friend.id === activeFriendId}
+                onClick={() => setSelectedFriendFilter(friend.id === activeFriendId ? 'all' : friend.id)}
+                className="flex max-w-52 shrink-0 items-center gap-2 rounded-full border border-sky-200/25 py-1 pl-1 pr-3 text-xs font-bold transition hover:bg-sky-200/15 aria-pressed:border-rose-300/60 aria-pressed:bg-rose-400/20"
               >
-                Recent
+                <span aria-hidden="true" className={'flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr text-xs font-black text-white ' + friend.colors}>{friend.initial}</span>
+                <span className="truncate">{friend.name}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setSortOrder('rating')}
-                aria-pressed={sortOrder === 'rating'}
-                className={
-                  sortOrder === 'rating'
-                    ? 'rounded-md bg-white/15 px-3 py-2 text-xs font-semibold text-white'
-                    : 'rounded-md px-3 py-2 text-xs text-neutral-400 transition hover:text-white'
-                }
-              >
-                ★ Hoogste cijfer
-              </button>
-            </div>
+            ))}
           </div>
-        </div>
+        )}
       </section>
 
-      {/* Grid met vriendenactiviteiten */}
-      {displayedActivities.length === 0 ? (
-        <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900/70 to-slate-950/80 px-5 py-16 text-center shadow-inner sm:py-24">
-          <div
-            aria-hidden="true"
-            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-2xl"
-          >
-            🎞️
+      {spotlightMovie && (
+        <HeroSpotlight
+          movie={spotlightMovie}
+          watchlistIds={myWatchlistIds}
+          watchedIds={myWatchedIds}
+          onToggleWatchlist={onToggleWatchlist}
+          onToggleWatched={onToggleWatched || (() => {})}
+          onSelectPerson={onSelectPerson}
+          onSelectMovie={(movie) => setSpotlightMovie(movie || null)}
+        />
+      )}
+
+      <section aria-labelledby="recent-gekeken-titel" className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <h2 id="recent-gekeken-titel" className="text-lg font-black tracking-tight sm:text-xl">Recent gekeken</h2>
+            {activeFriend && <span className="text-sm text-sky-100/80">{activeFriend.name}</span>}
           </div>
-          <p className="text-base font-bold text-white">Geen activiteit gevonden</p>
-          <p className="text-xs text-neutral-400">
-            {selectedFriendFilter !== 'all'
-              ? 'Deze vriend heeft nog geen films beoordeeld.'
-              : 'Zodra vrienden films beoordelen, zie je ze hier direct.'}
-          </p>
+          {displayedActivities.length > 1 && (
+            <div role="group" aria-label="Sorteer activiteiten" className="flex flex-wrap gap-0.5 rounded-full border border-sky-200/20 bg-[#15354f] p-0.5">
+              {([
+                ['recent', 'Recent'],
+                ['rating', 'Hoogste cijfer'],
+              ] as const).map(([order, label]) => (
+                <button key={order} type="button" onClick={() => setSortOrder(order)} aria-pressed={sortOrder === order} className="rounded-full px-3 py-1.5 text-xs font-semibold text-sky-100 transition hover:bg-sky-200/10 aria-pressed:bg-sky-200/20 aria-pressed:text-white">
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {displayedActivities.map((item) => {
-            const movieFromList = allMovies.find((movie) => movie.id === item.movieId);
-            const metadataMovie = activityMovieMetadata[item.movieId];
 
-            const fallbackMovie: Movie = {
-              id: item.movieId,
-              title: item.recentFilm,
-              poster_path: item.poster_path,
-              overview: '',
-              release_date: '',
-              genres: [],
-              providers: [],
-              rating: undefined,
-              match_percentage: 85,
-            };
+        {displayedActivities.length === 0 ? (
+          <p role="status" className="rounded-xl border border-sky-200/20 bg-[#21445e] px-4 py-3 text-sm text-sky-100/90">
+            {activeFriend
+              ? activeFriend.name + ' heeft nog geen beoordelingen in dit overzicht.'
+              : 'Zodra je vrienden films beoordelen, zie je die hier.'}
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 min-[420px]:grid-cols-3 sm:grid-cols-[repeat(auto-fill,minmax(9rem,11rem))]">
+            {displayedActivities.map((item) => {
+              const movieFromList = allMovies.find((movie) => movie.id === item.movieId);
+              const metadataMovie = activityMovieMetadata[item.movieId];
+              const movie: Movie = {
+                ...metadataMovie,
+                ...movieFromList,
+                id: item.movieId,
+                title: movieFromList?.title ?? metadataMovie?.title ?? item.recentFilm,
+                overview: movieFromList?.overview ?? metadataMovie?.overview ?? '',
+                release_date: movieFromList?.release_date ?? metadataMovie?.release_date ?? '',
+                poster_path: movieFromList?.poster_path || metadataMovie?.poster_path || item.poster_path,
+                providers: movieFromList?.providers?.length ? movieFromList.providers : metadataMovie?.providers || [],
+              };
+              const posterSrc = movie.poster_path?.startsWith('/') ? 'https://image.tmdb.org/t/p/w500' + movie.poster_path : movie.poster_path;
+              const isWatchlisted = myWatchlistIds.includes(item.movieId);
+              const match = movie.match_percentage;
+              const band = typeof match === 'number' ? getMatchColorBand(match) : null;
+              const providerStatus = providerLoadStatus[item.movieId];
 
-            const matchedMovie: Movie = {
-              ...fallbackMovie,
-              ...(metadataMovie || {}),
-              ...(movieFromList || {}),
-              providers: movieFromList?.providers?.length
-                ? movieFromList.providers
-                : metadataMovie?.providers || [],
-            };
-
-            const isWatchlisted = myWatchlistIds.includes(item.movieId);
-            const matchPercentage = matchedMovie.match_percentage ?? 85;
-            const matchBand = getMatchColorBand(matchPercentage);
-
-            return (
-              <article
-                key={item.id}
-                className="movie-card-reveal group flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/90 to-slate-950 shadow-lg shadow-black/15 transition duration-300 hover:-translate-y-1 hover:border-rose-300/30 hover:shadow-rose-950/20"
-              >
-                {/* Poster: toont film bovenaan in Spotlight op DEZE pagina */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectMovieForSpotlight(matchedMovie)}
-                  aria-label={`Toon ${item.recentFilm} bovenaan`}
-                  className="relative block aspect-[2/3] w-full cursor-pointer overflow-hidden bg-slate-900/60 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400"
-                >
-                  {item.poster_path ? (
-                    <img
-                      src={`https://image.tmdb.org/t/p/w500${item.poster_path}`}
-                      alt={item.recentFilm}
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-slate-900/80 text-[10px] font-bold text-neutral-600">
-                      Geen poster
-                    </div>
-                  )}
-
-                  <div className="absolute inset-x-2 top-2 flex items-center justify-between gap-1">
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-black shadow-md backdrop-blur-md ${
-                        matchBand === 'strong'
-                          ? 'bg-emerald-300 text-[#07110d]'
-                          : matchBand === 'medium'
-                            ? 'bg-amber-300 text-[#1f1605]'
-                            : 'bg-rose-400 text-[#2b080d]'
-                      }`}
-                      title={`Jouw matchscore: ${matchPercentage}%`}
-                    >
-                      {matchPercentage}%
-                    </span>
-
-                    {matchedMovie.rating ? (
-                      <span className="inline-flex items-center gap-1 rounded border border-white/10 bg-black/80 px-1.5 py-0.5 shadow-md backdrop-blur-md">
-                        <span className="rounded-sm bg-[#f5c518] px-1 text-[8px] font-black leading-3 text-black">
-                          IMDb
-                        </span>
-                        <span className="text-[10px] font-bold text-amber-200">
-                          {matchedMovie.rating}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-neutral-300 backdrop-blur-md">
-                        {formatElapsedTime(item.minutesAgo)}
+              return (
+                <article key={item.id} className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-sky-200/20 bg-[#18374f] transition hover:border-sky-200/45">
+                  <button
+                    type="button"
+                    onClick={() => void handleSelectMovieForSpotlight(movie)}
+                    aria-label={'Bekijk ' + movie.title}
+                    aria-pressed={spotlightMovie?.id === movie.id}
+                    className="relative isolate flex aspect-[2/3] w-full items-end overflow-hidden bg-[#10283e] p-2.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sky-300"
+                  >
+                    {posterSrc && <img src={posterSrc} alt="" loading="lazy" className="absolute inset-0 -z-20 h-full w-full object-cover transition duration-300 motion-safe:group-hover:scale-105" />}
+                    <span aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-t from-[#10283e] via-[#10283e]/20 to-transparent" />
+                    {band && (
+                      <span className={'absolute left-2 top-2 rounded-full border px-2 py-0.5 text-[10px] font-bold ' + (band === 'strong' ? 'border-emerald-300/40 bg-emerald-950 text-emerald-100' : band === 'medium' ? 'border-amber-300/40 bg-amber-950 text-amber-100' : 'border-rose-300/40 bg-rose-950 text-rose-100')}>
+                        {match}% match
                       </span>
                     )}
-                  </div>
-                </button>
+                    <span className="line-clamp-2 text-sm font-extrabold leading-tight text-white">{movie.title}</span>
+                  </button>
 
-                <div className="flex min-w-0 flex-1 flex-col justify-between p-3">
-                  <div>
-                    <h3
-                      className="truncate text-xs font-bold text-white transition group-hover:text-rose-200"
-                      title={item.recentFilm}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleSelectMovieForSpotlight(matchedMovie)}
-                        className="truncate text-left focus:outline-none hover:underline"
-                      >
-                        {item.recentFilm}
-                      </button>
-                    </h3>
-                    <p className="mt-0.5 truncate text-[10px] text-neutral-400">
-                      {matchedMovie.release_date?.slice(0, 4)} &bull;{' '}
-                      {matchedMovie.genres?.[0] || 'Film'}
-                    </p>
-                  </div>
-
-                  <div className="mt-3 space-y-2.5 border-t border-white/[0.08] pt-3">
-                    <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-gradient-to-r from-amber-400/[0.12] to-orange-300/[0.06] px-3 py-2.5 shadow-inner shadow-amber-300/[0.04]">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <span
-                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${
-                            item.avatarGradient || 'from-rose-500 to-amber-500'
-                          } text-xs font-black text-white ring-2 ring-white/10`}
-                        >
-                          {item.initial}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-bold text-white" title={item.name}>
-                            {item.name}
-                          </p>
-                          <p className="text-[10px] font-medium text-amber-100/65">
-                            {item.rating ? 'gaf deze film' : 'heeft deze film gezien'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <span
-                        className={`inline-flex shrink-0 items-baseline gap-1 rounded-lg px-2.5 py-1.5 ${
-                          item.rating
-                            ? 'bg-amber-300 text-slate-950 shadow-md shadow-amber-950/20'
-                            : 'border border-white/10 bg-white/[0.06] text-neutral-200'
-                        }`}
-                        aria-label={
-                          item.rating
-                            ? `${item.name} gaf ${item.rating.toFixed(1)} van de 10`
-                            : `${item.name} heeft de film gezien`
-                        }
-                      >
-                        {item.rating ? (
-                          <>
-                            <span className="text-base font-black leading-none">
-                              {item.rating.toFixed(1)}
-                            </span>
-                            <span className="text-[9px] font-bold opacity-70">/ 10</span>
-                          </>
-                        ) : (
-                          <span className="text-[10px] font-extrabold">✓ Gezien</span>
-                        )}
+                  <div className="flex flex-1 flex-col justify-between gap-2 p-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <span aria-hidden="true" className={'flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr text-[10px] font-black ' + (item.avatarGradient || AVATAR_COLORS)}>
+                        {item.initial || item.name.charAt(0).toUpperCase()}
                       </span>
+                      <div className="min-w-0 flex-1">
+                        <p title={item.name} className="truncate text-xs font-bold">{item.name}</p>
+                        <p className="text-[10px] leading-tight text-sky-100/75">{formatElapsedTime(item.minutesAgo)}</p>
+                      </div>
+                      {item.rating ? (
+                        <span aria-label={item.name + ' gaf ' + item.rating + ' van de 10'} className="shrink-0 rounded-md bg-amber-300/15 px-1.5 py-1 text-xs font-black text-amber-200">
+                          {item.rating.toFixed(1).replace('.', ',')}
+                        </span>
+                      ) : <span className="text-[10px] text-sky-100/75">Gezien</span>}
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 border-t border-white/[0.04] pt-2">
-                      <div className="flex items-center gap-1 overflow-hidden">
-                        {matchedMovie.providers && matchedMovie.providers.length > 0 ? (
-                          matchedMovie.providers.slice(0, 3).map((provider) => (
-                            <StreamingLogo
-                              key={provider.provider_id}
-                              name={provider.provider_name}
-                              logoPath={provider.logo_path}
-                              className="h-6 w-6 rounded"
-                            />
-                          ))
-                        ) : (
-                          <span className="text-[9px] text-neutral-500">
-                            {providerLoadStatus[item.movieId] === 'loading'
-                              ? 'Streaming laden…'
-                              : 'Geen streaming'}
-                          </span>
-                        )}
+                    <div className="flex items-center justify-between gap-1 border-t border-sky-200/15 pt-1.5">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1">
+                        {movie.providers.length > 0 ? movie.providers.slice(0, 3).map((provider) => (
+                          <StreamingLogo key={provider.provider_id} name={provider.provider_name} logoPath={provider.logo_path} className="h-5 w-5 rounded" />
+                        )) : <span className="text-[10px] text-sky-100/70">
+                          {providerStatus === 'loading' ? 'Streaming laden…' : providerStatus === 'loaded' ? 'Geen streaming' : 'Streaming onbekend'}
+                        </span>}
                       </div>
-
                       <button
                         type="button"
-                        onClick={() => onToggleWatchlist(matchedMovie)}
-                        title={isWatchlisted ? 'Verwijder uit watchlist' : 'Voeg toe aan watchlist'}
-                        className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold transition ${
-                          isWatchlisted
-                            ? 'bg-amber-300 text-slate-950'
-                            : 'bg-amber-300/15 text-amber-100 hover:bg-amber-300/30'
-                        }`}
+                        onClick={() => onToggleWatchlist(movie)}
+                        aria-pressed={isWatchlisted}
+                        aria-label={isWatchlisted ? 'Verwijder ' + movie.title + ' uit watchlist' : 'Voeg ' + movie.title + ' toe aan watchlist'}
+                        className={'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-black transition ' + (isWatchlisted ? 'bg-rose-600 text-white hover:bg-rose-500' : 'bg-sky-200/15 text-sky-50 hover:bg-sky-200/30')}
                       >
                         {isWatchlisted ? '✓' : '+'}
                       </button>
                     </div>
                   </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

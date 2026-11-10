@@ -39,6 +39,10 @@ function getFriendKey(item: FriendActivityItem) {
   return String(item.friendId ?? item.name);
 }
 
+function normalizeFriendName(name: string) {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('nl');
+}
+
 function formatElapsedTime(minutesAgo: number) {
   if (minutesAgo < 1) return 'Zojuist';
   if (minutesAgo < 60) return `${minutesAgo} min geleden`;
@@ -59,6 +63,9 @@ export default function FriendActivityPage({
   onSelectPerson,
 }: FriendActivityPageProps) {
   const [selectedFriendFilter, setSelectedFriendFilter] = useState<string>('all');
+  const [friendPickerOpen, setFriendPickerOpen] = useState(false);
+  const [friendQuery, setFriendQuery] = useState('');
+  const friendPickerButtonRef = useRef<HTMLButtonElement>(null);
   const [sortOrder, setSortOrder] = useState<'recent' | 'rating'>('recent');
   const [spotlightActivity, setSpotlightActivity] = useState<FriendActivityItem | null>(null);
 
@@ -80,10 +87,19 @@ export default function FriendActivityPage({
       const item = avatars.get(id);
       const name = displayName.trim() || 'Vriend';
       return { id, name, initial: item?.initial || name.charAt(0).toUpperCase(), colors: item?.avatarGradient || AVATAR_COLORS };
-    });
+    }).sort((a, b) => a.name.localeCompare(b.name, 'nl'));
   }, [activities, friends]);
   const activeFriend = friendList.find((friend) => friend.id === selectedFriendFilter);
   const activeFriendId = activeFriend?.id;
+  const searchName = normalizeFriendName(friendQuery);
+  const visibleFriends = friendPickerOpen ? friendList.filter((friend) => normalizeFriendName(friend.name).includes(searchName)) : [];
+
+  const selectFriend = (id: string) => {
+    setSelectedFriendFilter(id);
+    if (id !== 'all' && spotlightActivity && getFriendKey(spotlightActivity) !== id) setSpotlightActivity(null);
+    setFriendPickerOpen(false);
+    friendPickerButtonRef.current?.focus();
+  };
 
   const displayedActivities = useMemo(() => {
     const list = activeFriendId ? activities.filter((item) => getFriendKey(item) === activeFriendId) : [...activities];
@@ -175,29 +191,74 @@ export default function FriendActivityPage({
 
   return (
     <div className="space-y-4 pb-6 text-sky-50">
-      <section aria-labelledby="mijn-vrienden-titel" className="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <section aria-labelledby="mijn-vrienden-titel" className="relative flex flex-wrap items-center gap-x-4 gap-y-1">
         <div className="flex items-baseline gap-2">
           <h1 id="mijn-vrienden-titel" className="text-lg font-black tracking-tight sm:text-xl">Mijn vrienden</h1>
           <span className="text-xs text-sky-100/75">{friendList.length === 1 ? '1 vriend' : friendList.length + ' vrienden'}</span>
         </div>
 
         {friendList.length > 0 && (
-          <div role="group" aria-label="Filter op vriend" className="flex min-w-0 gap-2 overflow-x-auto p-1">
-            <button type="button" aria-pressed={!activeFriend} onClick={() => setSelectedFriendFilter('all')} className="shrink-0 rounded-full border border-sky-200/25 px-3 py-2 text-xs font-bold transition hover:bg-sky-200/15 aria-pressed:border-rose-300/60 aria-pressed:bg-rose-400/20">
-              Iedereen
+          <div
+            className="min-w-0 sm:relative"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setFriendPickerOpen(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape' || !friendPickerOpen) return;
+              event.stopPropagation();
+              setFriendPickerOpen(false);
+              friendPickerButtonRef.current?.focus();
+            }}
+          >
+            <button
+              ref={friendPickerButtonRef}
+              type="button"
+              aria-expanded={friendPickerOpen}
+              aria-controls={friendPickerOpen ? 'mijn-vrienden-filter' : undefined}
+              onClick={() => {
+                setFriendQuery('');
+                setFriendPickerOpen(!friendPickerOpen);
+              }}
+              className={'flex max-w-48 items-center gap-2 rounded-full border border-sky-200/25 px-3 py-2 text-xs font-bold transition hover:bg-sky-200/15 ' + (activeFriend ? 'bg-sky-200/15' : '')}
+            >
+              <span className="truncate">{activeFriend?.name ?? 'Alle vrienden'}</span>
+              <span aria-hidden="true" className="text-sky-200">⌄</span>
             </button>
-            {friendList.map((friend) => (
-              <button
-                key={friend.id}
-                type="button"
-                aria-pressed={friend.id === activeFriendId}
-                onClick={() => setSelectedFriendFilter(friend.id === activeFriendId ? 'all' : friend.id)}
-                className="flex max-w-52 shrink-0 items-center gap-2 rounded-full border border-sky-200/25 py-1 pl-1 pr-3 text-xs font-bold transition hover:bg-sky-200/15 aria-pressed:border-rose-300/60 aria-pressed:bg-rose-400/20"
-              >
-                <span aria-hidden="true" className={'flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr text-xs font-black text-white ' + friend.colors}>{friend.initial}</span>
-                <span className="truncate">{friend.name}</span>
-              </button>
-            ))}
+            {friendPickerOpen && (
+              <div id="mijn-vrienden-filter" role="group" aria-label="Filter op vriend" className="absolute inset-x-0 top-full z-30 mt-2 rounded-xl border border-sky-200/25 bg-[#17354f] p-2 shadow-xl shadow-black/30 sm:inset-x-auto sm:left-0 sm:w-64">
+                <label>
+                  <span className="sr-only">Zoek een vriend</span>
+                  <input
+                    type="search"
+                    autoFocus
+                    value={friendQuery}
+                    onChange={(event) => setFriendQuery(event.target.value)}
+                    placeholder="Zoek een vriend…"
+                    className="w-full rounded-lg border border-sky-200/25 bg-[#10283e] px-3 py-2 text-base placeholder:text-sky-100/55 focus-visible:outline-2 focus-visible:outline-sky-300 sm:text-sm"
+                  />
+                </label>
+                <button type="button" aria-pressed={!activeFriend} onClick={() => selectFriend('all')} className="mt-1 w-full rounded-lg px-2.5 py-2 text-left text-xs font-bold hover:bg-sky-200/10 aria-pressed:bg-sky-200/15">
+                  Alle vrienden
+                </button>
+                {visibleFriends.length ? (
+                  <ul className="max-h-56 space-y-0.5 overflow-y-auto overscroll-contain">
+                    {visibleFriends.map((friend) => (
+                      <li key={friend.id}>
+                        <button
+                          type="button"
+                          aria-pressed={friend.id === activeFriendId}
+                          onClick={() => selectFriend(friend.id)}
+                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-bold hover:bg-sky-200/10 aria-pressed:bg-sky-200/15"
+                        >
+                          <span aria-hidden="true" className={'flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr text-[10px] font-black text-white ' + friend.colors}>{friend.initial}</span>
+                          <span className="truncate">{friend.name}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <p role="status" className="px-2.5 py-2 text-xs text-sky-100/75">Geen vrienden gevonden.</p>}
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -217,10 +278,7 @@ export default function FriendActivityPage({
 
       <section aria-labelledby="recent-gekeken-titel" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-baseline gap-x-2">
-            <h2 id="recent-gekeken-titel" className="text-lg font-black tracking-tight sm:text-xl">Recent gekeken</h2>
-            {activeFriend && <span className="text-sm text-sky-100/80">{activeFriend.name}</span>}
-          </div>
+          <h2 id="recent-gekeken-titel" className="text-lg font-black tracking-tight sm:text-xl">Recent gekeken</h2>
           {displayedActivities.length > 1 && (
             <div role="group" aria-label="Sorteer activiteiten" className="flex flex-wrap gap-0.5 rounded-full border border-sky-200/20 bg-[#15354f] p-0.5">
               {([

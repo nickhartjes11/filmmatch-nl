@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import { MovieCard } from './MovieGrid';
 import StreamingLogo from './StreamingLogo';
 import type { Movie, StreamingPlatform } from './types';
 import { createSupabaseBrowserClient } from '../lib/supabase/client';
@@ -28,10 +29,10 @@ interface WatchTogetherPageProps {
   onToggleWatchlist: (movie: Movie) => void;
 }
 
-const panel = 'rounded-2xl border border-sky-200/20 bg-[#21445e]';
-const control = 'rounded-xl border border-sky-200/25 bg-[#15354f] px-3 py-2 text-sm text-white focus-visible:outline-2 focus-visible:outline-sky-300';
+const control = 'rounded-full border border-sky-200/25 bg-[#15354f] px-3 py-2 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-sky-300';
 const button = 'rounded-full border border-sky-200/25 px-4 py-2 text-sm font-bold text-white transition hover:bg-sky-200/15 disabled:opacity-45';
-const posterGrid = 'grid grid-cols-2 gap-3 min-[360px]:grid-cols-3 sm:grid-cols-[repeat(auto-fill,minmax(8rem,10rem))]';
+const posterGrid = 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 sm:gap-4';
+const NO_WATCHED_IDS: number[] = [];
 const matchColors = {
   strong: 'border-emerald-300/40 bg-emerald-950 text-emerald-100',
   medium: 'border-amber-300/40 bg-amber-950 text-amber-100',
@@ -113,31 +114,6 @@ function preferences(profile: FriendProfile | undefined, metadata: Map<number, M
 
 function imageUrl(path: string | undefined, size: 'original' | 'w500') {
   return path?.startsWith('/') ? 'https://image.tmdb.org/t/p/' + size + path : path;
-}
-
-function MovieCard({ movie, badge, selected, onOpen }: { movie: Movie; badge?: string; selected: boolean; onOpen: (button: HTMLButtonElement) => void }) {
-  const score = movie.match_percentage;
-  const runtime = formatFilmRuntime(movie.runtime_minutes ?? movie.runtime, movie.id);
-  return (
-    <button type="button" aria-pressed={selected} onClick={(event) => onOpen(event.currentTarget)} className={'group relative isolate flex aspect-[2/3] w-full flex-col justify-end overflow-hidden rounded-xl border bg-[#18374f] p-2.5 text-left transition hover:border-sky-200/60 focus-visible:outline-2 focus-visible:outline-sky-300 ' + (selected ? 'border-rose-400 ring-2 ring-rose-400/70' : 'border-sky-200/20')}>
-      {movie.poster_path && (
-        <Image src={imageUrl(movie.poster_path, 'w500') || movie.poster_path} alt="" fill unoptimized sizes="(min-width: 1280px) 16vw, (min-width: 640px) 33vw, 50vw" className="-z-20 object-cover transition duration-300 motion-safe:group-hover:scale-105" />
-      )}
-      <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-[#10283e] via-[#10283e]/40 to-transparent" />
-      {(badge || score !== undefined) && (
-        <span className={'absolute left-2 top-2 rounded-full border px-2 py-1 text-[10px] font-bold ' + (badge ? 'border-rose-300/50 bg-rose-950 text-rose-100' : matchColors[getMatchColorBand(score ?? 0)])}>
-          {badge ?? (score + '% samenmatch')}
-        </span>
-      )}
-      <span className="line-clamp-2 text-sm font-extrabold leading-tight text-white">{movie.title}</span>
-      <span className="mt-1 text-xs text-sky-100/85">{[movie.release_date?.slice(0, 4), runtime].filter(Boolean).join(' · ')}</span>
-      {!!movie.providers?.length && (
-        <span className="mt-2 flex flex-wrap gap-1.5">
-          {movie.providers.slice(0, 4).map((provider) => <StreamingLogo key={provider.provider_id} name={provider.provider_name} logoPath={provider.logo_path} className="h-5 w-5 rounded" />)}
-        </span>
-      )}
-    </button>
-  );
 }
 
 export default function WatchTogetherPage({
@@ -251,7 +227,7 @@ export default function WatchTogetherPage({
     const runtime = formatFilmRuntime(source.runtime_minutes ?? source.runtime, source.id);
     if (maxRuntime && (!runtime || Number.parseInt(runtime, 10) > Number(maxRuntime))) continue;
     const score = myTaste && friendTaste ? scoreTogether(source, myTaste, friendTaste) : undefined;
-    const movie = { ...source, providers, match_percentage: score };
+    const movie = { ...source, providers, runtime: runtime ?? undefined, match_percentage: score };
     if (data?.shared?.has(movie.id)) {
       if (myWatchlist.some((item) => item.id === movie.id)) sharedMovies.push(movie);
     } else {
@@ -263,8 +239,9 @@ export default function WatchTogetherPage({
   suggestions.sort(byScore);
   const shortlist = [...sharedMovies, ...suggestions].slice(0, 3);
 
-  const openFilm = (movie: Movie, trigger: HTMLButtonElement) => {
-    filmTriggerRef.current = trigger;
+  const openFilm = (movie: Movie) => {
+    const trigger = document.activeElement;
+    filmTriggerRef.current = trigger instanceof HTMLButtonElement ? trigger : null;
     if (selectedMovie?.id === movie.id) {
       spotlightRef.current?.focus({ preventScroll: true });
       spotlightRef.current?.scrollIntoView({ block: 'start' });
@@ -330,6 +307,7 @@ export default function WatchTogetherPage({
     }
   };
 
+  const watchlistIds = myWatchlist.map((movie) => movie.id);
   const visibleMovies = collection === 'top' ? shortlist : collection === 'shared' ? sharedMovies : [...sharedMovies, ...suggestions.slice(0, 18)];
   const backdrop = imageUrl(details?.backdrop_path || activeMovie?.backdrop_path, 'original');
   const poster = imageUrl(details?.poster_path || activeMovie?.poster_path, 'w500');
@@ -342,116 +320,124 @@ export default function WatchTogetherPage({
 
   return (
     <div className="space-y-4 pb-8 text-sky-50">
-      <div className="grid items-start gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)] xl:gap-6">
-        <aside aria-labelledby="samen-kijken-instellingen" className={'p-3.5 sm:p-4 lg:sticky lg:top-24 ' + panel}>
-          <h1 id="samen-kijken-instellingen" className="text-base font-black text-white">🍿 Samen Kijken</h1>
-          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-1">
-            <label className="grid min-w-0 gap-1 text-xs font-semibold text-sky-100">
-              Met wie?
-              <select value={selectedId ?? ''} onChange={(event) => {
-                setFriendId(event.target.value);
-                setPage(1);
-                setCollection('all');
-                setSelectedMovie(null);
-                setTrailer(null);
-              }} className={control + ' w-full'}>
-                <option value="">Kies een vriend</option>
-                {friends.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}
-              </select>
-            </label>
-            {friend && <>
-              <label className="grid min-w-0 gap-1 text-xs font-semibold text-sky-100">
-                Speelduur
-                <select aria-label="Maximale speelduur" value={maxRuntime} onChange={(event) => setMaxRuntime(event.target.value)} className={control + ' w-full'}>
-                  <option value="">Elke speelduur</option><option value="90">Max. 90 min</option><option value="120">Max. 120 min</option><option value="150">Max. 150 min</option>
-                </select>
-              </label>
-              <label className="grid min-w-0 gap-1 text-xs font-semibold text-sky-100">
-                Genre
-                <select value={genre} onChange={(event) => { setGenre(event.target.value); setPage(1); }} className={control + ' w-full'}>
-                  <option value="">Alle genres</option>
-                  {['Actie', 'Animatie', 'Avontuur', 'Drama', 'Familie', 'Horror', 'Komedie', 'Misdaad', 'Sciencefiction', 'Thriller'].map((name) => <option key={name}>{name}</option>)}
-                </select>
-              </label>
-            </>}
-          </div>
-        </aside>
+      <section aria-labelledby="samen-kijken-instellingen" className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h1 id="samen-kijken-instellingen" className="text-lg font-black tracking-tight sm:text-xl">Samen Kijken</h1>
+        {friends.length > 0 && (
+          <select
+            aria-label="Kies een vriend"
+            value={selectedId ?? ''}
+            onChange={(event) => {
+              setFriendId(event.target.value);
+              setPage(1);
+              setCollection('all');
+              setSelectedMovie(null);
+              setTrailer(null);
+            }}
+            className={control + ' max-w-48'}
+          >
+            <option value="">Kies een vriend</option>
+            {friends.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}
+          </select>
+        )}
+        {friend && (
+          <>
+            <select aria-label="Maximale speelduur" value={maxRuntime} onChange={(event) => setMaxRuntime(event.target.value)} className={control}>
+              <option value="">Elke speelduur</option><option value="90">Max. 90 min</option><option value="120">Max. 120 min</option><option value="150">Max. 150 min</option>
+            </select>
+            <select aria-label="Genre" value={genre} onChange={(event) => { setGenre(event.target.value); setPage(1); }} className={control}>
+              <option value="">Alle genres</option>
+              {['Actie', 'Animatie', 'Avontuur', 'Drama', 'Familie', 'Horror', 'Komedie', 'Misdaad', 'Sciencefiction', 'Thriller'].map((name) => <option key={name}>{name}</option>)}
+            </select>
+            <div role="group" aria-label="Filmselectie" className="flex flex-wrap items-center gap-0.5 rounded-full border border-sky-200/20 bg-[#15354f] p-0.5 sm:ml-auto">
+              {([
+                ['all', 'Voor jullie'],
+                ['shared', 'Beide watchlists' + (sharedMovies.length ? ' · ' + sharedMovies.length : '')],
+                ['top', 'Onze top 3'],
+              ] as const).map(([view, label]) => (
+                <button key={view} type="button" aria-pressed={collection === view} onClick={() => setCollection(view)} className="rounded-full px-3 py-1.5 text-xs font-semibold text-sky-100 transition hover:bg-sky-200/10 aria-pressed:bg-sky-200/20 aria-pressed:text-white">{label}</button>
+              ))}
+            </div>
+            {collection !== 'shared' && <button type="button" onClick={() => setPage((value) => value + 2)} disabled={!query || !options} className="rounded-full border border-sky-200/25 px-3 py-2 text-xs font-bold text-white transition hover:bg-sky-200/15 disabled:opacity-45">Andere films</button>}
+          </>
+        )}
+      </section>
 
-        <section aria-labelledby="samen-kijken-resultaten" className="min-w-0 space-y-3">
-          <h2 ref={resultsHeadingRef} tabIndex={-1} id="samen-kijken-resultaten" className="sr-only">Films voor jullie</h2>
-
-          {friend ? (
+      {activeMovie && (
+        <section ref={spotlightRef} tabIndex={-1} aria-labelledby="samen-kijken-film-titel" className="relative isolate scroll-mt-24 overflow-hidden rounded-2xl border border-sky-200/25 bg-[#21445e] p-4 focus:outline-none sm:p-5">
+          {backdrop && (
             <>
-              <div className="flex flex-wrap items-center gap-2">
-                {([
-                  ['all', 'Voor jullie'],
-                  ['shared', 'Beide watchlists' + (sharedMovies.length ? ' · ' + sharedMovies.length : '')],
-                  ['top', 'Onze top 3'],
-                ] as const).map(([view, label]) => (
-                  <button key={view} type="button" aria-pressed={collection === view} onClick={() => setCollection(view)} className={button + (collection === view ? ' bg-sky-200/20' : '')}>{label}</button>
-                ))}
-                {collection !== 'shared' && <button type="button" onClick={() => setPage((value) => value + 2)} disabled={!query || !options} className={button + ' sm:ml-auto'}>Andere films</button>}
-              </div>
-              {activeMovie && (
-                <section ref={spotlightRef} tabIndex={-1} aria-labelledby="samen-kijken-film-titel" className="relative isolate scroll-mt-24 overflow-hidden rounded-2xl border border-sky-200/25 bg-[#21445e] p-4 focus:outline-none sm:p-5">
-                  {backdrop && (
-                    <>
-                      <Image src={backdrop} alt="" fill unoptimized sizes="100vw" className="-z-20 object-cover object-center sm:object-right" />
-                      <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-[#173750] via-[#173750]/95 to-[#173750]/55 lg:to-[#173750]/15" />
-                    </>
-                  )}
-                  <div className="grid grid-cols-[4.75rem_minmax(0,1fr)] items-start gap-x-3 gap-y-3 sm:grid-cols-[minmax(7rem,8rem)_minmax(0,42rem)] sm:gap-x-4">
-                    <div className="relative row-span-1 aspect-[2/3] w-full overflow-hidden rounded-xl border border-white/20 bg-[#10283e] sm:row-span-2">
-                      {poster && <Image src={poster} alt="" fill unoptimized sizes="(min-width: 640px) 128px, 76px" className="object-cover" />}
-                    </div>
-                    <div className="min-w-0 space-y-2">
-                      <h2 id="samen-kijken-film-titel" className="text-2xl font-black leading-tight tracking-tight sm:text-3xl">{activeMovie.title}</h2>
-                      <p className="text-xs font-medium text-sky-100/90 sm:text-sm">
-                        {[activeMovie.release_date?.slice(0, 4), (details?.genres?.length ? details.genres : activeMovie.genres)?.slice(0, 2).join(', '), runtime].filter(Boolean).join(' · ')}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {activeMovie.match_percentage !== undefined && <span className={'rounded-full border px-2.5 py-1 text-xs font-bold ' + matchColors[getMatchColorBand(activeMovie.match_percentage)]}>{activeMovie.match_percentage}% samenmatch</span>}
-                        {rating && <span className="rounded-lg bg-[#10283e] px-2 py-1 text-xs font-bold"><span className={ratingSource === 'IMDb' ? 'rounded bg-[#f5c518] px-1 text-slate-950' : 'text-sky-100'}>{ratingSource}</span> {rating}</span>}
-                        {activeMovie.providers?.map((provider) => (
-                          <StreamingLogo key={provider.provider_id} name={provider.provider_name} logoPath={provider.logo_path} className="h-6 w-6 rounded" />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="col-span-2 space-y-3 sm:col-span-1 sm:col-start-2">
-                      {overview && <p className="text-sm leading-relaxed text-sky-50">{overview}</p>}
-                      {(director || credits?.length) && <p className="text-xs leading-relaxed text-sky-100/90">
-                        {director && <span className="mr-3"><strong>Regie</strong> {director}</span>}
-                        {!!credits?.length && <span><strong>Cast</strong> {credits.slice(0, 5).join(', ')}</span>}
-                      </p>}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button ref={trailerTriggerRef} type="button" onClick={() => openCinemaTrailer(activeMovie.id)} disabled={trailerLoading} className="rounded-full bg-rose-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-rose-500 disabled:opacity-45">{trailerLoading ? 'Trailer laden…' : '▶ Bekijk trailer'}</button>
-                        <button type="button" onClick={() => onToggleWatchlist(activeMovie)} className={button}>{myWatchlist.some((movie) => movie.id === activeMovie.id) ? '✓ In watchlist' : '+ Watchlist'}</button>
-                        <button type="button" onClick={() => onSelectMovieSpotlight(activeMovie.id)} className="px-2 py-2 text-sm font-semibold text-sky-100 hover:underline">Open in FilmMatch</button>
-                        <button type="button" onClick={closeFilm} className="px-2 py-2 text-sm font-semibold text-sky-100 hover:underline">Terug naar films</button>
-                      </div>
-                      {trailer?.movieId === activeMovie.id && trailer.failed && <p role="status" className="text-sm text-rose-200">Er is geen trailer beschikbaar.</p>}
-                    </div>
-                  </div>
-                </section>
-              )}
-              {visibleMovies.length > 0 && (
-                <div className={posterGrid}>
-                  {visibleMovies.map((movie) => <MovieCard key={movie.id} movie={movie} badge={data?.shared?.has(movie.id) ? 'Beide watchlists' : undefined} selected={activeMovieId === movie.id} onOpen={(trigger) => openFilm(movie, trigger)} />)}
-                </div>
-              )}
-              {(!visibleMovies.length || (collection !== 'shared' && options?.movies === null)) && (
-                <p role="status" className={'p-3 text-sm text-sky-100/90 ' + panel}>
-                  {collection === 'shared'
-                    ? !data ? 'Jullie watchlists worden vergeleken…' : !data.shared ? 'De gezamenlijke watchlist is niet beschikbaar.' : data.shared.size ? 'Geen gedeelde films passen bij deze diensten of filters.' : 'Jullie hebben nog geen films op beide watchlists.'
-                    : !data ? 'Filmtips laden…' : !query ? 'Er staan nog geen beschikbare streamingdiensten in jullie profielen.' : !options ? 'Filmtips laden…' : options.movies === null ? 'Nieuwe filmtips konden niet worden opgehaald.' : 'Geen films passen bij deze filters.'}
-                </p>
-              )}
+              <Image src={backdrop} alt="" fill unoptimized sizes="100vw" className="-z-20 object-cover object-center sm:object-right" />
+              <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-[#173750] via-[#173750]/95 to-[#173750]/55 lg:to-[#173750]/15" />
             </>
-          ) : (
-            <p className={'p-4 text-sm text-sky-100/90 ' + panel}>{friends.length ? 'Kies een vriend om jullie gezamenlijke filmtips te zien.' : 'Voeg een vriend toe via Mijn vrienden om samen films te vinden.'}</p>
           )}
+          <div className="grid grid-cols-[4.75rem_minmax(0,1fr)] items-start gap-x-3 gap-y-3 sm:grid-cols-[minmax(7rem,8rem)_minmax(0,42rem)] sm:gap-x-4">
+            <div className="relative row-span-1 aspect-[2/3] w-full overflow-hidden rounded-xl border border-white/20 bg-[#10283e] sm:row-span-2">
+              {poster && <Image src={poster} alt="" fill unoptimized sizes="(min-width: 640px) 128px, 76px" className="object-cover" />}
+            </div>
+            <div className="min-w-0 space-y-2">
+              <h2 id="samen-kijken-film-titel" className="text-2xl font-black leading-tight tracking-tight sm:text-3xl">{activeMovie.title}</h2>
+              <p className="text-xs font-medium text-sky-100/90 sm:text-sm">
+                {[activeMovie.release_date?.slice(0, 4), (details?.genres?.length ? details.genres : activeMovie.genres)?.slice(0, 2).join(', '), runtime].filter(Boolean).join(' · ')}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {activeMovie.match_percentage !== undefined && <span className={'rounded-full border px-2.5 py-1 text-xs font-bold ' + matchColors[getMatchColorBand(activeMovie.match_percentage)]}>{activeMovie.match_percentage}% samenmatch</span>}
+                {rating && <span className="rounded-lg bg-[#10283e] px-2 py-1 text-xs font-bold"><span className={ratingSource === 'IMDb' ? 'rounded bg-[#f5c518] px-1 text-slate-950' : 'text-sky-100'}>{ratingSource}</span> {rating}</span>}
+                {activeMovie.providers?.map((provider) => (
+                  <StreamingLogo key={provider.provider_id} name={provider.provider_name} logoPath={provider.logo_path} className="h-6 w-6 rounded" />
+                ))}
+              </div>
+            </div>
+            <div className="col-span-2 space-y-3 sm:col-span-1 sm:col-start-2">
+              {overview && <p className="text-sm leading-relaxed text-sky-50">{overview}</p>}
+              {(director || credits?.length) && <p className="text-xs leading-relaxed text-sky-100/90">
+                {director && <span className="mr-3"><strong>Regie</strong> {director}</span>}
+                {!!credits?.length && <span><strong>Cast</strong> {credits.slice(0, 5).join(', ')}</span>}
+              </p>}
+              <div className="flex flex-wrap items-center gap-2">
+                <button ref={trailerTriggerRef} type="button" onClick={() => openCinemaTrailer(activeMovie.id)} disabled={trailerLoading} className="rounded-full bg-rose-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-rose-500 disabled:opacity-45">{trailerLoading ? 'Trailer laden…' : '▶ Bekijk trailer'}</button>
+                <button type="button" onClick={() => onToggleWatchlist(activeMovie)} className={button}>{myWatchlist.some((movie) => movie.id === activeMovie.id) ? '✓ In watchlist' : '+ Watchlist'}</button>
+                <button type="button" onClick={() => onSelectMovieSpotlight(activeMovie.id)} className="px-2 py-2 text-sm font-semibold text-sky-100 hover:underline">Open in FilmMatch</button>
+                <button type="button" onClick={closeFilm} className="px-2 py-2 text-sm font-semibold text-sky-100 hover:underline">Terug naar films</button>
+              </div>
+              {trailer?.movieId === activeMovie.id && trailer.failed && <p role="status" className="text-sm text-rose-200">Er is geen trailer beschikbaar.</p>}
+            </div>
+          </div>
         </section>
-      </div>
+      )}
+
+      <section aria-labelledby="samen-kijken-resultaten" className="min-w-0 space-y-3">
+        <h2 ref={resultsHeadingRef} tabIndex={-1} id="samen-kijken-resultaten" className="sr-only">Films voor jullie</h2>
+        {friend ? (
+          <>
+            {visibleMovies.length > 0 && (
+              <div className={posterGrid}>
+                {visibleMovies.map((movie) => (
+                  <div key={movie.id} className="min-w-0">
+                    <MovieCard
+                      movie={movie}
+                      watchlistIds={watchlistIds}
+                      watchedIds={NO_WATCHED_IDS}
+                      onSelectMovie={openFilm}
+                      onToggleWatchlist={onToggleWatchlist}
+                      showMatchScore={typeof movie.match_percentage === 'number'}
+                    />
+                    {data?.shared?.has(movie.id) && <p className="mt-1.5 px-0.5 text-xs font-semibold text-sky-100/80">In beide watchlists</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {(!visibleMovies.length || (collection !== 'shared' && options?.movies === null)) && (
+              <p role="status" className="text-sm text-sky-100/85">
+                {collection === 'shared'
+                  ? !data ? 'Jullie watchlists worden vergeleken…' : !data.shared ? 'De gezamenlijke watchlist is niet beschikbaar.' : data.shared.size ? 'Geen gedeelde films passen bij deze diensten of filters.' : 'Jullie hebben nog geen films op beide watchlists.'
+                  : !data ? 'Filmtips laden…' : !query ? 'Er staan nog geen beschikbare streamingdiensten in jullie profielen.' : !options ? 'Filmtips laden…' : options.movies === null ? 'Nieuwe filmtips konden niet worden opgehaald.' : 'Geen films passen bij deze filters.'}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-sky-100/85">{friends.length ? 'Kies een vriend om films te vinden die bij jullie allebei passen.' : 'Voeg een vriend toe via Mijn vrienden om samen films te vinden.'}</p>
+        )}
+      </section>
 
       {/* APARTE GROTE BIOSCOOP TRAILER OVERLAY (THEATER MODUS) */}
       {activeMovie && cinemaTrailerKey && (

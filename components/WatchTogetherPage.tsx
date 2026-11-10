@@ -142,9 +142,10 @@ export default function WatchTogetherPage({
     shared: Set<number> | null;
     profiles: FriendProfile[];
     metadata: Map<number, Movie>;
-    watched: Set<number> | null;
   } | null>(null);
   const [results, setResults] = useState<{ query: string; movies: Movie[] | null } | null>(null);
+  const [unseenCheck, setUnseenCheck] = useState<{ key: string; allowedIds: Set<number> | null; permissionDenied?: boolean } | null>(null);
+  const [checkAttempt, setCheckAttempt] = useState(0);
   const pair = currentUserId && selectedId ? currentUserId + ':' + selectedId : '';
   const data = session?.pair === pair ? session : null;
 
@@ -155,16 +156,14 @@ export default function WatchTogetherPage({
       const supabase = createSupabaseBrowserClient();
       if (!supabase) throw new Error('Supabase ontbreekt');
       const people = [currentUserId, selectedId];
-      const [shared, profileRows, watched] = await Promise.all([
+      const [shared, profileRows] = await Promise.all([
         supabase.rpc('watch_together_overlap', { p_friend_id: selectedId }),
         supabase.from('profiles').select('id, streaming_services, favorite_movie_ids, disliked_genres, favorite_directors, favorite_cast').in('id', people),
-        supabase.from('user_watched').select('movie_id').in('user_id', people),
       ]);
       if (controller.signal.aborted) return;
       const profiles: FriendProfile[] = profileRows.data || [];
       const sharedIds = shared.error ? null : new Set<number>((shared.data || []).map((item: { movie_id: number }) => Number(item.movie_id)));
-      const visibleWatched = watched.error ? null : new Set<number>((watched.data || []).map((item) => Number(item.movie_id)));
-      setSession({ pair, shared: sharedIds, profiles, metadata: new Map(), watched: visibleWatched });
+      setSession({ pair, shared: sharedIds, profiles, metadata: new Map() });
       // Read optional onboarding fields separately so older profiles still work.
       const extra = await supabase.from('profiles').select('id, disliked_movie_ids').in('id', people);
       if (controller.signal.aborted) return;
@@ -172,10 +171,10 @@ export default function WatchTogetherPage({
       const members = profiles.map((item) => ({ ...item, disliked_movie_ids: dislikes.get(item.id) }));
       const ids = [...new Set(members.flatMap((item) => [...(item.favorite_movie_ids || []), ...(item.disliked_movie_ids || [])]).map(Number))];
       const metadata = await fetchMetadata([...new Set([...(sharedIds || []), ...ids])], controller.signal).catch(() => new Map<number, Movie>());
-      if (!controller.signal.aborted) setSession({ pair, shared: sharedIds, profiles: members, metadata, watched: visibleWatched });
+      if (!controller.signal.aborted) setSession({ pair, shared: sharedIds, profiles: members, metadata });
     };
     void load().catch(() => {
-      if (!controller.signal.aborted) setSession({ pair, shared: null, profiles: [], metadata: new Map(), watched: null });
+      if (!controller.signal.aborted) setSession({ pair, shared: null, profiles: [], metadata: new Map() });
     });
     return () => controller.abort();
   }, [pair, currentUserId, selectedId]);
@@ -215,19 +214,61 @@ export default function WatchTogetherPage({
     if (movie) candidateById.set(id, movie);
   }
 
+  const eligibleMovies: Movie[] = [];
+  for (const source of candidateById.values()) {
+    const providers = (source.providers || []).filter((provider) => availableProviders.has(provider.provider_name));
+    if (!providers.length || (genre && !source.genres?.includes(genre))) continue;
+    const runtime = formatFilmRuntime(source.runtime_minutes ?? source.runtime, source.id);
+    if (maxRuntime && (!runtime || Number.parseInt(runtime, 10) > Number(maxRuntime))) continue;
+    eligibleMovies.push({ ...source, providers, runtime: runtime ?? undefined });
+  }
+
+  const candidateIds = eligibleMovies.map((movie) => movie.id).sort((a, b) => a - b).join(',');
+  const checkKey = options && candidateIds ? query + '|' + candidateIds + '|' + checkAttempt : '';
+  const currentCheck = unseenCheck?.key === checkKey ? unseenCheck : null;
+
+  useEffect(() => {
+    if (!checkKey || !selectedId) return;
+    let active = true;
+    const check = async () => {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) throw new Error('Supabase ontbreekt');
+      const ids = candidateIds.split(',').map(Number);
+      const requests = [];
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        requests.push(supabase.rpc('watch_together_unseen', {
+          p_friend_id: selectedId,
+          p_movie_ids: ids.slice(offset, offset + 100),
+        }));
+      }
+      const batches = await Promise.all(requests);
+      if (!active) return;
+      const failed = batches.find(({ error, data: rows }) => error || !Array.isArray(rows));
+      if (failed) {
+        setUnseenCheck({ key: checkKey, allowedIds: null, permissionDenied: failed.error?.code === '42501' });
+        return;
+      }
+      const allowedIds = new Set<number>();
+      for (const { data: rows } of batches) {
+        for (const item of rows || []) allowedIds.add(Number(item.movie_id));
+      }
+      setUnseenCheck({ key: checkKey, allowedIds });
+    };
+    void check().catch(() => {
+      if (active) setUnseenCheck({ key: checkKey, allowedIds: null });
+    });
+    return () => { active = false; };
+  }, [candidateIds, checkKey, selectedId]);
+
   const metadata = data?.metadata ?? new Map<number, Movie>();
   const myTaste = preferences(myProfile, metadata);
   const friendTaste = preferences(friendProfile, metadata);
   const sharedMovies: Movie[] = [];
   const suggestions: Movie[] = [];
-  for (const source of candidateById.values()) {
-    if (!data || data.watched?.has(source.id)) continue;
-    const providers = (source.providers || []).filter((provider) => availableProviders.has(provider.provider_name));
-    if (!providers.length || (genre && !source.genres?.includes(genre))) continue;
-    const runtime = formatFilmRuntime(source.runtime_minutes ?? source.runtime, source.id);
-    if (maxRuntime && (!runtime || Number.parseInt(runtime, 10) > Number(maxRuntime))) continue;
+  for (const source of eligibleMovies) {
+    if (!currentCheck?.allowedIds?.has(source.id)) continue;
     const score = myTaste && friendTaste ? scoreTogether(source, myTaste, friendTaste) : undefined;
-    const movie = { ...source, providers, runtime: runtime ?? undefined, match_percentage: score };
+    const movie = { ...source, match_percentage: score };
     if (data?.shared?.has(movie.id)) {
       if (myWatchlist.some((item) => item.id === movie.id)) sharedMovies.push(movie);
     } else {
@@ -260,7 +301,7 @@ export default function WatchTogetherPage({
     else resultsHeadingRef.current?.focus();
   };
 
-  const activeMovie = selectedMovie && !data?.watched?.has(selectedMovie.id) ? selectedMovie : null;
+  const activeMovie = selectedMovie && currentCheck?.allowedIds?.has(selectedMovie.id) ? selectedMovie : null;
   const activeMovieId = activeMovie?.id;
   const details = filmDetails?.id === activeMovieId ? filmDetails : null;
 
@@ -330,6 +371,9 @@ export default function WatchTogetherPage({
               setFriendId(event.target.value);
               setPage(1);
               setCollection('all');
+              setSession(null);
+              setResults(null);
+              setUnseenCheck(null);
               setSelectedMovie(null);
               setTrailer(null);
             }}
@@ -426,11 +470,18 @@ export default function WatchTogetherPage({
                 ))}
               </div>
             )}
-            {(!visibleMovies.length || (collection !== 'shared' && options?.movies === null)) && (
+            {checkKey && !currentCheck ? (
+              <p role="status" className="text-sm text-sky-100/85">Controleren welke films jullie allebei nog kunnen zien…</p>
+            ) : currentCheck?.allowedIds === null ? (
+              <div className="flex flex-wrap items-center gap-2 text-sm text-sky-100/85">
+                <p role="status">{currentCheck.permissionDenied ? 'De controle is alleen beschikbaar als jullie allebei elkaars vriend zijn.' : 'We konden niet controleren welke films jullie al hebben gezien.'}</p>
+                {!currentCheck.permissionDenied && <button type="button" onClick={() => setCheckAttempt((value) => value + 1)} className={button}>Opnieuw proberen</button>}
+              </div>
+            ) : (!visibleMovies.length || (collection !== 'shared' && options?.movies === null)) && (
               <p role="status" className="text-sm text-sky-100/85">
                 {collection === 'shared'
                   ? !data ? 'Jullie watchlists worden vergeleken…' : !data.shared ? 'De gezamenlijke watchlist is niet beschikbaar.' : data.shared.size ? 'Geen gedeelde films passen bij deze diensten of filters.' : 'Jullie hebben nog geen films op beide watchlists.'
-                  : !data ? 'Filmtips laden…' : !query ? 'Er staan nog geen beschikbare streamingdiensten in jullie profielen.' : !options ? 'Filmtips laden…' : options.movies === null ? 'Nieuwe filmtips konden niet worden opgehaald.' : 'Geen films passen bij deze filters.'}
+                  : !data ? 'Filmtips laden…' : !query ? 'Er staan nog geen beschikbare streamingdiensten in jullie profielen.' : !options ? 'Filmtips laden…' : options.movies === null ? 'Nieuwe filmtips konden niet worden opgehaald.' : 'Geen films gevonden die passen en die jullie allebei nog kunnen zien.'}
               </p>
             )}
           </>

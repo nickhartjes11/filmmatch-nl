@@ -105,7 +105,7 @@ function RatingBadge({ rating, source }: { rating?: string | null; source?: Movi
   if (!rating) return null;
 
   return (
-    <span className="inline-flex items-center gap-1 rounded bg-[#173553]/90 px-1.5 py-0.5 backdrop-blur-md">
+    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-white/15 bg-[#10283e]/95 px-1.5 py-1 shadow-md backdrop-blur-md">
       <span className={`rounded-sm px-1 text-[8px] font-black leading-3 ${source === 'IMDb' ? 'bg-[#f5c518] text-black' : 'text-neutral-300'}`}>
         {source || 'Score'}
       </span>
@@ -173,38 +173,46 @@ export function MovieCard({
       </button>
 
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(19,49,76,.98)_0%,rgba(19,49,76,.88)_18%,rgba(19,49,76,.25)_42%,transparent_62%)]" />
-      {showMatchScore && <span className={`pointer-events-none absolute left-2.5 top-2.5 rounded-full border px-2 py-1 text-[10px] font-bold shadow-md backdrop-blur-md ${matchBand === 'strong' ? 'border-emerald-300/30 bg-emerald-950/90 text-emerald-200' : matchBand === 'medium' ? 'border-amber-300/30 bg-amber-950/90 text-amber-200' : 'border-red-300/30 bg-red-950/90 text-red-200'}`}>
-        {matchScore}% match
-      </span>}
+      <div className="pointer-events-none absolute inset-x-2 top-2">
+        <div className="flex flex-wrap items-start justify-between gap-1">
+          {showMatchScore && <span className={`whitespace-nowrap rounded-full border px-2 py-1 text-[10px] font-bold shadow-md backdrop-blur-md ${matchBand === 'strong' ? 'border-emerald-300/30 bg-emerald-950/90 text-emerald-200' : matchBand === 'medium' ? 'border-amber-300/30 bg-amber-950/90 text-amber-200' : 'border-red-300/30 bg-red-950/90 text-red-200'}`}>
+            {matchScore}% match
+          </span>}
+          {movie.rating && (
+            <div className="ml-auto">
+              <RatingBadge rating={movie.rating} source={movie.rating_source} />
+            </div>
+          )}
+        </div>
 
-      <div className="absolute right-2 top-2 flex flex-col gap-1.5">
-        <button
-          type="button"
-          onClick={() => onToggleWatchlist(movie)}
-          title={isWatchlisted ? 'Verwijder uit watchlist' : 'Bewaar voor later'}
-          aria-label={isWatchlisted ? `Verwijder ${movie.title} uit watchlist` : `Bewaar ${movie.title} voor later`}
-          aria-pressed={isWatchlisted}
-          className={`fm-card-action flex h-9 w-9 items-center justify-center rounded-full border text-lg font-semibold shadow-md backdrop-blur-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-200 ${isWatchlisted ? 'border-rose-300/50 bg-rose-500 text-white' : 'border-white/20 bg-[#285475]/85 text-white hover:bg-[#376c92]'}`}
-        >
-          <span aria-hidden="true">{isWatchlisted ? '✓' : '+'}</span>
-        </button>
-        {onToggleWatched && <button
-          type="button"
-          onClick={() => onToggleWatched(movie)}
-          title={isWatched ? 'Verwijder markering gezien' : 'Markeer als gezien'}
-          aria-label={isWatched ? `Verwijder markering gezien voor ${movie.title}` : `Markeer ${movie.title} als gezien`}
-          aria-pressed={isWatched}
-          className={`fm-card-action flex h-9 w-9 items-center justify-center rounded-full border text-sm font-bold shadow-md backdrop-blur-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-200 ${isWatched ? 'border-emerald-200/50 bg-emerald-400 text-slate-950' : 'border-white/20 bg-[#285475]/85 text-white hover:bg-[#376c92]'}`}
-        >
-          <span aria-hidden="true">✓</span>
-        </button>}
+        <div className="flex flex-col items-end gap-1.5 pt-1.5">
+          <button
+            type="button"
+            onClick={() => onToggleWatchlist(movie)}
+            title={isWatchlisted ? 'Verwijder uit watchlist' : 'Bewaar voor later'}
+            aria-label={isWatchlisted ? `Verwijder ${movie.title} uit watchlist` : `Bewaar ${movie.title} voor later`}
+            aria-pressed={isWatchlisted}
+            className={`fm-card-action pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border text-lg font-semibold shadow-md backdrop-blur-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-200 ${isWatchlisted ? 'border-rose-300/50 bg-rose-500 text-white' : 'border-white/20 bg-[#285475]/85 text-white hover:bg-[#376c92]'}`}
+          >
+            <span aria-hidden="true">{isWatchlisted ? '✓' : '+'}</span>
+          </button>
+          {onToggleWatched && <button
+            type="button"
+            onClick={() => onToggleWatched(movie)}
+            title={isWatched ? 'Verwijder markering gezien' : 'Markeer als gezien'}
+            aria-label={isWatched ? `Verwijder markering gezien voor ${movie.title}` : `Markeer ${movie.title} als gezien`}
+            aria-pressed={isWatched}
+            className={`fm-card-action pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border text-sm font-bold shadow-md backdrop-blur-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-200 ${isWatched ? 'border-emerald-200/50 bg-emerald-400 text-slate-950' : 'border-white/20 bg-[#285475]/85 text-white hover:bg-[#376c92]'}`}
+          >
+            <span aria-hidden="true">✓</span>
+          </button>}
+        </div>
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 space-y-2 p-3 sm:p-3.5">
         <h3 className="line-clamp-2 text-sm font-bold leading-snug text-white drop-shadow-md" title={movie.title}>{movie.title}</h3>
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-300">
           <span>{[movie.release_date?.split('-')[0], movie.genres?.[0] || 'Film', formatFilmRuntime(movie.runtime, movie.id)].filter(Boolean).join(' · ')}</span>
-          <RatingBadge rating={movie.rating} source={movie.rating_source} />
         </div>
         <div className="flex min-h-5 flex-wrap items-center gap-1.5">
           {movie.providers?.slice(0, 2).map((provider) => (

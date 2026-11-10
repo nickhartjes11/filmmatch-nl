@@ -192,10 +192,7 @@ export default function FriendActivityPage({
   return (
     <div className="space-y-4 pb-6 text-sky-50">
       <section aria-labelledby="mijn-vrienden-titel" className="relative flex flex-wrap items-center gap-x-4 gap-y-1">
-        <div className="flex items-baseline gap-2">
-          <h1 id="mijn-vrienden-titel" className="text-lg font-black tracking-tight sm:text-xl">Mijn vrienden</h1>
-          <span className="text-xs text-sky-100/75">{friendList.length === 1 ? '1 vriend' : friendList.length + ' vrienden'}</span>
-        </div>
+        <h1 id="mijn-vrienden-titel" className="text-lg font-black tracking-tight sm:text-xl">Mijn vrienden</h1>
 
         {friendList.length > 0 && (
           <div
@@ -261,6 +258,19 @@ export default function FriendActivityPage({
             )}
           </div>
         )}
+
+        {displayedActivities.length > 1 && (
+          <div role="group" aria-label="Sorteer activiteiten" className="flex flex-wrap gap-0.5 rounded-full sm:ml-auto border border-sky-200/20 bg-[#15354f] p-0.5">
+            {([
+              ['recent', 'Recent'],
+              ['rating', 'Hoogste cijfer'],
+            ] as const).map(([order, label]) => (
+              <button key={order} type="button" onClick={() => setSortOrder(order)} aria-pressed={sortOrder === order} className="rounded-full px-3 py-1.5 text-xs font-semibold text-sky-100 transition hover:bg-sky-200/10 aria-pressed:bg-sky-200/20 aria-pressed:text-white">
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
       {spotlightMovie && spotlightActivity && (
@@ -276,23 +286,7 @@ export default function FriendActivityPage({
         />
       )}
 
-      <section aria-labelledby="recent-gekeken-titel" className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="recent-gekeken-titel" className="text-lg font-black tracking-tight sm:text-xl">Recent gekeken</h2>
-          {displayedActivities.length > 1 && (
-            <div role="group" aria-label="Sorteer activiteiten" className="flex flex-wrap gap-0.5 rounded-full border border-sky-200/20 bg-[#15354f] p-0.5">
-              {([
-                ['recent', 'Recent'],
-                ['rating', 'Hoogste cijfer'],
-              ] as const).map(([order, label]) => (
-                <button key={order} type="button" onClick={() => setSortOrder(order)} aria-pressed={sortOrder === order} className="rounded-full px-3 py-1.5 text-xs font-semibold text-sky-100 transition hover:bg-sky-200/10 aria-pressed:bg-sky-200/20 aria-pressed:text-white">
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
+      <section aria-label="Beoordelingen van vrienden">
         {displayedActivities.length === 0 ? (
           <p role="status" className="rounded-xl border border-sky-200/20 bg-[#21445e] px-4 py-3 text-sm text-sky-100/90">
             {activeFriend

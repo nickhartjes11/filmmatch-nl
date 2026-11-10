@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import StreamingLogo from './StreamingLogo';
 import type { Movie, StreamingPlatform } from './types';
+import { formatFilmRuntime } from './filmRuntime';
 import { createSupabaseBrowserClient } from '../lib/supabase/client';
-import { calculateMatchScore, type MatchPreferences } from '../lib/recommendations/matchScore';
+import { calculateMatchScore, getMatchColorBand, type MatchPreferences } from '../lib/recommendations/matchScore';
 
 interface FriendProfile {
   id: string;
-  display_name: string;
   streaming_services?: string[];
-  preferred_genres?: string[];
-  disliked_genres?: string[];
   favorite_movie_ids?: number[];
+  disliked_movie_ids?: number[];
+  disliked_genres?: string[];
   favorite_directors?: string[];
   favorite_cast?: string[];
 }
@@ -29,534 +29,360 @@ interface WatchTogetherPageProps {
   onToggleWatchlist: (movie: Movie) => void;
 }
 
+const panel = 'rounded-2xl border border-sky-200/20 bg-[#21445e]';
+const control = 'rounded-xl border border-sky-200/25 bg-[#15354f] px-3 py-2 text-sm text-white focus-visible:outline-2 focus-visible:outline-sky-300';
+const button = 'rounded-full border border-sky-200/25 px-4 py-2 text-sm font-bold text-white transition hover:bg-sky-200/15 disabled:opacity-45';
+const posterGrid = 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6';
+const matchColors = {
+  strong: 'border-emerald-300/40 bg-emerald-950 text-emerald-100',
+  medium: 'border-amber-300/40 bg-amber-950 text-amber-100',
+  low: 'border-rose-300/40 bg-rose-950 text-rose-100',
+};
+
+async function fetchMovies(url: string, signal: AbortSignal): Promise<Movie[]> {
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error('Films ophalen mislukt');
+  const data = await response.json();
+  return Array.isArray(data.movies) ? data.movies : [];
+}
+
+async function fetchMetadata(ids: number[], signal: AbortSignal) {
+  const batches = [];
+  for (let offset = 0; offset < ids.length; offset += 25) {
+    batches.push(fetchMovies('/api/movies?metadataIds=' + ids.slice(offset, offset + 25).join(','), signal));
+  }
+  return new Map((await Promise.all(batches)).flat().map((movie) => [movie.id, movie]));
+}
+
+function taste(movie: Movie) {
+  return { ...movie, genres: movie.genres || [] };
+}
+
+function scoreTogether(movie: Movie, myTaste: MatchPreferences, friendTaste: MatchPreferences) {
+  const signals = taste(movie);
+  const mine = calculateMatchScore(signals, myTaste);
+  const theirs = calculateMatchScore(signals, friendTaste);
+  return Math.round(Math.min(mine, theirs) * 0.7 + Math.max(mine, theirs) * 0.3);
+}
+
+function preferences(profile: FriendProfile | undefined, metadata: Map<number, Movie>): MatchPreferences | null {
+  if (!profile) return null;
+  const moviesFor = (ids: number[] = []) => ids.flatMap((id) => {
+    const movie = metadata.get(Number(id));
+    return movie ? [taste(movie)] : [];
+  });
+  const favoriteMovies = moviesFor(profile.favorite_movie_ids);
+  const dislikedMovies = moviesFor(profile.disliked_movie_ids);
+  if (!favoriteMovies.length && !dislikedMovies.length && !profile.disliked_genres?.length &&
+      !profile.favorite_directors?.length && !profile.favorite_cast?.length) return null;
+  return {
+    favoriteMovies,
+    dislikedMovies,
+    ratedMovies: [],
+    dislikedGenres: profile.disliked_genres,
+    favoriteDirectors: profile.favorite_directors,
+    favoriteCast: profile.favorite_cast,
+  };
+}
+
+function MovieCard({ movie, badge, onOpen }: { movie: Movie; badge?: string; onOpen: () => void }) {
+  const score = movie.match_percentage;
+  const runtime = formatFilmRuntime(movie.runtime_minutes ?? movie.runtime, movie.id);
+  return (
+    <button type="button" onClick={onOpen} className="group relative isolate flex aspect-[2/3] w-full flex-col justify-end overflow-hidden rounded-2xl border border-sky-200/20 bg-[#18374f] p-3 text-left transition hover:border-sky-200/60 focus-visible:outline-2 focus-visible:outline-sky-300">
+      {movie.poster_path && (
+        <Image src={movie.poster_path.startsWith('/') ? 'https://image.tmdb.org/t/p/w500' + movie.poster_path : movie.poster_path} alt="" fill unoptimized sizes="(min-width: 1280px) 16vw, (min-width: 640px) 33vw, 50vw" className="-z-20 object-cover transition duration-300 motion-safe:group-hover:scale-105" />
+      )}
+      <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-[#10283e] via-[#10283e]/40 to-transparent" />
+      {(badge || score !== undefined) && (
+        <span className={'absolute left-2 top-2 rounded-full border px-2 py-1 text-[10px] font-bold ' + (badge ? 'border-rose-300/50 bg-rose-950 text-rose-100' : matchColors[getMatchColorBand(score ?? 0)])}>
+          {badge ?? (score + '% samenmatch')}
+        </span>
+      )}
+      <span className="line-clamp-2 text-sm font-extrabold leading-tight text-white">{movie.title}</span>
+      <span className="mt-1 text-xs text-sky-100/85">{[movie.release_date?.slice(0, 4), runtime].filter(Boolean).join(' · ')}</span>
+      {!!movie.providers?.length && (
+        <span className="mt-2 flex flex-wrap gap-1.5">
+          {movie.providers.slice(0, 4).map((provider) => <StreamingLogo key={provider.provider_id} name={provider.provider_name} logoPath={provider.logo_path} className="h-5 w-5 rounded" />)}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export default function WatchTogetherPage({
-  currentUserId,
-  currentUserName,
-  myWatchlist,
-  myStreamingServices,
-  friends,
-  onSelectMovieSpotlight,
-  onToggleWatchlist,
+  currentUserId, currentUserName, myWatchlist, myStreamingServices, friends, platforms,
+  onSelectMovieSpotlight, onToggleWatchlist,
 }: WatchTogetherPageProps) {
-  // Meerdere vrienden selecteren (groep van 1 tot N vrienden)
-  const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
-  const [friendSearchQuery, setFriendSearchQuery] = useState('');
-
-  const [groupProfiles, setGroupProfiles] = useState<Record<string, FriendProfile>>({});
-  const [myProfile, setMyProfile] = useState<FriendProfile | null>(null);
-  const [allWatchedMovieIds, setAllWatchedMovieIds] = useState<number[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [candidateMovies, setCandidateMovies] = useState<Movie[]>([]);
-
-  // Paginering voor de refresh knop
-  const [refreshPageOffset, setRefreshPageOffset] = useState(0);
-
-  // Modal states voor de film details
+  const [friendId, setFriendId] = useState('');
+  const friend = friends.find((item) => item.id === friendId);
+  const selectedId = friend?.id;
+  const [location, setLocation] = useState('any');
+  const [maxRuntime, setMaxRuntime] = useState('');
+  const [genre, setGenre] = useState('');
+  const [hideWatched, setHideWatched] = useState(true);
+  const [page, setPage] = useState(1);
+  const [showTopThree, setShowTopThree] = useState(false);
   const [activeModalMovie, setActiveModalMovie] = useState<Movie | null>(null);
   const [modalDetails, setModalDetails] = useState<{ director?: string; cast?: string[] }>({});
-  
-  // Dedicated grote bioscoop trailer modal
-  const [cinemaTrailerKey, setCinemaTrailerKey] = useState<string | null>(null);
-  const [trailerLoading, setTrailerLoading] = useState(false);
+  const [trailer, setTrailer] = useState<{ movieId: number; key?: string; failed?: boolean } | null>(null);
+  const cinemaTrailerKey = trailer?.movieId === activeModalMovie?.id ? trailer?.key : undefined;
+  const trailerLoading = !!trailer && trailer.movieId === activeModalMovie?.id && !trailer.key && !trailer.failed;
+  const [session, setSession] = useState<{
+    pair: string;
+    shared: Set<number> | null;
+    profiles: FriendProfile[];
+    metadata: Map<number, Movie>;
+    watched: Set<number> | null;
+  } | null>(null);
+  const [results, setResults] = useState<{ query: string; movies: Movie[] | null } | null>(null);
+  const pair = currentUserId && selectedId ? currentUserId + ':' + selectedId : '';
+  const data = session?.pair === pair ? session : null;
 
-  // Zoeken in vriendenlijst
-  const filteredFriends = useMemo(() => {
-    const q = friendSearchQuery.trim().toLowerCase();
-    if (!q) return friends;
-    return friends.filter((f) => f.display_name.toLowerCase().includes(q));
-  }, [friends, friendSearchQuery]);
-
-  const toggleSelectFriend = (friendId: string) => {
-    setSelectedFriendIds((current) =>
-      current.includes(friendId)
-        ? current.filter((id) => id !== friendId)
-        : [...current, friendId]
-    );
-  };
-
-  // Laad profielen en geziene films van iedereen in de groep
   useEffect(() => {
-    if (selectedFriendIds.length === 0 || !currentUserId) return;
-
-    let active = true;
-    setLoading(true);
-
-    const loadGroupData = async () => {
-      try {
-        const supabase = createSupabaseBrowserClient();
-        if (!supabase) return;
-
-        const allUserIds = [currentUserId, ...selectedFriendIds];
-
-        const [{ data: profs }, { data: watchedRows }] = await Promise.all([
-          supabase.from('profiles').select('*').in('id', allUserIds),
-          supabase.from('user_watched').select('movie_id').in('user_id', allUserIds),
-        ]);
-
-        if (!active) return;
-
-        const profMap: Record<string, FriendProfile> = {};
-        (profs || []).forEach((p) => {
-          profMap[p.id] = p;
-        });
-
-        setMyProfile(profMap[currentUserId] || null);
-        setGroupProfiles(profMap);
-        setAllWatchedMovieIds((watchedRows || []).map((r) => Number(r.movie_id)));
-      } catch (err) {
-        console.error('Fout bij ophalen groepsdata:', err);
-      } finally {
-        if (active) setLoading(false);
-      }
+    if (!pair || !currentUserId || !selectedId) return;
+    const controller = new AbortController();
+    const load = async () => {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) throw new Error('Supabase ontbreekt');
+      const people = [currentUserId, selectedId];
+      const [shared, profileRows, watched] = await Promise.all([
+        supabase.rpc('watch_together_overlap', { p_friend_id: selectedId }),
+        supabase.from('profiles').select('id, streaming_services, favorite_movie_ids, disliked_genres, favorite_directors, favorite_cast').in('id', people),
+        supabase.from('user_watched').select('movie_id').in('user_id', people),
+      ]);
+      if (controller.signal.aborted) return;
+      const profiles: FriendProfile[] = profileRows.data || [];
+      // Read optional onboarding fields separately so older profiles still work.
+      const extra = await supabase.from('profiles').select('id, disliked_movie_ids').in('id', people);
+      const dislikes = new Map((extra.data || []).map((item) => [item.id, item.disliked_movie_ids]));
+      const members = profiles.map((item) => ({ ...item, disliked_movie_ids: dislikes.get(item.id) }));
+      const ids = [...new Set(members.flatMap((item) => [...(item.favorite_movie_ids || []), ...(item.disliked_movie_ids || [])]).map(Number))];
+      const sharedIds = shared.error ? null : new Set<number>((shared.data || []).map((item: { movie_id: number }) => Number(item.movie_id)));
+      const visibleWatched = watched.error ? null : new Set<number>((watched.data || []).map((item) => Number(item.movie_id)));
+      const metadata = await fetchMetadata([...new Set([...(sharedIds || []), ...ids])], controller.signal).catch(() => new Map<number, Movie>());
+      if (!controller.signal.aborted) setSession({ pair, shared: sharedIds, profiles: members, metadata, watched: visibleWatched });
     };
-
-    void loadGroupData();
-
-    return () => {
-      active = false;
-    };
-  }, [selectedFriendIds, currentUserId]);
-
-  // Gecombineerde platforms van de hele groep
-  const combinedPlatforms = useMemo(() => {
-    const allServices = new Set<string>(myStreamingServices);
-    selectedFriendIds.forEach((id) => {
-      groupProfiles[id]?.streaming_services?.forEach((s) => allServices.add(s));
+    void load().catch(() => {
+      if (!controller.signal.aborted) setSession({ pair, shared: null, profiles: [], metadata: new Map(), watched: null });
     });
-    const result = Array.from(allServices);
-    return result.length > 0 ? result : ['Netflix', 'Prime Video', 'Disney+', 'HBO Max', 'Videoland'];
-  }, [myStreamingServices, selectedFriendIds, groupProfiles]);
+    return () => controller.abort();
+  }, [pair, currentUserId, selectedId]);
 
-  // Haal films op voor de gezamenlijke smaak
+  const friendProfile = data?.profiles.find((item) => item.id === selectedId);
+  const serviceNames = location === 'mine' ? myStreamingServices :
+    location === 'friend' ? friendProfile?.streaming_services ?? [] : platforms.map((platform) => platform.name);
+  const providerQuery = [...new Set(serviceNames)].sort().join(',');
+  const query = pair && providerQuery ? pair + '|' + providerQuery + '|' + genre + '|' + page : '';
   useEffect(() => {
-    if (selectedFriendIds.length === 0) return;
-
-    let active = true;
-    setLoading(true);
-
-    const fetchRecommendations = async () => {
-      try {
-        // Verzamel topgenres van iedereen
-        const allGenres = new Set<string>();
-        myProfile?.preferred_genres?.forEach((g) => allGenres.add(g));
-        selectedFriendIds.forEach((id) => {
-          groupProfiles[id]?.preferred_genres?.forEach((g) => allGenres.add(g));
-        });
-        const genreList = Array.from(allGenres);
-
-        const page1 = refreshPageOffset * 2 + 1;
-        const page2 = refreshPageOffset * 2 + 2;
-
-        const makeUrl = (pageNum: number) => {
-          const p = new URLSearchParams({
-            page: String(pageNum),
-            providers: combinedPlatforms.join(','),
-          });
-          if (genreList.length > 0) {
-            p.set('genre', genreList[refreshPageOffset % genreList.length]);
-          }
-          return `/api/movies?${p.toString()}`;
-        };
-
-        const [res1, res2] = await Promise.all([fetch(makeUrl(page1)), fetch(makeUrl(page2))]);
-        const [data1, data2] = await Promise.all([
-          res1.ok ? res1.json() : { movies: [] },
-          res2.ok ? res2.json() : { movies: [] },
-        ]);
-
-        if (!active) return;
-
-        const combinedList = [
-          ...(Array.isArray(data1.movies) ? data1.movies : []),
-          ...(Array.isArray(data2.movies) ? data2.movies : []),
-        ];
-
-        const uniqueMap = new Map<number, Movie>();
-        combinedList.forEach((m: Movie) => {
-          if (!uniqueMap.has(m.id)) uniqueMap.set(m.id, m);
-        });
-
-        setCandidateMovies(Array.from(uniqueMap.values()));
-      } catch (err) {
-        console.error('Fout bij ophalen groepsfilms:', err);
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    void fetchRecommendations();
-
-    return () => {
-      active = false;
-    };
-  }, [selectedFriendIds, combinedPlatforms, myProfile, groupProfiles, refreshPageOffset]);
-
-  // Bereken de Top 20 voor de hele groep
-  const topSamenMatches = useMemo(() => {
-    if (!candidateMovies.length) return [];
-
-    const excludedIds = new Set(allWatchedMovieIds);
-
-    // Verzamel genres die wie dan ook verafschuwt
-    const allDisliked = new Set<string>(myProfile?.disliked_genres || []);
-    selectedFriendIds.forEach((id) => {
-      groupProfiles[id]?.disliked_genres?.forEach((g) => allDisliked.add(g));
+    if (!query) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams({ providers: providerQuery });
+    if (genre) params.set('genre', genre);
+    void Promise.all([page, page + 1].map((number) => {
+      params.set('page', String(number));
+      return fetchMovies('/api/movies?' + params.toString(), controller.signal);
+    })).then((pages) => {
+      if (!controller.signal.aborted) setResults({ query, movies: pages.flat() });
+    }).catch(() => {
+      if (!controller.signal.aborted) setResults({ query, movies: null });
     });
+    return () => controller.abort();
+  }, [query, providerQuery, genre, page]);
 
-    // Bouw match preferences voor elk groepslid
-    const allMemberPrefs: MatchPreferences[] = [
-      {
-        favoriteMovies: [],
-        ratedMovies: [],
-        dislikedGenres: myProfile?.disliked_genres || [],
-        favoriteDirectors: myProfile?.favorite_directors || [],
-        favoriteCast: myProfile?.favorite_cast || [],
-      },
-      ...selectedFriendIds.map((id) => ({
-        favoriteMovies: [],
-        ratedMovies: [],
-        dislikedGenres: groupProfiles[id]?.disliked_genres || [],
-        favoriteDirectors: groupProfiles[id]?.favorite_directors || [],
-        favoriteCast: groupProfiles[id]?.favorite_cast || [],
-      })),
-    ];
+  const availableProviders = new Set(serviceNames);
+  const options = results?.query === query ? results : null;
+  const candidateById = new Map(myWatchlist.map((movie) => [movie.id, movie]));
+  for (const movie of options?.movies || []) candidateById.set(movie.id, movie);
+  for (const id of data?.shared || []) {
+    const movie = data?.metadata.get(id);
+    if (movie) candidateById.set(id, movie);
+  }
 
-    const scored = candidateMovies
-      .filter((movie) => {
-        if (excludedIds.has(movie.id)) return false;
-        if (movie.genres?.some((g) => allDisliked.has(g))) return false;
-        return true;
-      })
-      .map((movie) => {
-        const tasteSignal = {
-          id: movie.id,
-          genres: movie.genres || [],
-          director: movie.director,
-          cast: movie.cast,
-          rating: movie.rating,
-        };
-
-        // Bereken score per groepslid en neem het gemiddelde
-        const scores = allMemberPrefs.map((pref) => calculateMatchScore(tasteSignal, pref));
-        const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / Math.max(1, scores.length));
-
-        return {
-          ...movie,
-          match_percentage: avgScore,
-        };
-      })
-      .sort((a, b) => (b.match_percentage || 0) - (a.match_percentage || 0));
-
-    return scored.slice(0, 20);
-  }, [candidateMovies, allWatchedMovieIds, myProfile, selectedFriendIds, groupProfiles]);
-
-  const selectedFriends = friends.filter((f) => selectedFriendIds.includes(f.id));
-  const groupNamesLabel = selectedFriends.length > 0
-    ? selectedFriends.map((f) => f.display_name).join(', ')
-    : '';
-
-  // Open modal en haal extra credits op indien nodig
-  const handleOpenModal = async (movie: Movie) => {
-    setActiveModalMovie(movie);
-    setModalDetails({
-      director: movie.director,
-      cast: movie.cast,
-    });
-
-    if (!movie.director || !movie.cast || movie.cast.length === 0) {
-      try {
-        const res = await fetch(`/api/movies?metadataIds=${movie.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          const detail = data.movies?.[0];
-          if (detail) {
-            setModalDetails({
-              director: detail.director || movie.director,
-              cast: detail.cast || movie.cast,
-            });
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      }
+  const metadata = data?.metadata ?? new Map<number, Movie>();
+  const myTaste = preferences(data?.profiles.find((item) => item.id === currentUserId), metadata);
+  const friendTaste = preferences(friendProfile, metadata);
+  const canScore = !!myTaste && !!friendTaste;
+  const sharedMovies: Movie[] = [];
+  const suggestions: Movie[] = [];
+  for (const source of candidateById.values()) {
+    const providers = (source.providers || []).filter((provider) => availableProviders.has(provider.provider_name));
+    if (!providers.length || (genre && !source.genres?.includes(genre))) continue;
+    const runtime = formatFilmRuntime(source.runtime_minutes ?? source.runtime, source.id);
+    if (maxRuntime && (!runtime || Number.parseInt(runtime, 10) > Number(maxRuntime))) continue;
+    if (hideWatched && data?.watched?.has(source.id)) continue;
+    const score = myTaste && friendTaste ? scoreTogether(source, myTaste, friendTaste) : undefined;
+    const movie = { ...source, providers, match_percentage: score };
+    if (data?.shared?.has(movie.id)) {
+      if (myWatchlist.some((item) => item.id === movie.id)) sharedMovies.push(movie);
+    } else {
+      suggestions.push(movie);
     }
+  }
+  const byScore = (a: Movie, b: Movie) => (b.match_percentage ?? 0) - (a.match_percentage ?? 0);
+  sharedMovies.sort(byScore);
+  suggestions.sort(byScore);
+  const shortlist = [...sharedMovies, ...suggestions].slice(0, 3);
+
+  const handleOpenModal = (movie: Movie) => {
+    setTrailer(null);
+    setActiveModalMovie(movie);
+    setModalDetails({ director: movie.director, cast: movie.cast });
   };
+
+  const modalMovieId = activeModalMovie?.id;
+  useEffect(() => {
+    if (!modalMovieId) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (cinemaTrailerKey) setTrailer(null);
+      else setActiveModalMovie(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [modalMovieId, cinemaTrailerKey]);
+
+  useEffect(() => {
+    if (!modalMovieId) return;
+    const controller = new AbortController();
+    void fetchMetadata([modalMovieId], controller.signal).then((movies) => {
+      const movie = movies.get(modalMovieId);
+      if (movie && !controller.signal.aborted) {
+        setModalDetails((previous) => ({ director: movie.director || previous.director, cast: movie.cast?.length ? movie.cast : previous.cast }));
+      }
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [modalMovieId]);
 
   const openCinemaTrailer = async (movieId: number) => {
-    setTrailerLoading(true);
-    setCinemaTrailerKey(null);
+    const request = { movieId };
+    setTrailer(request);
     try {
-      const res = await fetch(`/api/movies?trailerMovieId=${movieId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCinemaTrailerKey(data.youtubeKey || null);
-      }
+      const response = await fetch('/api/movies?trailerMovieId=' + movieId);
+      const result = response.ok ? await response.json() : {};
+      setTrailer((current) => current === request ? { movieId, key: result.youtubeKey, failed: !result.youtubeKey } : current);
     } catch {
-      setCinemaTrailerKey(null);
-    } finally {
-      setTrailerLoading(false);
+      setTrailer((current) => current === request ? { movieId, failed: true } : current);
     }
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Koptekst */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/[0.08] pb-6">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-bold uppercase tracking-wider mb-2">
-            <span>🛋️</span> Samen Kijken
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            {selectedFriendIds.length > 0
-              ? `Filmavond met ${groupNamesLabel}`
-              : 'Met wie ga je vanavond kijken?'}
-          </h1>
-          <p className="text-xs text-neutral-400 mt-1">
-            {selectedFriendIds.length > 0
-              ? `Jullie ${selectedFriendIds.length + 1} filmprofielen en platforms zijn samengevoegd tot een ideale gezamenlijke Top 20.`
-              : 'Kies één of meerdere vrienden om direct een groepsselectie te maken.'}
-          </p>
-        </div>
+    <div className="space-y-6 pb-8 text-sky-50">
+      <section className="rounded-3xl border border-sky-200/20 bg-gradient-to-br from-[#275573] to-[#17334e] p-5 sm:p-8">
+        <p className="mb-2 text-xs font-bold text-rose-200">🍿 Samen Kijken</p>
+        <h1 className="text-3xl font-black tracking-tight sm:text-4xl">{friend ? 'Filmavond met ' + friend.display_name : 'Wat kijken jullie vanavond?'}</h1>
+        <p className="mt-2 max-w-2xl text-sm text-sky-100/85">Bekijk welke films jullie allebei willen zien en ontdek wat past bij jullie smaak en streamingdiensten.</p>
 
-        {selectedFriendIds.length > 0 && (
-          <div className="flex items-center gap-2 self-start md:self-auto">
-            <button
-              type="button"
-              onClick={() => setRefreshPageOffset((prev) => prev + 1)}
-              disabled={loading}
-              title="Haal 20 nieuwe films op"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition disabled:opacity-50 shadow-md"
-            >
-              <span className={loading ? 'animate-spin' : ''}>🔄</span>
-              <span>Nieuwe films</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedFriendIds([]);
-                setCandidateMovies([]);
-                setRefreshPageOffset(0);
-              }}
-              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/15 text-xs font-bold text-neutral-300 hover:text-white transition"
-            >
-              ✏️ Groep aanpassen
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* STAP 1: VRIENDEN KIEZEN (1 OF MEERDERE) */}
-      {selectedFriendIds.length === 0 ? (
-        <div className="space-y-6 max-w-2xl mx-auto py-8">
-          <div className="relative">
-            <span className="absolute inset-y-0 left-3 flex items-center text-neutral-400">🔍</span>
-            <input
-              type="text"
-              value={friendSearchQuery}
-              onChange={(e) => setFriendSearchQuery(e.target.value)}
-              placeholder="Zoek in je vrienden..."
-              className="w-full pl-9 pr-4 py-3 rounded-2xl bg-neutral-900/90 border border-white/10 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-rose-500 transition"
-            />
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-wider text-neutral-400">
-                Selecteer vrienden ({filteredFriends.length})
-              </p>
-              <span className="text-[11px] text-neutral-500">Klik op meerdere vrienden om een groep te maken</span>
-            </div>
-
-            {filteredFriends.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-xs text-neutral-400">
-                Geen vrienden gevonden. Voeg vrienden toe via het menu &lsquo;Mijn vrienden&rsquo;.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {filteredFriends.map((friend) => (
-                  <button
-                    key={friend.id}
-                    type="button"
-                    onClick={() => {
-                      toggleSelectFriend(friend.id);
-                      setRefreshPageOffset(0);
-                    }}
-                    className="flex items-center gap-3 p-3.5 rounded-2xl border border-white/10 bg-neutral-900/60 hover:bg-neutral-800/80 hover:border-rose-500/40 text-left transition group shadow-lg"
-                  >
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 text-sm font-black text-slate-950">
-                      {friend.display_name.slice(0, 1).toUpperCase()}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-white group-hover:text-rose-300 transition truncate">
-                        {friend.display_name}
-                      </p>
-                      <p className="text-[11px] text-neutral-400">Klik om te selecteren</p>
-                    </div>
-                    <span className="text-neutral-500 group-hover:text-rose-400 transition text-sm">＋</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        /* STAP 2: DE TOP 20 FILM GRID */
-        <div className="space-y-4">
-          {/* Balk met geselecteerde vrienden tags */}
-          <div className="flex items-center gap-2 flex-wrap bg-neutral-900/80 border border-white/10 p-2.5 rounded-2xl">
-            <span className="text-xs font-bold text-neutral-400 pl-1">Actieve groep:</span>
-            <span className="px-2.5 py-1 rounded-xl bg-white/15 text-xs font-bold text-white">
-              {currentUserName} (jij)
-            </span>
-            {selectedFriends.map((f) => (
-              <span
-                key={f.id}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/20 border border-rose-500/30 text-xs font-bold text-rose-200"
-              >
-                <span>{f.display_name}</span>
-                <button
-                  type="button"
-                  onClick={() => toggleSelectFriend(f.id)}
-                  title={`Verwijder ${f.display_name} uit deze sessie`}
-                  className="hover:text-white"
-                >
-                  ✕
-                </button>
-              </span>
-            ))}
-            <button
-              type="button"
-              onClick={() => setSelectedFriendIds([])}
-              className="text-xs font-semibold text-neutral-400 hover:text-white pl-2 transition"
-            >
-              + Iemand toevoegen
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between pt-2">
-            <h2 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
-              <span className="text-rose-500">✨</span> Top 20 Aanbevelingen voor de groep
-            </h2>
-            <span className="text-xs text-neutral-400">Klik op een poster voor info, cast &amp; trailer</span>
-          </div>
-
-          {loading ? (
-            <div className="py-28 text-center text-xs text-neutral-400">
-              <span className="inline-block animate-spin mr-2">🔄</span>
-              20 groepsmatches berekenen...
-            </div>
-          ) : topSamenMatches.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/15 p-12 text-center bg-white/[0.02]">
-              <p className="text-sm font-bold text-white mb-1">Geen matches gevonden voor deze selectie</p>
-              <button
-                type="button"
-                onClick={() => setRefreshPageOffset((prev) => prev + 1)}
-                className="mt-3 px-4 py-2 rounded-xl bg-rose-600 text-xs font-bold text-white shadow-lg"
-              >
-                Probeer andere films 🔄
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {topSamenMatches.map((movie, index) => (
-                <div
-                  key={movie.id}
-                  onClick={() => handleOpenModal(movie)}
-                  className="group relative cursor-pointer rounded-2xl border border-white/10 bg-neutral-900 overflow-hidden shadow-xl hover:border-rose-500/50 hover:shadow-2xl transition duration-300 flex flex-col justify-between"
-                >
-                  <div className="relative aspect-[2/3] w-full bg-neutral-950 overflow-hidden">
-                    {movie.poster_path ? (
-                      <Image
-                        src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
-                        alt={movie.title}
-                        fill
-                        unoptimized
-                        className="object-cover transition duration-300 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-xs text-neutral-600 font-bold">
-                        Geen poster
-                      </div>
-                    )}
-
-                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-lg bg-black/80 backdrop-blur-md text-[11px] font-black text-rose-400 border border-white/10">
-                      #{index + 1}
-                    </span>
-
-                    <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
-                      <span className="px-1.5 py-0.5 rounded-lg bg-emerald-500 text-[10px] font-black text-black shadow-md">
-                        {movie.match_percentage}% MATCH
-                      </span>
-                      {movie.rating && (
-                        <span className="inline-flex items-center gap-1 rounded bg-black/80 px-1.5 py-0.5 backdrop-blur-md border border-white/10">
-                          <span className="rounded-sm bg-[#f5c518] px-1 text-[7px] font-black text-black leading-3">
-                            IMDb
-                          </span>
-                          <span className="text-[10px] font-bold text-amber-200">
-                            {movie.rating}
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-white truncate group-hover:text-rose-300 transition">
-                        {movie.title}
-                      </p>
-                      <p className="text-[10px] text-neutral-400 truncate">
-                        {movie.release_date?.slice(0, 4)} &bull; {movie.genres?.[0] || 'Film'}
-                      </p>
-                    </div>
-
-                    {movie.providers && movie.providers.length > 0 && (
-                      <div className="flex items-center gap-1 pt-1.5 border-t border-white/[0.08]">
-                        {movie.providers.slice(0, 3).map((provider) => (
-                          <StreamingLogo
-                            key={provider.provider_id}
-                            name={provider.provider_name}
-                            logoPath={provider.logo_path}
-                            className="h-5 w-5 rounded"
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="mt-5 flex flex-wrap items-end gap-3">
+          <label className="grid gap-1.5 text-xs font-semibold text-sky-100">
+            Met wie kijk je?
+            <select value={selectedId ?? ''} onChange={(event) => {
+              setFriendId(event.target.value);
+              setLocation('any');
+              setPage(1);
+              setShowTopThree(false);
+            }} className={control}>
+              <option value="">Kies een vriend</option>
+              {friends.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}
+            </select>
+          </label>
+          {friend && (
+            <label className="grid gap-1.5 text-xs font-semibold text-sky-100">
+              Waar kijken jullie?
+              <select value={location} onChange={(event) => { setLocation(event.target.value); setPage(1); }} className={control}>
+                <option value="any">Alle ondersteunde diensten</option>
+                <option value="mine">Bij {currentUserName === 'Jij' ? 'mij' : currentUserName}</option>
+                <option value="friend" disabled={!friendProfile?.streaming_services?.length}>Bij {friend.display_name}</option>
+              </select>
+            </label>
           )}
         </div>
-      )}
+        {!friends.length && <p className="mt-3 text-sm text-sky-100/85">Voeg een vriend toe via Mijn vrienden om samen films te vinden.</p>}
+      </section>
 
+      {friend && (
+        <>
+          <div className={'flex flex-wrap items-center gap-3 p-3 ' + panel}>
+            <select aria-label="Maximale speelduur" value={maxRuntime} onChange={(event) => setMaxRuntime(event.target.value)} className={control}>
+              <option value="">Elke speelduur</option><option value="90">Max. 90 min</option><option value="120">Max. 120 min</option><option value="150">Max. 150 min</option>
+            </select>
+            <select aria-label="Genre" value={genre} onChange={(event) => { setGenre(event.target.value); setPage(1); }} className={control}>
+              <option value="">Alle genres</option>
+              {['Actie', 'Animatie', 'Avontuur', 'Drama', 'Familie', 'Horror', 'Komedie', 'Misdaad', 'Sciencefiction', 'Thriller'].map((name) => <option key={name}>{name}</option>)}
+            </select>
+            <label className="flex items-center gap-2 px-1 text-sm text-sky-100">
+              <input type="checkbox" className="accent-rose-500" checked={hideWatched} onChange={(event) => setHideWatched(event.target.checked)} />
+              Verberg bekende geziene films
+            </label>
+            <div className="flex flex-wrap gap-2 sm:ml-auto">
+              <button type="button" aria-pressed={showTopThree} onClick={() => setShowTopThree((value) => !value)} disabled={!shortlist.length && !showTopThree} className={button}>{showTopThree ? 'Sluit onze top 3' : 'Kies onze top 3'}</button>
+              <button type="button" onClick={() => handleOpenModal(shortlist[Math.floor(Math.random() * shortlist.length)])} disabled={!shortlist.length} className="rounded-full bg-rose-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-rose-500 disabled:opacity-45">Verras ons</button>
+            </div>
+          </div>
+
+          {showTopThree && (
+            <section className={'space-y-3 p-4 ' + panel}>
+              <h2 className="text-lg font-extrabold">Jullie top 3</h2>
+              {shortlist.length ? <div className={posterGrid}>{shortlist.map((movie) => <MovieCard key={movie.id} movie={movie} onOpen={() => handleOpenModal(movie)} />)}</div> : <p className="text-sm text-sky-100/80">Pas de filters aan om weer films te zien.</p>}
+            </section>
+          )}
+
+          <section className="space-y-3">
+            <h2 className="text-xl font-extrabold">Deze willen jullie allebei zien</h2>
+            {sharedMovies.length ? (
+              <div className={posterGrid}>{sharedMovies.map((movie) => <MovieCard key={movie.id} movie={movie} badge="Beide watchlists" onOpen={() => handleOpenModal(movie)} />)}</div>
+            ) : <p role="status" className={'p-4 text-sm text-sky-100/85 ' + panel}>
+              {!data ? 'Jullie watchlists worden vergeleken…' :
+                !data.shared ? 'De gezamenlijke watchlist is niet beschikbaar.' :
+                data.shared.size ? 'Geen gedeelde films passen bij deze diensten of filters.' :
+                'Jullie hebben nog geen films op beide watchlists.'}
+            </p>}
+          </section>
+
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 className="text-xl font-extrabold">{canScore ? 'Past bij jullie allebei' : 'Meer films voor vanavond'}</h2>
+                <p className="mt-1 text-sm text-sky-100/80">{canScore ? 'De laagste van jullie twee scores telt het zwaarst.' : 'Samenmatches verschijnen zodra beide smaakprofielen beschikbaar zijn.'}</p>
+              </div>
+              <button type="button" onClick={() => setPage((value) => value + 2)} disabled={!query || !options} className={button}>Andere films</button>
+            </div>
+            {suggestions.length > 0 && <div className={posterGrid}>{suggestions.slice(0, 18).map((movie) => <MovieCard key={movie.id} movie={movie} onOpen={() => handleOpenModal(movie)} />)}</div>}
+            {(!suggestions.length || options?.movies === null) && (
+              <p role="status" className={'p-4 text-sm text-sky-100/85 ' + panel}>
+                {!query ? 'Kies een locatie met beschikbare streamingdiensten.' : !options ? 'Filmtips laden…' : options.movies === null ? 'Nieuwe filmtips konden niet worden opgehaald.' : 'Geen films passen bij deze filters.'}
+              </p>
+            )}
+          </section>
+        </>
+      )}
       {/* DETAIL MODAL VOOR DE FILM */}
       {activeModalMovie && (
         <div
           role="dialog"
           aria-modal="true"
+          aria-labelledby="samen-kijken-film-titel"
           onClick={() => setActiveModalMovie(null)}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 sm:p-6 animate-fade-in"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-white/15 bg-neutral-950 shadow-2xl flex flex-col md:flex-row"
+            className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-white/15 bg-[#16354f] shadow-2xl flex flex-col md:flex-row"
           >
             {/* Grote poster links */}
-            <div className="relative w-full md:w-5/12 aspect-[2/3] md:aspect-auto bg-neutral-900 shrink-0">
+            <div className="relative w-full md:w-5/12 aspect-[2/3] md:aspect-auto bg-[#10283e] shrink-0">
               {activeModalMovie.poster_path && (
                 <Image
-                  src={`https://image.tmdb.org/t/p/w500${activeModalMovie.poster_path}`}
+                  src={activeModalMovie.poster_path.startsWith('/') ? 'https://image.tmdb.org/t/p/w500' + activeModalMovie.poster_path : activeModalMovie.poster_path}
                   alt={activeModalMovie.title}
                   fill
                   unoptimized
                   className="object-cover"
                 />
               )}
-              <span className="absolute top-4 left-4 px-3 py-1.5 rounded-xl bg-emerald-500 text-xs font-black text-black shadow-xl">
-                {activeModalMovie.match_percentage}% Groeps Match
-              </span>
+              {activeModalMovie.match_percentage !== undefined && <span className={'absolute top-4 left-4 rounded-full border px-3 py-1.5 text-xs font-black ' + matchColors[getMatchColorBand(activeModalMovie.match_percentage)]}>
+                {activeModalMovie.match_percentage}% samenmatch
+              </span>}
             </div>
 
             {/* Uitgebreide details rechts */}
@@ -564,15 +390,15 @@ export default function WatchTogetherPage({
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-2xl sm:text-3xl font-black text-white leading-tight">
+                    <h3 id="samen-kijken-film-titel" className="text-2xl sm:text-3xl font-black text-white leading-tight">
                       {activeModalMovie.title}
                     </h3>
                     <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-neutral-400 font-medium">
                       <span>{activeModalMovie.release_date?.slice(0, 4)}</span>
-                      {activeModalMovie.runtime && <span>&bull; {activeModalMovie.runtime}</span>}
+                      {formatFilmRuntime(activeModalMovie.runtime_minutes ?? activeModalMovie.runtime, activeModalMovie.id) && <span>&bull; {formatFilmRuntime(activeModalMovie.runtime_minutes ?? activeModalMovie.runtime, activeModalMovie.id)}</span>}
                       {activeModalMovie.rating && (
                         <span className="text-amber-300 font-bold bg-amber-400/10 px-2 py-0.5 rounded-md flex items-center gap-1">
-                          <span className="bg-[#f5c518] text-black px-1 rounded text-[9px] font-black">IMDb</span>
+                          <span className="bg-[#f5c518] text-black px-1 rounded text-[9px] font-black">{activeModalMovie.rating_source || 'TMDb'}</span>
                           {activeModalMovie.rating}
                         </span>
                       )}
@@ -580,6 +406,7 @@ export default function WatchTogetherPage({
                   </div>
                   <button
                     type="button"
+                    aria-label="Sluit filmdetails"
                     onClick={() => setActiveModalMovie(null)}
                     className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 text-neutral-300 hover:text-white flex items-center justify-center transition"
                   >
@@ -639,22 +466,24 @@ export default function WatchTogetherPage({
                 </p>
               </div>
 
+              {trailer?.movieId === activeModalMovie.id && trailer.failed && <p role="status" className="text-sm text-rose-200">Er is geen trailer beschikbaar.</p>}
+              <button type="button" onClick={() => onSelectMovieSpotlight(activeModalMovie.id)} className="self-start text-sm font-semibold text-sky-200 hover:underline">Open film in FilmMatch</button>
               {/* Actieknoppen */}
-              <div className="flex gap-3 pt-4 border-t border-white/10">
+              <div className="flex flex-wrap gap-3 pt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => openCinemaTrailer(activeModalMovie.id)}
                   disabled={trailerLoading}
                   className="flex-1 py-3 px-5 rounded-2xl bg-rose-600 hover:bg-rose-500 font-bold text-xs sm:text-sm text-white transition flex items-center justify-center gap-2 shadow-lg"
                 >
-                  <span>▶</span> {trailerLoading ? 'Trailer starten...' : 'Bekijk Grote Trailer'}
+                  <span>▶</span> {trailerLoading ? 'Trailer starten...' : 'Bekijk trailer'}
                 </button>
                 <button
                   type="button"
                   onClick={() => onToggleWatchlist(activeModalMovie)}
                   className="py-3 px-5 rounded-2xl bg-white/10 hover:bg-white/20 font-bold text-xs sm:text-sm text-white transition flex items-center gap-1.5"
                 >
-                  + Watchlist
+                  {myWatchlist.some((movie) => movie.id === activeModalMovie.id) ? '✓ In watchlist' : '+ Watchlist'}
                 </button>
               </div>
             </div>
@@ -667,7 +496,8 @@ export default function WatchTogetherPage({
         <div
           role="dialog"
           aria-modal="true"
-          onClick={() => setCinemaTrailerKey(null)}
+          aria-label="Filmtrailer"
+          onClick={() => setTrailer(null)}
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 sm:p-8 animate-fade-in"
         >
           <div
@@ -680,7 +510,8 @@ export default function WatchTogetherPage({
               </span>
               <button
                 type="button"
-                onClick={() => setCinemaTrailerKey(null)}
+                aria-label="Sluit trailer"
+                onClick={() => setTrailer(null)}
                 className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition"
               >
                 ✕

@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import MovieRatingControl from './MovieRatingControl';
 import StreamingLogo from './StreamingLogo';
@@ -272,9 +272,15 @@ function MovieRail({
   onDismissRecommendation,
 }: MovieRailProps) {
   const railRef = useRef<HTMLDivElement>(null);
+  const userScrolled = useRef(false);
   const drag = useRef({ active: false, dragged: false, startX: 0, startScroll: 0 });
 
+  useLayoutEffect(() => {
+    if (railRef.current && !userScrolled.current) railRef.current.scrollLeft = 0;
+  }, [movies]);
+
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'touch' || event.target === event.currentTarget) userScrolled.current = true;
     if (event.pointerType !== 'mouse' || event.button !== 0 || !railRef.current) return;
     drag.current = { active: true, dragged: false, startX: event.clientX, startScroll: railRef.current.scrollLeft };
   };
@@ -285,9 +291,10 @@ function MovieRail({
     const distance = event.clientX - drag.current.startX;
     if (Math.abs(distance) > 4 && !drag.current.dragged) {
       drag.current.dragged = true;
+      userScrolled.current = true;
       railRef.current.setPointerCapture(event.pointerId);
     }
-    railRef.current.scrollLeft = drag.current.startScroll - distance;
+    if (drag.current.dragged) railRef.current.scrollLeft = drag.current.startScroll - distance;
   };
 
   const handlePointerUp = () => {
@@ -303,6 +310,7 @@ function MovieRail({
 
   const scrollRail = (direction: -1 | 1) => {
     if (!railRef.current) return;
+    userScrolled.current = true;
     railRef.current.scrollBy({ left: direction * railRef.current.clientWidth * 0.8, behavior: 'smooth' });
   };
 
@@ -326,11 +334,17 @@ function MovieRail({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onLostPointerCapture={handlePointerUp}
+        onWheel={(event) => {
+          if (event.deltaX !== 0 || (event.shiftKey && event.deltaY !== 0)) userScrolled.current = true;
+        }}
+        onKeyDown={(event) => {
+          if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Tab'].includes(event.key)) userScrolled.current = true;
+        }}
         tabIndex={0}
         role="region"
         aria-label={`Filmrij: ${title}`}
         onClickCapture={handleClickCapture}
-        className="flex snap-x snap-proximity gap-3 overflow-x-auto overscroll-x-contain px-1 pb-4 pt-2 sm:gap-4 [scrollbar-color:rgba(96,165,250,0.3)_transparent] [scrollbar-width:thin]"
+        className="flex snap-x snap-proximity gap-3 overflow-x-auto overscroll-x-contain px-1 pb-4 pt-2 sm:gap-4 [overflow-anchor:none] [scrollbar-color:rgba(96,165,250,0.3)_transparent] [scrollbar-width:thin]"
       >
         {movies.map((movie) => (
           <MovieCard
@@ -802,8 +816,3 @@ export default function MovieGrid({
     </section>
   );
 }
-
-
-
-
-

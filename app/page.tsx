@@ -1228,6 +1228,7 @@ function FilmMatchApp() {
                   )}
 
                   <MovieGrid
+                    recommendationUserId={authUserId ?? undefined}
                     movies={gridMatches}
                     libraryView={libraryView}
                     discoveryMode={discoveryMode}

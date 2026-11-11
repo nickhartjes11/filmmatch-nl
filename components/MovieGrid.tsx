@@ -49,6 +49,7 @@ interface MovieGridProps {
   releaseYearBefore: number | null;
   maxRuntimeMinutes: number | null;
   matchPreferences: MatchPreferences;
+  recommendationUserId?: string;
   hasMoreMovies: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
@@ -67,6 +68,7 @@ interface MovieCardProps extends Pick<MovieGridProps, 'watchlistIds' | 'watchedI
   compactPoster?: boolean;
   showWatchedBadge?: boolean;
   showMatchScore?: boolean;
+  onDismissRecommendation?: (id: number) => void;
 }
 
 interface MovieRailProps extends Omit<MovieCardProps, 'movie' | 'railCard'> {
@@ -78,7 +80,7 @@ interface MovieRailProps extends Omit<MovieCardProps, 'movie' | 'railCard'> {
 interface DynamicMovieRailRequest {
   key: string;
   title: string;
-  parameter: 'genre' | 'similarTo' | 'imdb';
+  parameter: 'genre' | 'similarTo' | 'imdb' | 'popular';
   value: string;
   genre?: string;
   minimumRating?: number;
@@ -91,9 +93,12 @@ interface RecommendationRail {
   movies: Movie[];
   loading: boolean;
   headerAction?: ReactNode;
+  failed?: boolean;
 }
 
 const TARGET_RAIL_COUNT = 25;
+const MAX_RAIL_PAGES = 20;
+type RailPool = { movies: Movie[]; nextPage: number; lastPage: number; failed?: boolean };
 
 const MOVIE_GENRES = [
   'Actie', 'Avontuur', 'Animatie', 'Komedie', 'Misdaad', 'Documentaire', 'Drama', 'Familie',
@@ -127,6 +132,7 @@ export function MovieCard({
   highlightUserRating = false,
   showWatchedBadge = false,
   showMatchScore = true,
+  onDismissRecommendation,
 }: MovieCardProps) {
   const [imageError, setImageError] = useState(false);
   useEffect(() => setImageError(false), [movie.poster_path]);
@@ -206,6 +212,18 @@ export function MovieCard({
           >
             <span aria-hidden="true">✓</span>
           </button>}
+          {onDismissRecommendation && (
+            <button
+              type="button"
+              onClick={() => onDismissRecommendation(movie.id)}
+              title="Verberg uit Aanbevolen"
+              aria-label={`Verberg ${movie.title} uit Aanbevolen`}
+              aria-pressed={false}
+              className="fm-card-action pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-[#285475]/85 text-lg font-bold text-white shadow-md backdrop-blur-md transition hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-sky-200"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -252,6 +270,7 @@ function MovieRail({
   onToggleWatched,
   onSelectPerson,
   headerAction,
+  onDismissRecommendation,
 }: MovieRailProps) {
   const railRef = useRef<HTMLDivElement>(null);
   const drag = useRef({ active: false, dragged: false, startX: 0, startScroll: 0 });
@@ -327,6 +346,7 @@ function MovieRail({
             onToggleWatchlist={onToggleWatchlist}
             onToggleWatched={onToggleWatched}
             onSelectPerson={onSelectPerson}
+            onDismissRecommendation={onDismissRecommendation}
           />
         ))}
       </div>
@@ -341,9 +361,6 @@ export default function MovieGrid({
   searchQuery,
   watchlistIds,
   watchedIds,
-  hasMoreMovies,
-  loadingMore,
-  onLoadMore,
   onSelectMovie,
   ratings,
   onEditRating,
@@ -357,9 +374,30 @@ export default function MovieGrid({
   releaseYearBefore,
   maxRuntimeMinutes,
   matchPreferences,
+  recommendationUserId,
 }: MovieGridProps) {
-  const [dynamicRailMovies, setDynamicRailMovies] = useState<Record<string, Movie[]>>({});
-  const [loadingRailKeys, setLoadingRailKeys] = useState<Record<string, boolean>>({});
+  const [railPools, setRailPools] = useState<Record<string, RailPool>>({});
+  const storageKey = recommendationUserId ? 'filmmatch:hidden-recommendations:' + recommendationUserId : '';
+  const [hidden, setHidden] = useState<{ key: string; ids: number[]; last: number | null }>({ key: '', ids: [], last: null });
+  useEffect(() => {
+    let ids: number[] = [];
+    if (storageKey) {
+      try {
+        const stored: unknown = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
+        if (Array.isArray(stored)) ids = stored.filter((id) => Number.isSafeInteger(id) && id > 0);
+      } catch { /* The list can still be used for this visit. */ }
+    }
+    setHidden({ key: storageKey, ids, last: null });
+  }, [storageKey]);
+  useEffect(() => {
+    if (!storageKey || hidden.key !== storageKey) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(hidden.ids));
+    } catch { /* Keep the selection in memory if storage is unavailable. */ }
+  }, [hidden, storageKey]);
+  const dismissRecommendation = (id: number) => {
+    setHidden((current) => current.ids.includes(id) ? current : { ...current, ids: [...current.ids, id], last: id });
+  };
   const defaultGenre = preferredGenres[0] || 'Drama';
   const [selectedGenres, setSelectedGenres] = useState<string[]>([defaultGenre]);
   const [draftGenres, setDraftGenres] = useState<string[]>([defaultGenre]);
@@ -499,7 +537,6 @@ export default function MovieGrid({
     minimumRating: Math.max(7, minimumImdbRating),
   };
 
-  const similarRailKeys = similarRailRequests.map((request) => request.key).join('|');
   const baseMatchMap = useMemo(() => {
     const map = new Map<number, number>();
     movies.forEach((movie) => {
@@ -534,141 +571,97 @@ export default function MovieGrid({
     }));
   }, [movies, baseMatchMap, matchPreferences]);
 
+  const showRecommendations = libraryView === 'discover' && !searchQuery.trim();
+  const [pageBudget, setPageBudget] = useState(MAX_RAIL_PAGES);
+  const hitsRequest: DynamicMovieRailRequest = {
+    key: 'hits:' + railFilterKey,
+    title: 'Beste filmhits',
+    parameter: 'popular',
+    value: '',
+  };
+  const requests = [imdbRailRequest, ...similarRailRequests, ...(selectedGenreRailRequest ? [selectedGenreRailRequest] : []), hitsRequest];
+  const railByKey = new Map<string, RecommendationRail>();
+  const loadingPlan: Array<{ request: DynamicMovieRailRequest; page: number }> = [];
+  if (showRecommendations && hidden.key === storageKey) {
+    const used = new Set([...watchedIds, ...hidden.ids]);
+    const platformNames = new Set(selectedPlatforms);
+    for (const request of requests) {
+      const pool = railPools[request.key];
+      const candidates = request.parameter === 'popular' ? [...(pool?.movies ?? []), ...synchronizedMovies] : pool?.movies ?? [];
+      const candidatesById = new Map(candidates.map((movie) => [movie.id, movie]));
+      const row: Movie[] = [];
+      for (const movie of candidatesById.values()) {
+        if (used.has(movie.id) || movie.id === request.excludedMovieId) continue;
+        if (platformNames.size && !movie.providers?.some((provider) => platformNames.has(provider.provider_name))) continue;
+        const year = Number.parseInt(movie.release_date?.slice(0, 4), 10);
+        const runtime = movie.runtime_minutes ?? Number.parseInt(formatFilmRuntime(movie.runtime, movie.id) ?? '', 10);
+        const imdb = Number.parseFloat(movie.rating ?? '');
+        const minimum = request.minimumRating ?? minimumImdbRating;
+        if (minimum > 0 && (movie.rating_source !== 'IMDb' || !(imdb >= minimum))) continue;
+        if (releaseYearBefore !== null && year > releaseYearBefore) continue;
+        if (maxRuntimeMinutes !== null && runtime > maxRuntimeMinutes) continue;
+        const score = baseMatchMap.get(movie.id) ?? calculateMatchScore({ ...movie, genres: movie.genres || [] }, matchPreferences);
+        row.push({ ...movie, match_percentage: score });
+      }
+      row.sort(request.parameter === 'imdb'
+        ? (a, b) => Number(b.rating) - Number(a.rating)
+        : (a, b) => (b.match_percentage ?? 0) - (a.match_percentage ?? 0));
+      const selected = row.slice(0, TARGET_RAIL_COUNT);
+      selected.forEach((movie) => used.add(movie.id));
+      const page = pool?.nextPage ?? 1;
+      const canLoad = selected.length < TARGET_RAIL_COUNT && page <= (pool?.lastPage ?? 1);
+      const loading = canLoad && !pool?.failed && page <= pageBudget;
+      if (loading) loadingPlan.push({ request, page });
+      railByKey.set(request.key, {
+        id: request.key,
+        title: request.title,
+        movies: selected,
+        loading,
+        failed: pool?.failed && selected.length < TARGET_RAIL_COUNT,
+        headerAction: request.key === selectedGenreRailRequest?.key ? genreFilterControl : undefined,
+      });
+    }
+  }
+
+  const planKey = JSON.stringify(loadingPlan);
   useEffect(() => {
-    if (libraryView !== 'discover' || searchQuery.trim()) return;
+    const plan: typeof loadingPlan = JSON.parse(planKey);
+    if (!plan.length) return;
+    const controller = new AbortController();
 
-    const requests = [
-      ...similarRailRequests,
-      ...(selectedGenreRailRequest ? [selectedGenreRailRequest] : []),
-      imdbRailRequest,
-    ];
-
-    const missingRequests = requests.filter(
-      (request) => !Object.prototype.hasOwnProperty.call(dynamicRailMovies, request.key)
-    );
-
-    if (missingRequests.length === 0) return;
-
-    let isActive = true;
-
-    setLoadingRailKeys((current) => ({
-      ...current,
-      ...Object.fromEntries(missingRequests.map((request) => [request.key, true])),
-    }));
-
-    const loadRail = async (request: DynamicMovieRailRequest): Promise<[string, Movie[]]> => {
-      const railMovies: Movie[] = [];
-      const seenMovieIds = new Set<number>();
-      const watchedMovieIds = new Set(watchedMovieKey.split(',').filter(Boolean).map(Number));
+    void Promise.all(plan.map(async ({ request, page }) => {
+      const params = new URLSearchParams({ page: String(page), providers: selectedPlatformKey, rail: '1' });
+      if (request.parameter === 'imdb') params.set('sortBy', request.value);
+      else if (request.parameter !== 'popular') params.set(request.parameter, request.value);
 
       try {
-        let page = 1;
-        let totalPages = 5;
-
-        while (railMovies.length < TARGET_RAIL_COUNT && page <= totalPages && page <= 6) {
-          const params = new URLSearchParams({
-            page: String(page),
-            providers: selectedPlatformKey,
-            rail: '1',
-          });
-
-          if (request.parameter === 'imdb') {
-            params.set('sortBy', request.value);
-          } else {
-            params.set(request.parameter, request.value);
-          }
-
-          const response = await fetch(`/api/movies?${params.toString()}`);
-          if (!response.ok) break;
-
-          const data = await response.json();
-          if (data.totalPages) totalPages = Number(data.totalPages);
-          const list = Array.isArray(data.movies) ? (data.movies as Movie[]) : [];
-
-          if (list.length === 0) break;
-
-          for (const movie of list) {
-            if (seenMovieIds.has(movie.id)) continue;
-            if (watchedMovieIds.has(movie.id)) continue;
-            if (request.excludedMovieId && movie.id === request.excludedMovieId) continue;
-
-            if (request.parameter === 'imdb') {
-              const imdbRating = Number.parseFloat(movie.rating || '');
-
-              if (
-                movie.rating_source !== 'IMDb' ||
-                !Number.isFinite(imdbRating) ||
-                imdbRating < (request.minimumRating ?? 7)
-              ) {
-                continue;
-              }
-            }
-
-            seenMovieIds.add(movie.id);
-
-            const score = baseMatchMap.get(movie.id) ?? calculateMatchScore(
-              {
-                id: movie.id,
-                genres: movie.genres || [],
-                director: movie.director,
-                cast: movie.cast,
-                rating: movie.rating,
-              },
-              matchPreferences
-            );
-
-            railMovies.push({
-              ...movie,
-              match_percentage: score,
-            });
-
-            if (railMovies.length >= TARGET_RAIL_COUNT) break;
-          }
-
-          page++;
-        }
-      } catch (err) {
-        console.warn(`Rail load failed for ${request.title}:`, err);
+        const response = await fetch('/api/movies?' + params, { signal: controller.signal });
+        if (!response.ok) throw new Error('Filmrij kon niet worden opgehaald');
+        const data = await response.json();
+        if (!Array.isArray(data.movies)) throw new Error('Ongeldige filmresultaten');
+        return { key: request.key, page, movies: data.movies as Movie[], lastPage: Math.min(500, Number(data.totalPages) || page), failed: false };
+      } catch {
+        return { key: request.key, page, movies: [], lastPage: page, failed: true };
       }
-
-      if (request.parameter === 'imdb') {
-        railMovies.sort((a, b) => Number.parseFloat(b.rating || '0') - Number.parseFloat(a.rating || '0'));
-      } else {
-        railMovies.sort((a, b) => (b.match_percentage || 0) - (a.match_percentage || 0));
-      }
-
-      return [request.key, railMovies];
-    };
-
-    void Promise.all(missingRequests.map(loadRail)).then((results) => {
-      if (!isActive) return;
-      setDynamicRailMovies((current) => ({
-        ...current,
-        ...Object.fromEntries(results),
-      }));
-      setLoadingRailKeys((current) => {
+    })).then((results) => {
+      if (controller.signal.aborted) return;
+      setRailPools((current) => {
         const next = { ...current };
-        missingRequests.forEach((request) => delete next[request.key]);
+        for (const result of results) {
+          const pool = next[result.key];
+          const movies = [...new Map([...(pool?.movies ?? []), ...result.movies].map((movie) => [movie.id, movie])).values()];
+          next[result.key] = {
+            movies,
+            nextPage: result.failed ? result.page : result.page + 1,
+            lastPage: result.failed ? pool?.lastPage ?? result.page : result.lastPage,
+            failed: result.failed,
+          };
+        }
         return next;
       });
     });
-
-    return () => {
-      isActive = false;
-    };
-  }, [
-    libraryView,
-    searchQuery,
-    railFilterKey,
-    selectedPlatformKey,
-    watchedMovieKey,
-    matchPreferences,
-    dynamicRailMovies,
-    baseMatchMap,
-    similarRailKeys,
-    selectedGenreRailRequest?.key,
-    selectedGenresKey,
-  ]);
+    return () => controller.abort();
+  }, [planKey, selectedPlatformKey]);
 
   const displayedMovies = synchronizedMovies;
 
@@ -686,43 +679,23 @@ export default function MovieGrid({
               ? 'Populair in NL'
               : 'Aanbevolen op basis van jouw smaak';
 
-  if (libraryView === 'discover' && !searchQuery.trim()) {
-    const rails: RecommendationRail[] = [
-      {
-        id: 'hits',
-        title: 'Beste filmhits',
-        movies: [...synchronizedMovies]
-          .filter((movie) => (movie.match_percentage || 0) >= 68)
-          .sort((first, second) => (second.match_percentage || 0) - (first.match_percentage || 0))
-          .slice(0, TARGET_RAIL_COUNT),
-        loading: false,
-      },
-      ...similarRailRequests.map((request) => ({
-        id: request.key,
-        title: request.title,
-        movies: dynamicRailMovies[request.key] || [],
-        loading: loadingRailKeys[request.key] || false,
-      })),
-      ...(selectedGenreRailRequest ? [{
-        id: selectedGenreRailRequest.key,
-        title: selectedGenreRailRequest.title,
-        movies: dynamicRailMovies[selectedGenreRailRequest.key] || [],
-        loading: loadingRailKeys[selectedGenreRailRequest.key] || false,
-        headerAction: genreFilterControl,
-      }] : []),
-      {
-        id: imdbRailRequest.key,
-        title: imdbRailRequest.title,
-        movies: dynamicRailMovies[imdbRailRequest.key] || [],
-        loading: loadingRailKeys[imdbRailRequest.key] || false,
-      },
-    ];
-    const visibleRails = rails.filter((rail) =>
-      rail.id === selectedGenreRailRequest?.key || rail.movies.length > 0 || rail.loading
-    );
+  if (showRecommendations) {
+    const rails = [hitsRequest, ...requests.filter((request) => request !== hitsRequest)]
+      .flatMap((request) => railByKey.get(request.key) ?? []);
+    const visibleRails = rails.filter((rail) => rail.id === selectedGenreRailRequest?.key || rail.movies.length > 0 || rail.loading || rail.failed);
+    const canSearchMore = rails.some((rail) => {
+      const pool = railPools[rail.id];
+      return rail.movies.length < TARGET_RAIL_COUNT && pool && !pool.failed && pool.nextPage > pageBudget && pool.nextPage <= pool.lastPage;
+    });
 
     return (
       <div className="min-w-0 space-y-10 rounded-2xl bg-transparent p-3 text-slate-100 sm:p-5 lg:space-y-12 lg:p-6">
+        {hidden.key === storageKey && hidden.last !== null && (
+          <div role="status" className="flex items-center gap-3 text-xs text-sky-100/85">
+            <span>Film verborgen</span>
+            <button type="button" className="font-bold underline underline-offset-2" onClick={() => setHidden((current) => ({ ...current, ids: current.ids.filter((id) => id !== current.last), last: null }))}>Ongedaan maken</button>
+          </div>
+        )}
         {visibleRails.map((rail) => (
           <Fragment key={rail.id}>
             {rail.movies.length > 0 ? (
@@ -739,6 +712,7 @@ export default function MovieGrid({
                 onToggleWatchlist={onToggleWatchlist}
                 onToggleWatched={onToggleWatched}
                 onSelectPerson={onSelectPerson}
+                onDismissRecommendation={dismissRecommendation}
               />
             ) : rail.loading ? (
               <section key={rail.id} className="space-y-3" aria-label={rail.title}>
@@ -755,26 +729,32 @@ export default function MovieGrid({
                   ))}
                 </div>
               </section>
-            ) : rail.id === selectedGenreRailRequest?.key ? (
+            ) : (
               <section className="space-y-2" aria-label={rail.title}>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-semibold tracking-tight text-slate-100 md:text-xl">{rail.title}</h2>
                   {rail.headerAction}
                 </div>
-                <p className="text-xs text-sky-100/80">Geen films gevonden voor deze selectie. Kies andere genres.</p>
               </section>
-            ) : null}
+            )}
+            {rail.movies.length < TARGET_RAIL_COUNT && (
+              <div className="flex items-center gap-2 text-xs text-sky-100/80">
+                <p role="status">{rail.failed ? 'Films ophalen is niet gelukt.' : rail.loading ? 'Meer films zoeken…' : 'Minder dan 25 unieke films gevonden voor deze rij.'}</p>
+                {rail.failed && (
+                  <button type="button" className="font-bold underline" onClick={() => setRailPools((current) => ({ ...current, [rail.id]: { ...current[rail.id], failed: false } }))}>Opnieuw proberen</button>
+                )}
+              </div>
+            )}
           </Fragment>
         ))}
-        {hasMoreMovies && (
+        {canSearchMore && (
           <div className="flex justify-center pt-2">
             <button
               type="button"
-              onClick={onLoadMore}
-              disabled={loadingMore}
+              onClick={() => setPageBudget((limit) => limit + MAX_RAIL_PAGES)}
               className="rounded-full border border-blue-400/30 bg-blue-500/15 px-6 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 disabled:cursor-wait disabled:opacity-60"
             >
-              {loadingMore ? 'Films ophalen…' : 'Laad meer films'}
+              Verder zoeken
             </button>
           </div>
         )}
@@ -813,8 +793,3 @@ export default function MovieGrid({
     </section>
   );
 }
-
-
-
-
-

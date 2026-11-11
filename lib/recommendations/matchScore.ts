@@ -26,7 +26,7 @@ const EXPLICIT_PERSON_PREFERENCE_WEIGHT = 2.5;
 const DISLIKE_PENALTY_PER_GENRE = 30;
 
 export function getMatchColorBand(score: number): 'strong' | 'medium' | 'low' {
-  return score >= 80 ? 'strong' : score >= 60 ? 'medium' : 'low';
+  return score >= 75 ? 'strong' : score >= 50 ? 'medium' : 'low';
 }
 
 function normalize(value: string): string { return value.trim().toLocaleLowerCase(); }
@@ -78,9 +78,9 @@ function withExplicitPreferences(weights: Map<string, number>, traits?: readonly
 
 function scoreTraits(candidate: readonly string[], weights: Map<string, number>): number | null {
   const traits = [...new Set(candidate.map(normalize).filter(Boolean))];
-  if (!traits.length || !weights.size) return null;
-  // Unknown traits are neutral. Confidence grows gradually as evidence accumulates.
-  const affinities = traits.map((trait) => { const weight = weights.get(trait) || 0; return weight / (Math.abs(weight) + 1.5); });
+  const evidence = traits.map((trait) => weights.get(trait) ?? 0).filter((weight) => weight !== 0);
+  if (!evidence.length) return null;
+  const affinities = evidence.map((weight) => weight / (Math.abs(weight) + 1.1));
   const average = affinities.reduce((sum, value) => sum + value, 0) / affinities.length;
   const blended = Math.max(...affinities) * 0.6 + average * 0.4;
   return Math.round(Math.max(0, Math.min(100, 50 + blended * 50)));
@@ -98,12 +98,18 @@ export function calculateMatchScore(movie: MovieTasteSignals, preferences: Match
   const dislikes = Array.isArray(preferences?.dislikedMovies) ? preferences.dislikedMovies : [];
   const categories = [
     { score: scoreTraits(movie.genres || [], balanceGenreExposure(createTraitWeights(favorites, ratings, dislikes, (item) => item.genres || []), preferences?.offeredMovies || [])), weight: MATCH_WEIGHTS.genres },
-    { score: scoreImdb(movie.rating), weight: MATCH_WEIGHTS.imdb },
     { score: movie.director ? scoreTraits([movie.director], withExplicitPreferences(createTraitWeights(favorites, ratings, dislikes, (item) => item.director ? [item.director] : []), preferences?.favoriteDirectors)) : null, weight: MATCH_WEIGHTS.director },
     { score: scoreTraits(movie.cast || [], withExplicitPreferences(createTraitWeights(favorites, ratings, dislikes, (item) => item.cast || []), preferences?.favoriteCast)), weight: MATCH_WEIGHTS.cast },
   ].filter((category) => category.score !== null);
   const total = categories.reduce((sum, category) => sum + category.weight, 0);
-  const base = total ? categories.reduce((sum, category) => sum + category.score! * category.weight, 0) / total : 60;
+  const personalScore = total ? categories.reduce((sum, category) => sum + category.score! * category.weight, 0) / total : 50;
+  // Give positive taste evidence more room while keeping 50 and 100 fixed.
+  const affinity = Math.max(0, (personalScore - 50) / 50);
+  const calibratedPersonalScore = personalScore + 28 * affinity * (1 - affinity);
+  const externalScore = scoreImdb(movie.rating);
+  const base = externalScore === null
+    ? calibratedPersonalScore
+    : calibratedPersonalScore * (1 - MATCH_WEIGHTS.imdb) + externalScore * MATCH_WEIGHTS.imdb;
   const excluded = new Set((preferences?.dislikedGenres || []).map(normalize).filter(Boolean));
   const explicitPenalty = [...new Set((movie.genres || []).map(normalize))].filter((genre) => excluded.has(genre)).length * DISLIKE_PENALTY_PER_GENRE;
   // Recommending the very movie explicitly rejected should also score lower.

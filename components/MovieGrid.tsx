@@ -5,7 +5,7 @@ import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, 
 import MovieRatingControl from './MovieRatingControl';
 import StreamingLogo from './StreamingLogo';
 import type { DiscoveryMode, LibraryView, Movie } from './types';
-import { calculateMatchScore, type MatchPreferences } from '../lib/recommendations/matchScore';
+import { calculateMatchScore, getMatchColorBand, type MatchPreferences } from '../lib/recommendations/matchScore';
 
 // Standard theatrical runtimes for the curated monthly tips, used only
 // when the movie metadata does not include a usable runtime.
@@ -139,7 +139,7 @@ export function MovieCard({
   const isWatched = watchedIds.includes(movie.id);
   const userRating = ratings?.[movie.id];
   const matchScore = movie.match_percentage ?? 0;
-  const matchBand = matchScore >= 80 ? 'strong' : matchScore >= 60 ? 'medium' : 'low';
+  const matchBand = getMatchColorBand(matchScore);
 
   const hasValidPoster = Boolean(
     movie.poster_path &&
@@ -802,3 +802,8 @@ export default function MovieGrid({
     </section>
   );
 }
+
+
+
+
+

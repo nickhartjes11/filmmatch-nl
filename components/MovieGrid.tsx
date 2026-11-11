@@ -82,8 +82,6 @@ interface DynamicMovieRailRequest {
   title: string;
   parameter: 'genre' | 'similarTo' | 'imdb' | 'popular';
   value: string;
-  genre?: string;
-  minimumRating?: number;
   excludedMovieId?: number;
 }
 
@@ -98,6 +96,7 @@ interface RecommendationRail {
 
 const TARGET_RAIL_COUNT = 25;
 const MAX_RAIL_PAGES = 20;
+const MATCH_DISCOVERY_PAGES = 4;
 type RailPool = { movies: Movie[]; nextPage: number; lastPage: number; failed?: boolean };
 
 const MOVIE_GENRES = [
@@ -451,7 +450,6 @@ export default function MovieGrid({
           : 'Meer films in ' + selectedGenres.length + ' genres',
         parameter: 'genre',
         value: selectedGenres.join('|'),
-        genre: selectedGenres.join('|'),
       }
     : null;
 
@@ -531,10 +529,9 @@ export default function MovieGrid({
 
   const imdbRailRequest: DynamicMovieRailRequest = {
     key: 'imdb:' + railFilterKey,
-    title: 'Best beoordeelde IMDb-films',
+    title: 'Beste IMDb',
     parameter: 'imdb',
-    value: 'imdbCandidates',
-    minimumRating: Math.max(7, minimumImdbRating),
+    value: 'imdbCatalog',
   };
 
   const baseMatchMap = useMemo(() => {
@@ -575,15 +572,16 @@ export default function MovieGrid({
   const [pageBudget, setPageBudget] = useState(MAX_RAIL_PAGES);
   const hitsRequest: DynamicMovieRailRequest = {
     key: 'hits:' + railFilterKey,
-    title: 'Beste filmhits',
+    title: 'Beste matches voor jou',
     parameter: 'popular',
     value: '',
   };
-  const requests = [imdbRailRequest, ...similarRailRequests, ...(selectedGenreRailRequest ? [selectedGenreRailRequest] : []), hitsRequest];
+  const requests = [hitsRequest, imdbRailRequest, ...similarRailRequests, ...(selectedGenreRailRequest ? [selectedGenreRailRequest] : [])];
   const railByKey = new Map<string, RecommendationRail>();
   const loadingPlan: Array<{ request: DynamicMovieRailRequest; page: number }> = [];
   if (showRecommendations && hidden.key === storageKey) {
-    const used = new Set([...watchedIds, ...hidden.ids]);
+    const excluded = new Set([...watchedIds, ...hidden.ids]);
+    const used = new Set(excluded);
     const platformNames = new Set(selectedPlatforms);
     for (const request of requests) {
       const pool = railPools[request.key];
@@ -591,15 +589,17 @@ export default function MovieGrid({
       const candidatesById = new Map(candidates.map((movie) => [movie.id, movie]));
       const row: Movie[] = [];
       for (const movie of candidatesById.values()) {
-        if (used.has(movie.id) || movie.id === request.excludedMovieId) continue;
+        if ((request.parameter === 'imdb' ? excluded : used).has(movie.id) || movie.id === request.excludedMovieId) continue;
+        if (request.parameter === 'imdb' && (!platformNames.size || movie.rating_source !== 'IMDb' || !Number.isFinite(Number.parseFloat(movie.rating ?? '')))) continue;
         if (platformNames.size && !movie.providers?.some((provider) => platformNames.has(provider.provider_name))) continue;
         const year = Number.parseInt(movie.release_date?.slice(0, 4), 10);
         const runtime = movie.runtime_minutes ?? Number.parseInt(formatFilmRuntime(movie.runtime, movie.id) ?? '', 10);
         const imdb = Number.parseFloat(movie.rating ?? '');
-        const minimum = request.minimumRating ?? minimumImdbRating;
-        if (minimum > 0 && (movie.rating_source !== 'IMDb' || !(imdb >= minimum))) continue;
-        if (releaseYearBefore !== null && year > releaseYearBefore) continue;
-        if (maxRuntimeMinutes !== null && runtime > maxRuntimeMinutes) continue;
+        if (request.parameter !== 'imdb') {
+          if (minimumImdbRating > 0 && (movie.rating_source !== 'IMDb' || !(imdb >= minimumImdbRating))) continue;
+          if (releaseYearBefore !== null && year > releaseYearBefore) continue;
+          if (maxRuntimeMinutes !== null && runtime > maxRuntimeMinutes) continue;
+        }
         const score = baseMatchMap.get(movie.id) ?? calculateMatchScore({ ...movie, genres: movie.genres || [] }, matchPreferences);
         row.push({ ...movie, match_percentage: score });
       }
@@ -609,7 +609,8 @@ export default function MovieGrid({
       const selected = row.slice(0, TARGET_RAIL_COUNT);
       selected.forEach((movie) => used.add(movie.id));
       const page = pool?.nextPage ?? 1;
-      const canLoad = selected.length < TARGET_RAIL_COUNT && page <= (pool?.lastPage ?? 1);
+      const needsMore = selected.length < TARGET_RAIL_COUNT || (request.parameter === 'popular' && page <= MATCH_DISCOVERY_PAGES);
+      const canLoad = needsMore && page <= (pool?.lastPage ?? 1) && (request.parameter !== 'imdb' || platformNames.size > 0);
       const loading = canLoad && !pool?.failed && page <= pageBudget;
       if (loading) loadingPlan.push({ request, page });
       railByKey.set(request.key, {
@@ -617,13 +618,14 @@ export default function MovieGrid({
         title: request.title,
         movies: selected,
         loading,
-        failed: pool?.failed && selected.length < TARGET_RAIL_COUNT,
+        failed: pool?.failed && needsMore,
         headerAction: request.key === selectedGenreRailRequest?.key ? genreFilterControl : undefined,
       });
     }
   }
 
   const planKey = JSON.stringify(loadingPlan);
+  const matchGenresKey = preferredGenres.slice(0, 3).join('|');
   useEffect(() => {
     const plan: typeof loadingPlan = JSON.parse(planKey);
     if (!plan.length) return;
@@ -635,11 +637,18 @@ export default function MovieGrid({
       else if (request.parameter !== 'popular') params.set(request.parameter, request.value);
 
       try {
-        const response = await fetch('/api/movies?' + params, { signal: controller.signal });
-        if (!response.ok) throw new Error('Filmrij kon niet worden opgehaald');
-        const data = await response.json();
-        if (!Array.isArray(data.movies)) throw new Error('Ongeldige filmresultaten');
-        return { key: request.key, page, movies: data.movies as Movie[], lastPage: Math.min(500, Number(data.totalPages) || page), failed: false };
+        const fetchPage = async (search: URLSearchParams) => {
+          const response = await fetch('/api/movies?' + search, { signal: controller.signal });
+          if (!response.ok) throw new Error('Filmrij kon niet worden opgehaald');
+          const data = await response.json();
+          if (!Array.isArray(data.movies)) throw new Error('Ongeldige filmresultaten');
+          return { movies: data.movies as Movie[], lastPage: Math.min(500, Number(data.totalPages) || page) };
+        };
+        const extra = request.parameter === 'popular' && page <= 2 && matchGenresKey
+          ? fetchPage(new URLSearchParams({ ...Object.fromEntries(params), genre: matchGenresKey })).catch(() => null)
+          : Promise.resolve(null);
+        const [primary, genrePage] = await Promise.all([fetchPage(params), extra]);
+        return { key: request.key, page, movies: [...primary.movies, ...(genrePage?.movies ?? [])], lastPage: primary.lastPage, failed: false };
       } catch {
         return { key: request.key, page, movies: [], lastPage: page, failed: true };
       }
@@ -661,7 +670,7 @@ export default function MovieGrid({
       });
     });
     return () => controller.abort();
-  }, [planKey, selectedPlatformKey]);
+  }, [planKey, selectedPlatformKey, matchGenresKey]);
 
   const displayedMovies = synchronizedMovies;
 
@@ -680,7 +689,7 @@ export default function MovieGrid({
               : 'Aanbevolen op basis van jouw smaak';
 
   if (showRecommendations) {
-    const rails = [hitsRequest, ...requests.filter((request) => request !== hitsRequest)]
+    const rails = requests
       .flatMap((request) => railByKey.get(request.key) ?? []);
     const visibleRails = rails.filter((rail) => rail.id === selectedGenreRailRequest?.key || rail.movies.length > 0 || rail.loading || rail.failed);
     const canSearchMore = rails.some((rail) => {

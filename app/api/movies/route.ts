@@ -234,6 +234,7 @@ export async function GET(request: Request) {
 
   const page = searchParams.get('page') || '1';
   const query = searchParams.get('query');
+  const onboardingSearch = searchParams.get('onboarding') === 'true' && Boolean(query?.trim());
   const peopleQuery = searchParams.get('people')?.trim();
   const personId = searchParams.get('personId');
   const similarToParam = searchParams.get('similarTo');
@@ -286,6 +287,23 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (sortBy === 'imdbCatalog') {
+      const supported = new Set(Object.values(TARGET_PROVIDERS));
+      const providers = [...(selectedProviderNames ?? [])].filter((name) => supported.has(name));
+      if (!providers.length) return NextResponse.json({ movies: [], totalPages: 0 });
+      if (!supabase) return NextResponse.json({ error: 'IMDb-catalogus niet beschikbaar' }, { status: 503 });
+      const requestedPage = Number(searchParams.get('page')) || 1;
+      const { data, error } = await supabase.rpc('filmmatch_imdb_catalog', {
+        p_providers: providers,
+        p_page: Math.max(1, Math.min(500, Math.trunc(requestedPage))),
+      });
+      if (error) {
+        console.warn('IMDb-catalogus ophalen mislukt:', error.message);
+        return NextResponse.json({ error: 'IMDb-catalogus kon niet worden geladen' }, { status: 503 });
+      }
+      return NextResponse.json(data);
+    }
+
     if (peopleQuery) {
       const peopleUrl =
         `https://api.themoviedb.org/3/search/person?api_key=${apiKey}` +
@@ -782,7 +800,7 @@ export async function GET(request: Request) {
       })
     );
 
-    const finalMovies = nowPlaying
+    const finalMovies = (nowPlaying || onboardingSearch)
       ? enrichedMovies
       : enrichedMovies.filter((movie) => {
           if (!selectedProviderNames || selectedProviderNames.size === 0) {

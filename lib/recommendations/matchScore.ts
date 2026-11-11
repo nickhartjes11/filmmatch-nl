@@ -103,9 +103,13 @@ export function calculateMatchScore(movie: MovieTasteSignals, preferences: Match
   ].filter((category) => category.score !== null);
   const total = categories.reduce((sum, category) => sum + category.weight, 0);
   const personalScore = total ? categories.reduce((sum, category) => sum + category.score! * category.weight, 0) / total : 50;
-  // Give positive taste evidence more room while keeping 50 and 100 fixed.
-  const affinity = Math.max(0, (personalScore - 50) / 50);
-  const calibratedPersonalScore = personalScore + 28 * affinity * (1 - affinity);
+  // A single strong preference can make a good match. The upper range requires
+  // support from more than one part of the user's taste profile.
+  const positiveCategories = categories.filter(({ score }) => score !== null && score >= 70).length;
+  const upperRangeWeight = positiveCategories >= 3 ? 1 : positiveCategories === 2 ? 0.7 : 0.35;
+  const calibratedPersonalScore = personalScore > 80
+    ? 80 + (personalScore - 80) * upperRangeWeight
+    : personalScore;
   const externalScore = scoreImdb(movie.rating);
   const base = externalScore === null
     ? calibratedPersonalScore

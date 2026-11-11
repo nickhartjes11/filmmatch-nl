@@ -341,7 +341,7 @@ function FilmMatchApp() {
     () => [...new Set(dislikedMovieIds)].filter((id) => !selectedFavorites.includes(id)).map((id) => tasteById.get(id) || { id, genres: [] }),
     [dislikedMovieIds, selectedFavorites, tasteById]
   );
-  const tasteMetadataIds = [...new Set([...selectedFavorites, ...dislikedMovieIds, ...movieRatings.map((rating) => rating.movie_id)])].sort((a, b) => a - b).join(',');
+  const tasteMetadataIds = [...new Set([...selectedFavorites, ...dislikedMovieIds, ...movieRatings.map((rating) => rating.movie_id), ...library.watched.map((movie) => movie.id)])].sort((a, b) => a - b).join(',');
   useEffect(() => {
     if (!authUserId || !tasteMetadataIds) return;
     const controller = new AbortController();
@@ -1111,6 +1111,7 @@ function FilmMatchApp() {
               profileHeaderPosters={profileHeaderPosters}
               favoriteFilmTitles={[...new Set([...onboardingChoices, ...savedTasteMovies].filter((movie) => selectedFavorites.includes(movie.id)).map((movie) => movie.title))]}
               profileFriendCount={friendsList.length}
+              watchedCredits={tasteMovieMetadata}
             />
           ) : currentView === 'watch-together' ? (
             <WatchTogetherPage

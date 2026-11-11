@@ -1,7 +1,9 @@
 'use client';
 
 import Image from 'next/image';
+import { useEffect, useState } from 'react';
 import StreamingLogo from './StreamingLogo';
+import { createSupabaseBrowserClient } from '../lib/supabase/client';
 import type { Movie, MovieRating, StreamingPlatform } from './types';
 
 interface PersonSearchResult {
@@ -48,11 +50,25 @@ interface ProfileViewProps {
   profileHeaderPosters: Array<{ id: number; title: string; poster_path: string }>;
   profileFriendCount: number;
   favoriteFilmTitles?: string[];
+  watchedCredits?: Record<number, { director?: string | null; cast?: readonly string[] }>;
 }
 
 const field = 'w-full rounded-xl border border-sky-200/20 bg-[#102d46] px-3 py-2.5 text-sm text-white placeholder:text-sky-100/55 focus-visible:outline-2 focus-visible:outline-sky-300';
 const card = 'min-w-0 space-y-5 rounded-2xl border border-sky-200/20 bg-[#1b3b56] p-4 sm:p-5';
 const secondary = 'rounded-full border border-sky-200/25 px-3.5 py-2 text-xs font-bold text-sky-50 transition hover:bg-sky-200/15 focus-visible:outline-2 focus-visible:outline-sky-300';
+const avatarBucket = 'profile-avatars';
+const avatarTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+function mostWatchedPerson(credits: (readonly string[])[]) {
+  const people = new Map<string, { name: string; count: number }>();
+  for (const film of credits) {
+    const names = new Map(film.filter((name) => name.trim()).map((name) => [name.trim().toLowerCase(), name.trim()]));
+    for (const [key, name] of names) {
+      people.set(key, { name, count: (people.get(key)?.count ?? 0) + 1 });
+    }
+  }
+  return [...people.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'nl'))[0];
+}
 
 export default function ProfileView({
   displayName, setDisplayName, accountEmail, selectedPlatforms, togglePlatform, platforms,
@@ -61,7 +77,65 @@ export default function ProfileView({
   genreOptions, favoriteDirectors, removeFavoriteDirector, favoriteCast, removeFavoriteCast,
   favoritePersonQuery, setFavoritePersonQuery, favoritePersonMatches, favoritePersonLoading, addFavoritePerson,
   favoriteFilmTitles = [],
+  libraryWatched, movieRatings, profileFriendCount, onOpenFriends, watchedCredits,
 }: ProfileViewProps) {
+  const [avatarPath, setAvatarPath] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+    let active = true;
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !active) return;
+      const path = `${user.id}/avatar`;
+      const { data } = await supabase.storage.from(avatarBucket).createSignedUrl(path, 3600);
+      if (active) {
+        setAvatarPath(path);
+        setAvatarUrl(data?.signedUrl ?? '');
+      }
+    })().catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  const uploadAvatar = async (file: File) => {
+    setAvatarError('');
+    if (!avatarTypes.includes(file.type) || file.size > 3 * 1024 * 1024) {
+      setAvatarError('Kies een JPG-, PNG- of WebP-bestand van maximaal 3 MB.');
+      return;
+    }
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase || !avatarPath || avatarSaving) return;
+    setAvatarSaving(true);
+    try {
+      const bucket = supabase.storage.from(avatarBucket);
+      const { error } = await bucket.upload(avatarPath, file, { upsert: true, contentType: file.type, cacheControl: '0' });
+      if (error) throw error;
+      const { data } = await bucket.createSignedUrl(avatarPath, 3600);
+      if (data?.signedUrl) setAvatarUrl(data.signedUrl);
+      else setAvatarError('Foto opgeslagen. Open je profiel opnieuw om hem te zien.');
+    } catch {
+      setAvatarError('De profielfoto kon niet worden opgeslagen. Probeer het opnieuw.');
+    } finally {
+      setAvatarSaving(false);
+    }
+  };
+
+  const watched = [...new Map(libraryWatched.map((movie) => [movie.id, movie])).values()];
+  const average = movieRatings.length
+    ? new Intl.NumberFormat('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(movieRatings.reduce((sum, movie) => sum + movie.rating, 0) / movieRatings.length)
+    : '—';
+  const actor = mostWatchedPerson(watched.map((movie) => {
+    const cast = watchedCredits?.[movie.id]?.cast;
+    return cast?.length ? cast : movie.cast ?? [];
+  }));
+  const director = mostWatchedPerson(watched.map((movie) => {
+    const name = watchedCredits?.[movie.id]?.director || movie.director;
+    return name ? [name] : [];
+  }));
   const peopleGroups = [
     { label: 'Acteurs', names: favoriteCast, remove: removeFavoriteCast },
     { label: 'Regisseurs', names: favoriteDirectors, remove: removeFavoriteDirector },
@@ -76,9 +150,43 @@ export default function ProfileView({
           <button type="button" onClick={goBackToPreviousView} className={secondary}>← Terug</button>
         </div>
 
+        <section aria-label="Kijkstatistieken" className="grid grid-cols-2 gap-2 rounded-2xl border border-sky-200/20 bg-gradient-to-br from-[#28536f] to-[#183853] p-3 sm:grid-cols-3 lg:grid-cols-5">
+          <button type="button" onClick={onOpenWatched} className="rounded-xl p-2 text-left hover:bg-sky-200/10">
+            <span className="block text-xs text-sky-100/80">Films gezien</span>
+            <strong className="text-xl">{watched.length}</strong>
+          </button>
+          <div className="p-2"><p className="text-xs text-sky-100/80">Gemiddeld cijfer</p><strong className="text-xl text-amber-200">{average}</strong></div>
+          <button type="button" onClick={onOpenFriends} className="rounded-xl p-2 text-left hover:bg-sky-200/10">
+            <span className="block text-xs text-sky-100/80">Mijn vrienden ↗</span>
+            <strong className="text-xl">{profileFriendCount}</strong>
+          </button>
+          {[{ label: 'Meest bekeken acteur', person: actor }, { label: 'Meest bekeken regisseur', person: director }].map(({ label, person }) => (
+            <div key={label} className="min-w-0 p-2">
+              <p className="text-xs text-sky-100/80">{label}</p>
+              <p className="mt-0.5 break-words font-bold">{person?.name ?? '—'}</p>
+              {person && <p className="text-xs text-sky-100/75">{person.count} {person.count === 1 ? 'film' : 'films'}</p>}
+            </div>
+          ))}
+        </section>
+
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <section aria-labelledby="profile-account" className={card}>
             <h2 id="profile-account" className="text-lg font-black tracking-tight">Mijn account</h2>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-200/30 bg-sky-200/15 text-xl font-black">
+                {avatarUrl ? <Image src={avatarUrl} alt="Jouw profielfoto" fill unoptimized sizes="56px" className="object-cover" /> : displayName.trim().charAt(0).toUpperCase() || '?'}
+              </div>
+              <label className={secondary + ' cursor-pointer focus-within:outline-2 focus-within:outline-sky-300'}>
+                {avatarSaving ? 'Foto opslaan…' : 'Profielfoto wijzigen'}
+                <input className="sr-only" type="file" accept={avatarTypes.join(',')} disabled={!avatarPath || avatarSaving} onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = '';
+                  if (file) void uploadAvatar(file);
+                }} />
+              </label>
+            </div>
+            {avatarError && <p role="alert" className="text-sm text-rose-200">{avatarError}</p>}
 
             <label className="block space-y-1.5 text-sm font-semibold">
               <span>Gebruikersnaam</span>
@@ -124,8 +232,10 @@ export default function ProfileView({
               {favoriteFilmTitles.length > 0 && <p className="mt-1.5 text-sm leading-relaxed text-sky-100/80">{favoriteFilmTitles.join(' · ')}</p>}
             </div>
 
+            <details className="rounded-xl border border-sky-200/20 px-3 py-2.5">
+              <summary className="cursor-pointer text-sm font-semibold">Genrevoorkeuren{dislikedGenres.length > 0 && <span className="ml-2 text-xs font-normal text-sky-100/75">{dislikedGenres.length} overgeslagen</span>}</summary>
             {profileTopGenres.length > 0 && (
-              <div>
+              <div className="mt-3">
                 <h3 className="text-sm font-semibold">Genres die bij je passen</h3>
                 <ul className="mt-2 flex flex-wrap gap-2">
                   {profileTopGenres.map(([genre]) => (
@@ -135,7 +245,7 @@ export default function ProfileView({
               </div>
             )}
 
-            <fieldset className="min-w-0">
+            <fieldset className="mt-3 min-w-0">
               <legend className="text-sm font-semibold">Genres die je liever overslaat</legend>
               <div className="mt-2 flex flex-wrap gap-2">
                 {genres.map((genre) => {
@@ -148,6 +258,7 @@ export default function ProfileView({
                 })}
               </div>
             </fieldset>
+            </details>
 
             <div>
               <label htmlFor="profile-person-search" className="text-sm font-semibold">Favoriete acteurs en regisseurs</label>

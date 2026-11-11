@@ -1109,6 +1109,7 @@ function FilmMatchApp() {
               favoritePersonLoading={favoritePersonLoading}
               addFavoritePerson={addFavoritePerson}
               profileHeaderPosters={profileHeaderPosters}
+              favoriteFilmTitles={[...new Set([...onboardingChoices, ...savedTasteMovies].filter((movie) => selectedFavorites.includes(movie.id)).map((movie) => movie.title))]}
               profileFriendCount={friendsList.length}
             />
           ) : currentView === 'watch-together' ? (
@@ -1134,6 +1135,7 @@ function FilmMatchApp() {
               allMovies={movies}
               myWatchedIds={library.watched.map((m) => m.id)}
               myWatchlistIds={library.watchlist.map((m) => m.id)}
+              matchPreferences={matchPreferences}
               activities={friendsActivity}
               friends={friendsList}
               onFriendshipChanged={() => { if (authUserId) void loadFriendsActivity(authUserId); }}

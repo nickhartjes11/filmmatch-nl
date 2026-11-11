@@ -82,7 +82,6 @@ interface HeroSpotlightProps {
 
 export default function HeroSpotlight({
   movie: activeMovieProp,
-  allMovies = [],
   watchlistIds = [],
   watchedIds = [],
   matchPreferences,
@@ -149,7 +148,7 @@ export default function HeroSpotlight({
   }).format(new Date());
 
   const isSelectedByUser = Boolean(activeMovieProp);
-  const displayedMovie: Movie | undefined = activeMovieProp || activeTipMovie || (editorialMovies === null ? undefined : allMovies[0]);
+  const displayedMovie = activeMovieProp || activeTipMovie;
 
   useEffect(() => {
     if (!displayedMovie?.id) {
@@ -544,3 +543,13 @@ export default function HeroSpotlight({
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+

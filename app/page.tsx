@@ -132,7 +132,7 @@ function FilmMatchApp() {
   const [librarySort, setLibrarySort] = useState<'default' | 'rating' | 'match'>('default');
   const [library, setLibrary] = useState<{ watchlist: Movie[]; watched: Movie[] }>({ watchlist: [], watched: [] });
 
-  const [movies, setMovies] = useState<Movie[]>([]);
+  const [loadedMovies, setLoadedMovies] = useState<Movie[]>([]);
   const [friendsActivity, setFriendsActivity] = useState<FriendActivityItem[]>([]);
   const [friendsList, setFriendsList] = useState<Array<{ id: string; display_name: string }>>([]);
   const [loading, setLoading] = useState(false);
@@ -347,6 +347,7 @@ function FilmMatchApp() {
     const controller = new AbortController();
     const ids = tasteMetadataIds.split(',');
     void (async () => {
+      const metadata: OnboardingMovie[] = [];
       try {
         for (let offset = 0; offset < ids.length; offset += 25) {
           const response = await fetch(`/api/movies?metadataIds=${ids.slice(offset, offset + 25).join(',')}`, { signal: controller.signal });
@@ -354,9 +355,10 @@ function FilmMatchApp() {
           const data = await response.json();
           if (controller.signal.aborted) return;
           const items = (Array.isArray(data.movies) ? data.movies : []).map(toOnboardingMovie).filter((movie: OnboardingMovie | null): movie is OnboardingMovie => movie !== null);
-          rememberOnboardingMovies(items);
+          metadata.push(...items);
         }
       } catch { /* Existing catalog and saved metadata remain usable. */ }
+      if (!controller.signal.aborted && metadata.length) rememberOnboardingMovies(metadata);
     })();
     return () => controller.abort();
   }, [authUserId, tasteMetadataIds]);
@@ -373,6 +375,10 @@ function FilmMatchApp() {
     () => ({ favoriteMovies, ratedMovies, dislikedMovies, offeredMovies: ONBOARDING_FAVORITES, dislikedGenres, favoriteDirectors, favoriteCast }),
     [favoriteMovies, ratedMovies, dislikedMovies, dislikedGenres, favoriteDirectors, favoriteCast]
   );
+  const movies = useMemo(() => loadedMovies.map((movie) => ({
+    ...movie,
+    match_percentage: calculateMatchScore({ ...movie, genres: movie.genres || [] }, matchPreferences),
+  })), [loadedMovies, matchPreferences]);
 
   const ratingsByMovieId = useMemo(
     () => Object.fromEntries(movieRatings.map((mr) => [mr.movie_id, mr.rating])),
@@ -710,32 +716,39 @@ function FilmMatchApp() {
     };
   }, []);
 
-  // TMDB ophalen
+  const movieQuery = searchQuery.trim();
+  const moviePersonId = selectedPerson?.id;
+  const isCinemaRequest = libraryView === 'cinema';
+  const movieProviders = isCinemaRequest ? '' : (selectedPlatforms.length ? selectedPlatforms : FIVE_PLATFORMS.map((platform) => platform.name)).join(',');
+  const movieGenre = !isCinemaRequest && !movieQuery && !moviePersonId ? preferredGenres[0] ?? '' : '';
+
+  // Fetch only when the actual catalogue query changes.
   useEffect(() => {
-    if (!authReady || !authUserId) return;
-    const query = searchQuery.trim();
-    if (libraryView !== 'discover' && libraryView !== 'cinema') return;
+    if (!authReady || !authUserId || (libraryView !== 'discover' && libraryView !== 'cinema')) {
+      setLoading(false);
+      return;
+    }
 
     let isActive = true;
+    const controller = new AbortController();
     setLoading(true);
 
     const timer = setTimeout(async () => {
       const candidateMovies: Movie[] = [];
       setMovieLoadError('');
       try {
-        const isCinema = libraryView === 'cinema';
-        const pages = query || selectedPerson || isCinema ? [1] : [1, 2];
+        const pages = movieQuery || moviePersonId || isCinemaRequest ? [1] : [1, 2];
         const requests = pages.map(async (p) => {
           const params = new URLSearchParams({ page: String(p) });
-          if (isCinema) {
+          if (isCinemaRequest) {
             params.set('nowPlaying', 'true');
           } else {
-            params.set('providers', selectedPlatforms.length > 0 ? selectedPlatforms.join(',') : FIVE_PLATFORMS.map((x) => x.name).join(','));
-            if (selectedPerson) params.set('personId', String(selectedPerson.id));
-            else if (query) params.set('query', query);
-            else if (preferredGenres.length > 0) params.set('genre', preferredGenres[0]);
+            params.set('providers', movieProviders);
+            if (moviePersonId) params.set('personId', String(moviePersonId));
+            else if (movieQuery) params.set('query', movieQuery);
+            else if (movieGenre) params.set('genre', movieGenre);
           }
-          const res = await fetch(`/api/movies?${params.toString()}`);
+          const res = await fetch(`/api/movies?${params.toString()}`, { signal: controller.signal });
           return res.ok ? res.json() : null;
         });
 
@@ -749,10 +762,7 @@ function FilmMatchApp() {
           candidateMovies.push(...mapped.filter((m) => !existingIds.has(m.id)));
         });
 
-        setMovies(candidateMovies.map((m) => ({
-          ...m,
-          match_percentage: calculateMatchScore({ id: m.id, genres: m.genres || [], director: m.director, cast: m.cast, rating: m.rating }, matchPreferences),
-        })));
+        setLoadedMovies(candidateMovies);
       } catch (e) {
         if (isActive) setMovieLoadError('Films konden niet worden geladen.');
       } finally {
@@ -762,9 +772,10 @@ function FilmMatchApp() {
 
     return () => {
       isActive = false;
+      controller.abort();
       clearTimeout(timer);
     };
-  }, [authReady, authUserId, searchQuery, libraryView, selectedPerson, selectedPlatforms, preferredGenres, matchPreferences]);
+  }, [authReady, authUserId, libraryView, isCinemaRequest, movieQuery, moviePersonId, movieProviders, movieGenre]);
 
   const togglePlatform = (name: string) => {
     setSelectedPlatforms((prev) => (prev.includes(name) ? prev.filter((p) => p !== name) : [...prev, name]));
@@ -881,6 +892,7 @@ function FilmMatchApp() {
   const spotlightMovie = spotlightMovieId ? (selectedSpotlightMovie || visibleMovies.find((m) => m.id === spotlightMovieId) || null) : null;
   const topMatch = spotlightMovie || (libraryView === 'cinema' ? visibleMovies[0] : null);
   const gridMatches = libraryView === 'watched' ? visibleMovies : topMatch ? visibleMovies.filter((m) => m.id !== topMatch.id) : visibleMovies;
+  const showRecommendationRows = libraryView === 'discover' && !searchQuery.trim() && !selectedPerson;
 
   if (!authReady) {
     return (
@@ -1176,9 +1188,9 @@ function FilmMatchApp() {
                 </section>
               )}
 
-              {loading ? (
+              {loading && !showRecommendationRows ? (
                 <div className="py-32 text-center text-xs text-neutral-400">Films inladen...</div>
-              ) : visibleMovies.length === 0 ? (
+              ) : visibleMovies.length === 0 && !showRecommendationRows ? (
                 <div className="py-24 text-center space-y-2">
                   <p className="text-sm font-bold text-white">
                     {libraryView === 'watched' ? 'Je hebt nog geen films als gezien gemarkeerd' : libraryView === 'watchlist' ? 'Je watchlist is leeg' : 'Geen films gevonden'}

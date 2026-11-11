@@ -96,7 +96,7 @@ export default function HeroSpotlight({
   const trailerButtonRef = useRef<HTMLButtonElement>(null);
   const trailerDialogRef = useRef<HTMLDivElement>(null);
   const [tipIndex, setTipIndex] = useState(0);
-  const [editorialMovies, setEditorialMovies] = useState<Record<number, Movie>>({});
+  const [editorialMovies, setEditorialMovies] = useState<Record<number, Movie> | null>(null);
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
   const [loadingTrailer, setLoadingTrailer] = useState(false);
   const [showTrailerModal, setShowTrailerModal] = useState(false);
@@ -117,25 +117,31 @@ export default function HeroSpotlight({
         });
         setEditorialMovies(map);
       })
-      .catch((err) => console.warn('Kon tips niet laden:', err));
+      .catch((err) => {
+        if (!isMounted) return;
+        console.warn('Kon tips niet laden:', err);
+        setEditorialMovies({});
+      });
 
     return () => {
       isMounted = false;
     };
   }, []);
 
+  const availableTips = MONTHLY_TIPS.filter(({ tmdbId }) => editorialMovies?.[tmdbId]);
+  const tipCount = availableTips.length;
+  const currentTipConfig = tipCount ? availableTips[tipIndex % tipCount] : undefined;
+  const activeTipMovie = currentTipConfig ? editorialMovies?.[currentTipConfig.tmdbId] : undefined;
+
   useEffect(() => {
-    if (activeMovieProp || userPausedTips || showTrailerModal || MONTHLY_TIPS.length <= 1) return;
+    if (activeMovieProp || userPausedTips || showTrailerModal || tipCount <= 1) return;
 
     const interval = setInterval(() => {
-      setTipIndex((current) => (current + 1) % MONTHLY_TIPS.length);
+      setTipIndex((current) => (current + 1) % tipCount);
     }, 10_000);
 
     return () => clearInterval(interval);
-  }, [activeMovieProp, userPausedTips, showTrailerModal]);
-
-  const currentTipConfig = MONTHLY_TIPS[tipIndex % MONTHLY_TIPS.length];
-  const activeTipMovie = currentTipConfig ? editorialMovies[currentTipConfig.tmdbId] : undefined;
+  }, [activeMovieProp, userPausedTips, showTrailerModal, tipCount]);
 
   const tipMonth = new Intl.DateTimeFormat('nl-NL', {
     month: 'long',
@@ -143,7 +149,7 @@ export default function HeroSpotlight({
   }).format(new Date());
 
   const isSelectedByUser = Boolean(activeMovieProp);
-  const displayedMovie: Movie | undefined = activeMovieProp || activeTipMovie || allMovies[0];
+  const displayedMovie: Movie | undefined = activeMovieProp || activeTipMovie || (editorialMovies === null ? undefined : allMovies[0]);
 
   useEffect(() => {
     if (!displayedMovie?.id) {
@@ -199,7 +205,13 @@ export default function HeroSpotlight({
     };
   }, [showTrailerModal]);
 
-  if (!displayedMovie) return null;
+  if (!displayedMovie) {
+    return editorialMovies === null ? (
+      <div role="status" className="flex min-h-40 items-center rounded-3xl border border-blue-200/15 bg-[#274c6b] px-5 text-sm text-sky-100 lg:min-h-64">
+        Filmtips laden…
+      </div>
+    ) : null;
+  }
 
   const overview = displayedMovie.overview || 'Geen beschrijving beschikbaar.';
   const compactOverview = !isSelectedByUser && overview.length > 240;
@@ -226,13 +238,13 @@ export default function HeroSpotlight({
   const handlePrevTip = () => {
     setUserPausedTips(true);
     setShowFullOverview(false);
-    setTipIndex((current) => (current === 0 ? MONTHLY_TIPS.length - 1 : current - 1));
+    setTipIndex((current) => (current + tipCount - 1) % tipCount);
   };
 
   const handleNextTip = () => {
     setUserPausedTips(true);
     setShowFullOverview(false);
-    setTipIndex((current) => (current + 1) % MONTHLY_TIPS.length);
+    setTipIndex((current) => (current + 1) % tipCount);
   };
 
   const backdropSrc = displayedMovie.backdrop_path
@@ -279,14 +291,14 @@ export default function HeroSpotlight({
           {/* Informatie en acties RECHTS */}
           <div className="fm-hero-info min-w-0">
             <div className={`fm-hero-heading ${isSelectedByUser ? 'space-y-3' : 'space-y-1.5'}`}>
-            {!isSelectedByUser && (
+            {!isSelectedByUser && activeTipMovie && (
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <p className="text-[10px] font-semibold text-sky-100/85">Filmtips van {tipMonth}</p>
-                <div className="flex items-center gap-0.5" role="group" aria-label="Maandtips bladeren">
+                {tipCount > 1 && <div className="flex items-center gap-0.5" role="group" aria-label="Maandtips bladeren">
                   <button type="button" onClick={handlePrevTip} aria-label="Vorige tip" className="flex h-7 w-7 items-center justify-center rounded-full text-lg text-sky-100/85 transition hover:bg-white/10 hover:text-white">‹</button>
-                  <span className="min-w-7 text-center text-[10px] tabular-nums text-sky-100/80" aria-live="polite">{tipIndex + 1} / {MONTHLY_TIPS.length}</span>
+                  <span className="min-w-7 text-center text-[10px] tabular-nums text-sky-100/80" aria-live="polite">{tipIndex + 1} / {tipCount}</span>
                   <button type="button" onClick={handleNextTip} aria-label="Volgende tip" className="flex h-7 w-7 items-center justify-center rounded-full text-lg text-sky-100/85 transition hover:bg-white/10 hover:text-white">›</button>
-                </div>
+                </div>}
               </div>
             )}
 
@@ -532,13 +544,3 @@ export default function HeroSpotlight({
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-

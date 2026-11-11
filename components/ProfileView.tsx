@@ -59,24 +59,78 @@ const secondary = 'rounded-full border border-sky-200/25 px-3.5 py-2 text-xs fon
 const avatarBucket = 'profile-avatars';
 const avatarTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
-function mostWatchedPerson(credits: (readonly string[])[]) {
-  const people = new Map<string, { name: string; count: number }>();
-  for (const film of credits) {
-    const names = new Map(film.filter((name) => name.trim()).map((name) => [name.trim().toLowerCase(), name.trim()]));
+function personKey(name: string) {
+  return name.trim().normalize('NFC').toLowerCase();
+}
+
+function mostWatchedPerson(films: Movie[], credits: (film: Movie) => readonly string[]) {
+  const people = new Map<string, { name: string; films: Movie[] }>();
+  for (const film of films) {
+    const names = new Map(credits(film).filter((name) => name.trim()).map((name) => [personKey(name), name.trim()]));
     for (const [key, name] of names) {
-      people.set(key, { name, count: (people.get(key)?.count ?? 0) + 1 });
+      const person = people.get(key);
+      if (person) person.films.push(film);
+      else people.set(key, { name, films: [film] });
     }
   }
-  return [...people.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'nl'))[0];
+  return [...people.values()].sort((a, b) => b.films.length - a.films.length || a.name.localeCompare(b.name, 'nl'))[0];
+}
+
+function ProfilePosters({ films, onSelect }: { films: Movie[]; onSelect: (id: number) => void }) {
+  return (
+    <div className="flex gap-3 overflow-x-auto p-1">
+      {films.map((film) => (
+        <button key={film.id} type="button" onClick={() => onSelect(film.id)} title={film.title} className="group w-24 shrink-0 text-left focus-visible:outline-2 focus-visible:outline-sky-300 sm:w-28">
+          <span className="relative block aspect-[2/3] overflow-hidden rounded-xl border border-sky-200/20 bg-[#102d46]">
+            {film.poster_path && <Image src={film.poster_path.startsWith('/') ? `https://image.tmdb.org/t/p/w342${film.poster_path}` : film.poster_path} alt="" fill unoptimized sizes="112px" className="object-cover transition motion-safe:group-hover:scale-105" />}
+          </span>
+          <span className="mt-1.5 block line-clamp-2 text-xs font-semibold">{film.title}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ProfilePerson({ label, person, onSelect }: { label: string; person: ReturnType<typeof mostWatchedPerson> | undefined; onSelect: (id: number) => void }) {
+  const name = person?.name;
+  const [portrait, setPortrait] = useState<{ name: string; path: string } | null>(null);
+  useEffect(() => {
+    if (!name) return;
+    const controller = new AbortController();
+    void fetch('/api/movies?people=' + encodeURIComponent(name), { signal: controller.signal })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        const match = Array.isArray(data?.people) && data.people.find((item: PersonSearchResult) => personKey(item.name) === personKey(name) && item.profile_path);
+        if (match?.profile_path && !controller.signal.aborted) setPortrait({ name, path: match.profile_path });
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [name]);
+
+  if (!person) return null;
+  return (
+    <details className="group rounded-2xl border border-sky-200/20 bg-[#1b3b56]">
+      <summary className="flex cursor-pointer list-none items-center gap-3 p-3 focus-visible:outline-2 focus-visible:outline-sky-300 [&::-webkit-details-marker]:hidden">
+        <span className="relative flex h-16 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-sky-200/15 font-black" aria-hidden="true">
+          {portrait && portrait.name === name ? <Image src={`https://image.tmdb.org/t/p/w185${portrait.path}`} alt="" fill unoptimized sizes="48px" className="object-cover" /> : name?.charAt(0).toUpperCase()}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-xs text-sky-100/75">{label}</span>
+          <strong className="block break-words">{name}</strong>
+          <span className="text-xs text-sky-100/75">{person.films.length} {person.films.length === 1 ? 'film' : 'films'}</span>
+        </span>
+        <span aria-hidden="true" className="group-open:rotate-180">⌄</span>
+      </summary>
+      <div className="border-t border-sky-200/15 p-2"><ProfilePosters films={person.films} onSelect={onSelect} /></div>
+    </details>
+  );
 }
 
 export default function ProfileView({
   displayName, setDisplayName, accountEmail, selectedPlatforms, togglePlatform, platforms,
   authLoading, authError, authNotice, saveProfile, goBackToPreviousView,
   onOpenWatched, onOpenFavoritesOnboarding, profileTopGenres, dislikedGenres, toggleDislikedGenre,
-  genreOptions, favoriteDirectors, removeFavoriteDirector, favoriteCast, removeFavoriteCast,
-  favoritePersonQuery, setFavoritePersonQuery, favoritePersonMatches, favoritePersonLoading, addFavoritePerson,
-  favoriteFilmTitles = [],
+  genreOptions, onSelectMovieSpotlight,
   libraryWatched, movieRatings, profileFriendCount, onOpenFriends, watchedCredits,
 }: ProfileViewProps) {
   const [avatarPath, setAvatarPath] = useState('');
@@ -128,55 +182,56 @@ export default function ProfileView({
   const average = movieRatings.length
     ? new Intl.NumberFormat('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(movieRatings.reduce((sum, movie) => sum + movie.rating, 0) / movieRatings.length)
     : '—';
-  const actor = mostWatchedPerson(watched.map((movie) => {
+  const actor = mostWatchedPerson(watched, (movie) => {
     const cast = watchedCredits?.[movie.id]?.cast;
     return cast?.length ? cast : movie.cast ?? [];
-  }));
-  const director = mostWatchedPerson(watched.map((movie) => {
+  });
+  const director = mostWatchedPerson(watched, (movie) => {
     const name = watchedCredits?.[movie.id]?.director || movie.director;
     return name ? [name] : [];
-  }));
-  const peopleGroups = [
-    { label: 'Acteurs', names: favoriteCast, remove: removeFavoriteCast },
-    { label: 'Regisseurs', names: favoriteDirectors, remove: removeFavoriteDirector },
-  ];
+  });
   const genres = [...new Set([...genreOptions, ...dislikedGenres])];
 
   return (
     <main className="dashboard-content min-w-0 flex-1 overflow-y-auto px-4 py-5 text-sky-50 md:px-8">
       <div className="mx-auto max-w-6xl space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-xl font-black tracking-tight sm:text-2xl">Profiel</h1>
-          <button type="button" onClick={goBackToPreviousView} className={secondary}>← Terug</button>
-        </div>
-
-        <section aria-label="Kijkstatistieken" className="grid grid-cols-2 gap-2 rounded-2xl border border-sky-200/20 bg-gradient-to-br from-[#28536f] to-[#183853] p-3 sm:grid-cols-3 lg:grid-cols-5">
-          <button type="button" onClick={onOpenWatched} className="rounded-xl p-2 text-left hover:bg-sky-200/10">
-            <span className="block text-xs text-sky-100/80">Films gezien</span>
-            <strong className="text-xl">{watched.length}</strong>
-          </button>
-          <div className="p-2"><p className="text-xs text-sky-100/80">Gemiddeld cijfer</p><strong className="text-xl text-amber-200">{average}</strong></div>
-          <button type="button" onClick={onOpenFriends} className="rounded-xl p-2 text-left hover:bg-sky-200/10">
-            <span className="block text-xs text-sky-100/80">Mijn vrienden ↗</span>
-            <strong className="text-xl">{profileFriendCount}</strong>
-          </button>
-          {[{ label: 'Meest bekeken acteur', person: actor }, { label: 'Meest bekeken regisseur', person: director }].map(({ label, person }) => (
-            <div key={label} className="min-w-0 p-2">
-              <p className="text-xs text-sky-100/80">{label}</p>
-              <p className="mt-0.5 break-words font-bold">{person?.name ?? '—'}</p>
-              {person && <p className="text-xs text-sky-100/75">{person.count} {person.count === 1 ? 'film' : 'films'}</p>}
+        <header className="flex items-center gap-3 rounded-2xl border border-sky-200/20 bg-gradient-to-br from-[#28536f] to-[#183853] p-4 sm:gap-4">
+          <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-200/30 bg-sky-200/15 text-2xl font-black">
+            {avatarUrl ? <Image src={avatarUrl} alt="" fill unoptimized sizes="64px" className="object-cover" /> : displayName.trim().charAt(0).toUpperCase() || '?'}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="break-words text-xl font-black tracking-tight sm:text-2xl">{displayName.trim() || 'Mijn profiel'}</h1>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-sky-100/85 sm:text-sm">
+              <button type="button" onClick={onOpenWatched} className="hover:underline">{watched.length} films gezien</button>
+              <span>{average === '—' ? 'Nog geen cijfers' : `${average} gemiddeld`}</span>
+              <button type="button" onClick={onOpenFriends} className="hover:underline">{profileFriendCount} {profileFriendCount === 1 ? 'vriend' : 'vrienden'}</button>
             </div>
-          ))}
-        </section>
+          </div>
+          <button type="button" onClick={goBackToPreviousView} className={secondary + ' shrink-0'}>← Terug</button>
+        </header>
+
+        {(actor || director) && (
+          <div className="grid items-start gap-3 sm:grid-cols-2">
+            <ProfilePerson label="Meest bekeken acteur" person={actor} onSelect={onSelectMovieSpotlight} />
+            <ProfilePerson label="Meest bekeken regisseur" person={director} onSelect={onSelectMovieSpotlight} />
+          </div>
+        )}
+
+        {watched.length > 0 && (
+          <section aria-labelledby="profile-recent" className="space-y-2 py-1">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 id="profile-recent" className="text-lg font-black tracking-tight">Laatst gezien</h2>
+              <button type="button" onClick={onOpenWatched} className="text-sm font-semibold text-sky-200 hover:underline">Alles bekijken →</button>
+            </div>
+            <ProfilePosters films={watched.slice(0, 4)} onSelect={onSelectMovieSpotlight} />
+          </section>
+        )}
 
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <section aria-labelledby="profile-account" className={card}>
             <h2 id="profile-account" className="text-lg font-black tracking-tight">Mijn account</h2>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-200/30 bg-sky-200/15 text-xl font-black">
-                {avatarUrl ? <Image src={avatarUrl} alt="Jouw profielfoto" fill unoptimized sizes="56px" className="object-cover" /> : displayName.trim().charAt(0).toUpperCase() || '?'}
-              </div>
+            <div className="flex items-center">
               <label className={secondary + ' cursor-pointer focus-within:outline-2 focus-within:outline-sky-300'}>
                 {avatarSaving ? 'Foto opslaan…' : 'Profielfoto wijzigen'}
                 <input className="sr-only" type="file" accept={avatarTypes.join(',')} disabled={!avatarPath || avatarSaving} onChange={(event) => {
@@ -224,13 +279,7 @@ export default function ProfileView({
           <section aria-labelledby="profile-taste" className={card}>
             <h2 id="profile-taste" className="text-lg font-black tracking-tight">Jouw filmsmaak</h2>
 
-            <div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold">Favoriete films</h3>
-                <button type="button" onClick={onOpenFavoritesOnboarding} className={secondary}>Favorieten aanpassen</button>
-              </div>
-              {favoriteFilmTitles.length > 0 && <p className="mt-1.5 text-sm leading-relaxed text-sky-100/80">{favoriteFilmTitles.join(' · ')}</p>}
-            </div>
+            <button type="button" onClick={onOpenFavoritesOnboarding} className={secondary}>Filmsmaak aanpassen</button>
 
             <details className="rounded-xl border border-sky-200/20 px-3 py-2.5">
               <summary className="cursor-pointer text-sm font-semibold">Genrevoorkeuren{dislikedGenres.length > 0 && <span className="ml-2 text-xs font-normal text-sky-100/75">{dislikedGenres.length} overgeslagen</span>}</summary>
@@ -260,41 +309,6 @@ export default function ProfileView({
             </fieldset>
             </details>
 
-            <div>
-              <label htmlFor="profile-person-search" className="text-sm font-semibold">Favoriete acteurs en regisseurs</label>
-              <div className="relative mt-2">
-                <input id="profile-person-search" type="search" value={favoritePersonQuery} onChange={(event) => setFavoritePersonQuery(event.target.value)} placeholder="Zoek een acteur of regisseur…" className={field} />
-                {favoritePersonQuery.trim().length >= 2 && (
-                  <div className="absolute inset-x-0 top-full z-10 mt-1 max-h-56 overflow-y-auto rounded-xl border border-sky-200/25 bg-[#102d46] shadow-xl">
-                    {favoritePersonLoading ? (
-                      <p role="status" className="px-3 py-2.5 text-xs">Zoeken…</p>
-                    ) : favoritePersonMatches.length ? (
-                      favoritePersonMatches.map((person) => (
-                        <button key={person.id} type="button" onClick={() => addFavoritePerson(person)} className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-sky-200/15 focus-visible:bg-sky-200/15">
-                          <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sky-200/15 text-xs font-bold">
-                            {person.profile_path ? <Image src={`https://image.tmdb.org/t/p/w185${person.profile_path}`} alt="" fill unoptimized sizes="28px" className="object-cover" /> : person.name.charAt(0).toUpperCase()}
-                          </span>
-                          <span className="min-w-0 flex-1 truncate text-sm">{person.name}</span>
-                          <span className="text-xs text-sky-100/75">{person.known_for_department === 'Directing' ? 'Regisseur' : 'Acteur'}</span>
-                        </button>
-                      ))
-                    ) : <p role="status" className="px-3 py-2.5 text-xs">Geen acteurs of regisseurs gevonden.</p>}
-                  </div>
-                )}
-              </div>
-              {peopleGroups.map(({ label, names, remove }) => names.length > 0 && (
-                <div key={label} className="mt-3">
-                  <h3 className="text-xs font-semibold text-sky-100/80">{label}</h3>
-                  <div className="mt-1.5 flex flex-wrap gap-2">
-                    {names.map((name) => (
-                      <button key={name} type="button" aria-label={name + ' verwijderen'} onClick={() => remove(name)} className={secondary}>{name} <span aria-hidden="true">×</span></button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button type="button" onClick={onOpenWatched} className="text-sm font-semibold text-sky-200 underline underline-offset-4 hover:text-white">Beoordelingen bekijken in Gezien</button>
           </section>
         </div>
 

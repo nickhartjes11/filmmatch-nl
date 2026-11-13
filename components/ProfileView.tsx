@@ -218,33 +218,37 @@ export default function ProfileView({
 
   return (
     <main className="dashboard-content min-w-0 flex-1 overflow-y-auto px-4 py-5 text-sky-50 md:px-8">
-      <div className="mx-auto max-w-6xl space-y-4">
-        <header className="relative isolate flex min-h-44 flex-wrap items-center gap-3 overflow-hidden rounded-2xl border border-sky-200/20 bg-gradient-to-br from-[#28536f] to-[#183853] p-4 sm:min-h-56 sm:gap-4 sm:p-7">
+      <div className="mx-auto w-full space-y-4">
+        <header className="relative isolate flex min-h-52 flex-col justify-end gap-4 overflow-hidden rounded-2xl border border-sky-200/20 bg-gradient-to-br from-[#28536f] to-[#183853] p-4 sm:min-h-64 sm:p-8 lg:min-h-72 lg:p-10">
           {backdrop && (
             <>
-              <Image src={backdrop.startsWith('/') ? `https://image.tmdb.org/t/p/w1280${backdrop}` : backdrop} alt="" fill unoptimized sizes="(min-width: 1152px) 1152px, 100vw" className="-z-20 object-cover object-[65%_50%]" />
-              <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-r from-[#10283e] via-[#10283e]/85 to-[#10283e]/25" />
+              <div aria-hidden="true" className="absolute inset-y-0 right-0 -z-20 w-full sm:w-4/5">
+                <Image src={backdrop.startsWith('/') ? `https://image.tmdb.org/t/p/w1280${backdrop}` : backdrop} alt="" fill unoptimized sizes="(min-width: 640px) 80vw, 100vw" className="object-cover object-[70%_40%]" />
+              </div>
+              <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-t from-[#10283e] via-[#10283e]/75 to-transparent sm:bg-gradient-to-r sm:from-[#10283e] sm:via-[#10283e]/60 sm:to-transparent" />
             </>
           )}
-          <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-200/30 bg-sky-200/15 text-2xl font-black">
-            {avatarUrl ? <Image src={avatarUrl} alt="" fill unoptimized sizes="64px" className="object-cover" /> : displayName.trim().charAt(0).toUpperCase() || '?'}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="break-words text-xl font-black tracking-tight sm:text-2xl">{displayName.trim() || 'Mijn profiel'}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-sky-100/85 sm:text-sm">
-              <button type="button" onClick={onOpenWatched} className="hover:underline">{watched.length} films gezien</button>
-              <span>{average === '—' ? 'Nog geen cijfers' : `${average} gemiddeld`}</span>
-              <button type="button" onClick={onOpenFriends} className="hover:underline">{profileFriendCount} {profileFriendCount === 1 ? 'vriend' : 'vrienden'}</button>
+          <button type="button" onClick={goBackToPreviousView} className={secondary + ' absolute right-4 top-4 bg-[#10283e]/85 sm:right-8 sm:top-8'}>← Terug</button>
+          <div className="flex flex-wrap items-end justify-between gap-4 pt-12 sm:flex-nowrap">
+            <div className="flex min-w-0 items-center gap-4 sm:gap-6">
+              <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-200/40 bg-[#28536f] text-2xl font-black sm:h-24 sm:w-24 sm:text-4xl">
+                {avatarUrl ? <Image src={avatarUrl} alt="" fill unoptimized sizes="(min-width: 640px) 96px, 64px" className="object-cover" /> : displayName.trim().charAt(0).toUpperCase() || '?'}
+              </div>
+              <div className="min-w-0">
+                <h1 className="break-words text-2xl font-black tracking-tight sm:text-4xl">{displayName.trim() || 'Mijn profiel'}</h1>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-sky-50 sm:text-base">
+                  <button type="button" onClick={onOpenWatched} className="hover:underline">{watched.length} films gezien</button>
+                  <span>{average === '—' ? 'Nog geen cijfers' : `${average} gemiddeld`}</span>
+                  <button type="button" onClick={onOpenFriends} className="hover:underline">{profileFriendCount} {profileFriendCount === 1 ? 'vriend' : 'vrienden'}</button>
+                </div>
+              </div>
             </div>
-          </div>
-          <button type="button" onClick={goBackToPreviousView} className={secondary + ' shrink-0'}>← Terug</button>
-          {bannerFilm && (
-            <div className="flex w-full justify-end">
-              <button type="button" onClick={() => onSelectMovieSpotlight(bannerFilm.id)} className={secondary + ' bg-[#10283e]/90 text-left'}>
+            {bannerFilm && (
+              <button type="button" onClick={() => onSelectMovieSpotlight(bannerFilm.id)} className={secondary + ' bg-[#10283e]/90 text-left sm:max-w-[35%] sm:shrink-0'}>
                 {bannerFilm.title}{banner && ` · ${formatRating(banner.rating)}`} <span aria-hidden="true">→</span>
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </header>
 
         <nav aria-label="Profiel" className="flex gap-5 border-b border-sky-200/20">

@@ -5,6 +5,7 @@ import HeroSpotlight from './HeroSpotlight';
 import { MovieCard } from './MovieGrid';
 import type { FriendActivityItem, Movie } from './types';
 import { calculateMatchScore, type MatchPreferences } from '../lib/recommendations/matchScore';
+import { createSupabaseBrowserClient } from '../lib/supabase/client';
 
 export interface FriendProfile {
   id: string;
@@ -34,6 +35,136 @@ interface FriendActivityPageProps {
 const EMPTY_FRIENDS: FriendProfile[] = [];
 const EMPTY_MOVIE_IDS: number[] = [];
 const AVATAR_COLORS = 'from-sky-500 to-indigo-600';
+const requestButton = 'rounded-full border border-sky-200/25 px-3 py-2 text-xs font-bold hover:bg-sky-200/15 disabled:opacity-50';
+
+type FriendRequest = { person_id: string; display_name: string; incoming: boolean };
+
+function FriendRequests({ friends, onChanged }: { friends: FriendProfile[]; onChanged?: () => void }) {
+  const [panel, setPanel] = useState<'add' | 'requests' | null>(null);
+  const [requests, setRequests] = useState<FriendRequest[]>([]);
+  const [query, setQuery] = useState('');
+  const [matches, setMatches] = useState<FriendProfile[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+  const requestRevision = useRef(0);
+
+  const loadRequests = async () => {
+    const revision = ++requestRevision.current;
+    try {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) throw new Error();
+      const { data, error } = await supabase.rpc('fm_friend_requests');
+      if (error) throw error;
+      if (revision === requestRevision.current) setRequests(data ?? []);
+    } catch {
+      if (revision === requestRevision.current) setError('Verzoeken konden niet worden opgehaald.');
+    }
+  };
+
+  useEffect(() => {
+    void loadRequests();
+    const refresh = () => { void loadRequests(); };
+    window.addEventListener('focus', refresh);
+    return () => {
+      requestRevision.current++;
+      window.removeEventListener('focus', refresh);
+    };
+  }, []);
+
+  const run = async (action: () => Promise<void>) => {
+    setBusy(true);
+    setStatus('');
+    setError('');
+    try { await action(); }
+    catch { setError('Dit is niet gelukt. Probeer het opnieuw.'); }
+    finally { setBusy(false); }
+  };
+
+  const search = () => run(async () => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) throw new Error();
+    const { data, error } = await supabase.rpc('fm_find_friend', { p_name: query.trim() });
+    if (error) throw error;
+    setMatches(data ?? []);
+  });
+
+  const send = (id: string) => run(async () => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) throw new Error();
+    const { data, error } = await supabase.rpc('fm_send_friend_request', { p_recipient: id });
+    if (error) throw error;
+    setStatus(data === 'friends' ? 'Jullie zijn al vrienden.' : data === 'incoming' ? 'Deze persoon heeft jou al een verzoek gestuurd.' : 'Vriendschapsverzoek verstuurd.');
+    if (data === 'incoming') setPanel('requests');
+    await loadRequests();
+  });
+
+  const answer = (id: string, accept: boolean) => run(async () => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) throw new Error();
+    const { data, error } = await supabase.rpc('fm_answer_friend_request', { p_sender: id, p_accept: accept });
+    if (error) throw error;
+    if (accept) onChanged?.();
+    setStatus(!data ? 'Dit verzoek is niet meer open.' : accept ? 'Vriendschap geaccepteerd.' : 'Verzoek geweigerd.');
+    await loadRequests();
+  });
+
+  const incoming = requests.filter((request) => request.incoming);
+  const outgoing = requests.filter((request) => !request.incoming);
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={requestButton} aria-expanded={panel === 'add'} onClick={() => { setPanel(panel === 'add' ? null : 'add'); setError(''); setStatus(''); }}>+ Vriend toevoegen</button>
+        <button type="button" className={requestButton} aria-expanded={panel === 'requests'} onClick={() => { setPanel(panel === 'requests' ? null : 'requests'); setError(''); setStatus(''); if (panel !== 'requests') void loadRequests(); }}>
+          Verzoeken{incoming.length > 0 ? ` (${incoming.length})` : ''}
+        </button>
+      </div>
+      {panel && (
+        <section aria-label={panel === 'add' ? 'Vriend toevoegen' : 'Vriendschapsverzoeken'} className="max-w-xl space-y-3 rounded-xl border border-sky-200/20 bg-[#17354f] p-3">
+          {panel === 'add' ? (
+            <>
+              <form className="flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); void search(); }}>
+                <input type="search" aria-label="Gebruikersnaam" placeholder="Exacte gebruikersnaam" value={query} maxLength={100} disabled={busy} onChange={(event) => { setQuery(event.target.value); setMatches(null); }} className="min-w-36 flex-1 rounded-lg border border-sky-200/25 bg-[#10283e] px-3 py-2 text-sm" />
+                <button type="submit" className={requestButton} disabled={busy || query.trim().length < 2}>Zoeken</button>
+              </form>
+              {matches?.length === 0 && <p role="status" className="text-sm text-sky-100/80">Geen gebruiker met die naam gevonden.</p>}
+              {matches?.map((person) => {
+                const request = requests.find((item) => item.person_id === person.id);
+                return (
+                  <div key={person.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span>{person.display_name}</span>
+                    {friends.some((friend) => friend.id === person.id) ? <span>Al vrienden</span> :
+                      request ? <span>{request.incoming ? 'Verzoek ontvangen' : 'In afwachting'}</span> :
+                      <button type="button" className={requestButton} disabled={busy} onClick={() => void send(person.id)}>Verzoek sturen</button>}
+                  </div>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              <h2 className="text-sm font-bold">Ontvangen</h2>
+              {!incoming.length && <p className="text-sm text-sky-100/80">Geen openstaande verzoeken.</p>}
+              {incoming.map((request) => (
+                <div key={request.person_id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span>{request.display_name}</span>
+                  <div className="flex gap-2">
+                    <button type="button" disabled={busy} className={requestButton + ' bg-rose-600 hover:bg-rose-500'} onClick={() => void answer(request.person_id, true)}>Accepteren</button>
+                    <button type="button" disabled={busy} className={requestButton} onClick={() => void answer(request.person_id, false)}>Weigeren</button>
+                  </div>
+                </div>
+              ))}
+              <h2 className="text-sm font-bold">Verstuurd</h2>
+              {!outgoing.length && <p className="text-sm text-sky-100/80">Geen verstuurde verzoeken in afwachting.</p>}
+              {outgoing.map((request) => <p key={request.person_id} className="text-sm">{request.display_name} · In afwachting</p>)}
+            </>
+          )}
+          {status && <p role="status" className="text-sm text-sky-100">{status}</p>}
+          {error && <p role="alert" className="text-sm text-rose-200">{error}</p>}
+        </section>
+      )}
+    </div>
+  );
+}
 
 function getFriendKey(item: FriendActivityItem) {
   return String(item.friendId ?? item.name);
@@ -52,6 +183,8 @@ function formatElapsedTime(minutesAgo: number) {
 }
 
 export default function FriendActivityPage({
+  currentUserId,
+  onFriendshipChanged,
   allMovies,
   myWatchlistIds,
   myWatchedIds = EMPTY_MOVIE_IDS,
@@ -272,6 +405,8 @@ export default function FriendActivityPage({
           </div>
         )}
       </section>
+
+      {currentUserId && <FriendRequests key={currentUserId} friends={friends} onChanged={onFriendshipChanged} />}
 
       {spotlightMovie && spotlightActivity && (
         <HeroSpotlight

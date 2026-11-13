@@ -443,20 +443,18 @@ function FilmMatchApp() {
     try {
       const supabase = createSupabaseBrowserClient();
       if (!supabase) return;
-      const { data: friendRows } = await supabase.from('friendships').select('friend_id').eq('user_id', userId);
+      const { data, error } = await supabase.rpc('fm_mutual_friends');
       if (authUserRef.current !== userId) return;
-      const friendIds = (friendRows || []).map((row) => row.friend_id);
+      if (error) throw error;
+      const profiles: { id: string; display_name: string }[] = data ?? [];
+      const friendIds = profiles.map((row) => row.id);
+      setFriendsList(profiles);
       if (friendIds.length === 0) {
         setFriendsActivity([]);
-        setFriendsList([]);
         return;
       }
-      const [{ data: profiles }, { data: ratings }] = await Promise.all([
-        supabase.from('profiles').select('id, display_name').in('id', friendIds),
-        supabase.from('movie_ratings').select('user_id, movie_id, rating, created_at').in('user_id', friendIds).order('created_at', { ascending: false }).limit(20),
-      ]);
+      const { data: ratings } = await supabase.from('movie_ratings').select('user_id, movie_id, rating, created_at').in('user_id', friendIds).order('created_at', { ascending: false }).limit(20);
       if (authUserRef.current !== userId) return;
-      setFriendsList(profiles || []);
       const profileMap = new Map((profiles || []).map((p) => [p.id, p.display_name || 'Vriend']));
       const movieIds = Array.from(new Set((ratings || []).map((r) => r.movie_id)));
       let movieMap: Record<number, { title: string; poster_path: string }> = {};
@@ -1044,8 +1042,14 @@ function FilmMatchApp() {
           setSelectedSpotlightMovie(null);
           setSearchQuery('');
         }}
-        onOpenFriends={() => navigateToView('friends')}
-        onOpenWatchTogether={() => navigateToView('watch-together')}
+        onOpenFriends={() => {
+          navigateToView('friends');
+          if (authUserId) void loadFriendsActivity(authUserId);
+        }}
+        onOpenWatchTogether={() => {
+          navigateToView('watch-together');
+          if (authUserId) void loadFriendsActivity(authUserId);
+        }}
         onOpenProfile={() => navigateToView('profile')}
         onLogout={handleSignOut}
         onTogglePlatform={togglePlatform}

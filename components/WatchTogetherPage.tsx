@@ -19,6 +19,7 @@ interface FriendProfile {
 }
 
 interface WatchTogetherPageProps {
+  initialFriendId?: string;
   currentUserId: string | null;
   currentUserName: string;
   myWatchlist: Movie[];
@@ -117,10 +118,10 @@ function imageUrl(path: string | undefined, size: 'original' | 'w500') {
 }
 
 export default function WatchTogetherPage({
-  currentUserId, myWatchlist, myStreamingServices, friends, platforms,
+  initialFriendId = '', currentUserId, myWatchlist, myStreamingServices, friends, platforms,
   onSelectMovieSpotlight, onToggleWatchlist,
 }: WatchTogetherPageProps) {
-  const [friendId, setFriendId] = useState('');
+  const [friendId, setFriendId] = useState(initialFriendId);
   const friend = friends.find((item) => item.id === friendId);
   const selectedId = friend?.id;
   const [maxRuntime, setMaxRuntime] = useState('');

@@ -114,6 +114,7 @@ const ONBOARDING_FAVORITES = ONBOARDING_MOVIES;
 
 function FilmMatchApp() {
   const [currentView, setCurrentView] = useState<AppView>('login');
+  const [watchTogetherFriendId, setWatchTogetherFriendId] = useState('');
   const [viewHistory, setViewHistory] = useState<AppView[]>([]);
   const navigateToView = (view: AppView) => {
     if (view !== currentView) setViewHistory((history) => [...history, currentView]);
@@ -1047,6 +1048,7 @@ function FilmMatchApp() {
           if (authUserId) void loadFriendsActivity(authUserId);
         }}
         onOpenWatchTogether={() => {
+          setWatchTogetherFriendId('');
           navigateToView('watch-together');
           if (authUserId) void loadFriendsActivity(authUserId);
         }}
@@ -1131,6 +1133,7 @@ function FilmMatchApp() {
             />
           ) : currentView === 'watch-together' ? (
             <WatchTogetherPage
+              initialFriendId={watchTogetherFriendId}
               currentUserId={authUserId}
               currentUserName={displayName || 'Jij'}
               myWatchlist={library.watchlist}
@@ -1146,6 +1149,10 @@ function FilmMatchApp() {
             />
           ) : currentView === 'friends' || currentView === 'activity' ? (
             <FriendActivityPage
+              onWatchTogether={(friendId) => {
+                setWatchTogetherFriendId(friendId);
+                navigateToView('watch-together');
+              }}
               currentUserId={authUserId}
               currentUserName={displayName || 'Jij'}
               myStreamingServices={selectedPlatforms}

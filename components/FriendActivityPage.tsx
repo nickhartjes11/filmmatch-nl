@@ -27,6 +27,7 @@ interface FriendActivityPageProps {
   friends?: FriendProfile[];
   matchPreferences?: MatchPreferences;
   onFriendshipChanged?: () => void;
+  onWatchTogether?: (friendId: string) => void;
   onToggleWatchlist: (movie: Movie) => void;
   onToggleWatched?: (movie: Movie) => void;
   onSelectPerson?: (name: string, department: 'Acting' | 'Directing') => void;
@@ -40,7 +41,6 @@ const requestButton = 'rounded-full border border-sky-200/25 px-3 py-2 text-xs f
 type FriendRequest = { person_id: string; display_name: string; incoming: boolean };
 
 function FriendRequests({ friends, onChanged }: { friends: FriendProfile[]; onChanged?: () => void }) {
-  const [panel, setPanel] = useState<'add' | 'requests' | null>(null);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState<FriendProfile[] | null>(null);
@@ -95,7 +95,6 @@ function FriendRequests({ friends, onChanged }: { friends: FriendProfile[]; onCh
     const { data, error } = await supabase.rpc('fm_send_friend_request', { p_recipient: id });
     if (error) throw error;
     setStatus(data === 'friends' ? 'Jullie zijn al vrienden.' : data === 'incoming' ? 'Deze persoon heeft jou al een verzoek gestuurd.' : 'Vriendschapsverzoek verstuurd.');
-    if (data === 'incoming') setPanel('requests');
     await loadRequests();
   });
 
@@ -112,22 +111,14 @@ function FriendRequests({ friends, onChanged }: { friends: FriendProfile[]; onCh
   const incoming = requests.filter((request) => request.incoming);
   const outgoing = requests.filter((request) => !request.incoming);
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
-        <button type="button" className={requestButton} aria-expanded={panel === 'add'} onClick={() => { setPanel(panel === 'add' ? null : 'add'); setError(''); setStatus(''); }}>+ Vriend toevoegen</button>
-        <button type="button" className={requestButton} aria-expanded={panel === 'requests'} onClick={() => { setPanel(panel === 'requests' ? null : 'requests'); setError(''); setStatus(''); if (panel !== 'requests') void loadRequests(); }}>
-          Verzoeken{incoming.length > 0 ? ` (${incoming.length})` : ''}
-        </button>
-      </div>
-      {panel && (
-        <section aria-label={panel === 'add' ? 'Vriend toevoegen' : 'Vriendschapsverzoeken'} className="max-w-xl space-y-3 rounded-xl border border-sky-200/20 bg-[#17354f] p-3">
-          {panel === 'add' ? (
-            <>
+    <div className="space-y-3">
+      <section className="space-y-3 rounded-xl border border-sky-200/20 bg-[#17354f] p-4">
+        <h2 className="text-lg font-bold">Vriend toevoegen</h2>
               <form className="flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); void search(); }}>
-                <input type="search" aria-label="Gebruikersnaam" placeholder="Exacte gebruikersnaam" value={query} maxLength={100} disabled={busy} onChange={(event) => { setQuery(event.target.value); setMatches(null); }} className="min-w-36 flex-1 rounded-lg border border-sky-200/25 bg-[#10283e] px-3 py-2 text-sm" />
-                <button type="submit" className={requestButton} disabled={busy || query.trim().length < 2}>Zoeken</button>
+                <input type="search" aria-label="Gebruikersnaam" placeholder="Zoek op gebruikersnaam" value={query} maxLength={100} disabled={busy} onChange={(event) => { setQuery(event.target.value); setMatches(null); }} className="min-w-36 flex-1 rounded-lg border border-sky-200/25 bg-[#10283e] px-3 py-2 text-sm" />
+                <button type="submit" className={requestButton} disabled={busy || query.trim().length < 3}>Zoeken</button>
               </form>
-              {matches?.length === 0 && <p role="status" className="text-sm text-sky-100/80">Geen gebruiker met die naam gevonden.</p>}
+              {matches?.length === 0 && <p role="status" className="text-sm text-sky-100/80">Geen gebruikers gevonden.</p>}
               {matches?.map((person) => {
                 const request = requests.find((item) => item.person_id === person.id);
                 return (
@@ -135,13 +126,13 @@ function FriendRequests({ friends, onChanged }: { friends: FriendProfile[]; onCh
                     <span>{person.display_name}</span>
                     {friends.some((friend) => friend.id === person.id) ? <span>Al vrienden</span> :
                       request ? <span>{request.incoming ? 'Verzoek ontvangen' : 'In afwachting'}</span> :
-                      <button type="button" className={requestButton} disabled={busy} onClick={() => void send(person.id)}>Verzoek sturen</button>}
+                      <button type="button" className={requestButton + ' bg-rose-600 hover:bg-rose-500'} disabled={busy} onClick={() => void send(person.id)}>Verzoek sturen</button>}
                   </div>
                 );
               })}
-            </>
-          ) : (
-            <>
+      </section>
+      <section className="space-y-3 rounded-xl border border-sky-200/20 bg-[#17354f] p-4">
+        <h2 className="text-lg font-bold">Verzoeken{incoming.length > 0 ? ' (' + incoming.length + ')' : ''}</h2>
               <h2 className="text-sm font-bold">Ontvangen</h2>
               {!incoming.length && <p className="text-sm text-sky-100/80">Geen openstaande verzoeken.</p>}
               {incoming.map((request) => (
@@ -156,12 +147,9 @@ function FriendRequests({ friends, onChanged }: { friends: FriendProfile[]; onCh
               <h2 className="text-sm font-bold">Verstuurd</h2>
               {!outgoing.length && <p className="text-sm text-sky-100/80">Geen verstuurde verzoeken in afwachting.</p>}
               {outgoing.map((request) => <p key={request.person_id} className="text-sm">{request.display_name} · In afwachting</p>)}
-            </>
-          )}
           {status && <p role="status" className="text-sm text-sky-100">{status}</p>}
           {error && <p role="alert" className="text-sm text-rose-200">{error}</p>}
         </section>
-      )}
     </div>
   );
 }
@@ -185,6 +173,7 @@ function formatElapsedTime(minutesAgo: number) {
 export default function FriendActivityPage({
   currentUserId,
   onFriendshipChanged,
+  onWatchTogether,
   allMovies,
   myWatchlistIds,
   myWatchedIds = EMPTY_MOVIE_IDS,
@@ -195,6 +184,7 @@ export default function FriendActivityPage({
   onToggleWatched,
   onSelectPerson,
 }: FriendActivityPageProps) {
+  const [view, setView] = useState<'friends' | 'activity'>('friends');
   const [selectedFriendFilter, setSelectedFriendFilter] = useState<string>('all');
   const [friendPickerOpen, setFriendPickerOpen] = useState(false);
   const [friendQuery, setFriendQuery] = useState('');
@@ -324,8 +314,41 @@ export default function FriendActivityPage({
 
   return (
     <div className="space-y-4 pb-6 text-sky-50">
+      {currentUserId && (
+        <nav aria-label="Mijn vrienden" className="flex gap-5 border-b border-sky-200/20">
+          {(['friends', 'activity'] as const).map((item) => (
+            <button key={item} type="button" aria-pressed={view === item} onClick={() => setView(item)} className="border-b-2 border-transparent px-1 pb-2.5 text-sm font-bold text-sky-100/80 hover:text-white aria-pressed:border-rose-500 aria-pressed:text-white">
+              {item === 'friends' ? 'Mijn vrienden' : 'Vriendenactiviteit'}
+            </button>
+          ))}
+        </nav>
+      )}
+      {currentUserId && view === 'friends' ? (
+        <>
+          <header className="relative isolate flex min-h-36 flex-col justify-center overflow-hidden rounded-2xl border border-sky-200/20 bg-[#10283e] px-5 py-6 sm:min-h-52 sm:px-8">
+            <img src="/friends-cinema.png" alt="" className="absolute inset-0 -z-20 h-full w-full object-cover object-[65%_50%]" />
+            <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-r from-[#10283e] via-[#10283e]/55 to-transparent" />
+            <h1 className="text-2xl font-black tracking-tight sm:text-4xl">Mijn vrienden</h1>
+            <p className="mt-1 text-sm text-sky-100">{friends.length} {friends.length === 1 ? 'vriend' : 'vrienden'}</p>
+          </header>
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <ul aria-label="Vriendenlijst" className="space-y-3">
+              {!friends.length && <li className="text-sm text-sky-100/80">Je hebt nog geen vrienden toegevoegd.</li>}
+              {friends.map((friend) => (
+                <li key={friend.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-sky-200/20 bg-[#17354f] p-4">
+                  <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-400/25 font-black">{friend.display_name.trim().charAt(0).toUpperCase() || '?'}</span>
+                  <span className="min-w-0 flex-1 break-words font-bold">{friend.display_name || 'Vriend'}</span>
+                  {onWatchTogether && <button type="button" onClick={() => onWatchTogether(friend.id)} className="text-sm font-semibold text-sky-200 hover:underline">Samen kijken</button>}
+                </li>
+              ))}
+            </ul>
+            <FriendRequests key={currentUserId} friends={friends} onChanged={onFriendshipChanged} />
+          </div>
+        </>
+      ) : (
+        <>
       <section aria-labelledby="mijn-vrienden-titel" className="relative flex flex-wrap items-center gap-x-4 gap-y-1">
-        <h1 id="mijn-vrienden-titel" className="text-lg font-black tracking-tight sm:text-xl">Mijn vrienden</h1>
+        <h1 id="mijn-vrienden-titel" className="text-lg font-black tracking-tight sm:text-xl">Vriendenactiviteit</h1>
 
         {friendList.length > 0 && (
           <div
@@ -406,7 +429,7 @@ export default function FriendActivityPage({
         )}
       </section>
 
-      {currentUserId && <FriendRequests key={currentUserId} friends={friends} onChanged={onFriendshipChanged} />}
+
 
       {spotlightMovie && spotlightActivity && (
         <HeroSpotlight
@@ -465,6 +488,8 @@ export default function FriendActivityPage({
           </div>
         )}
       </section>
+        </>
+      )}
     </div>
   );
 }

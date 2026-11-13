@@ -254,7 +254,7 @@ export default function HeroSpotlight({
 
   return (
     <>
-      <section aria-label="Film in de spotlight" className={`fm-hero relative isolate overflow-hidden rounded-3xl border border-blue-200/15 bg-[#274c6b] text-white shadow-2xl shadow-black/30 ${isSelectedByUser ? 'p-5 sm:p-6 lg:p-8' : 'p-4 sm:p-5 lg:p-6'}`}>
+      <section aria-label="Film in de spotlight" className="fm-hero relative isolate overflow-hidden rounded-3xl border border-blue-200/15 bg-[#274c6b] text-white shadow-2xl shadow-black/30 p-5 sm:p-6 lg:p-8">
         {backdropSrc && (
           <div className="fm-hero-backdrop pointer-events-none absolute inset-0 -z-10 opacity-90">
             <Image
@@ -270,7 +270,7 @@ export default function HeroSpotlight({
           </div>
         )}
 
-        <div className="fm-hero-layout relative z-10" data-monthly={!isSelectedByUser} data-poster={Boolean(displayedMovie.poster_path)} data-still={Boolean(displayedMovie.backdrop_path)}>
+        <div className="fm-hero-layout relative z-10" data-poster={Boolean(displayedMovie.poster_path)} data-still={Boolean(displayedMovie.backdrop_path)}>
           {/* Filmposter LINKS */}
           {displayedMovie.poster_path && (
             <div className="fm-hero-poster w-full">
@@ -495,18 +495,13 @@ export default function HeroSpotlight({
           .fm-hero-layout[data-poster="true"] { grid-template-columns: 220px minmax(0, 1fr); gap: 32px; }
           .fm-hero-info { display: block; }
           .fm-hero-info > :global(* + *) { margin-top: 12px; }
-          .fm-hero-layout[data-monthly="true"] { min-height: 0; align-items: start; gap: 20px; }
-          .fm-hero-layout[data-monthly="true"][data-poster="true"] { grid-template-columns: 168px minmax(0, 1fr); }
-          .fm-hero-layout[data-monthly="true"] .fm-hero-info > :global(* + *) { margin-top: 8px; }
         }
         @media (min-width: 1280px) {
           .fm-hero-layout[data-poster="true"] { grid-template-columns: 240px minmax(0, 1fr); }
-          .fm-hero-layout[data-monthly="true"][data-poster="true"] { grid-template-columns: 176px minmax(0, 1fr); }
         }
         @media (min-width: 1440px) {
           .fm-hero-layout[data-still="true"] { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
           .fm-hero-layout[data-still="true"][data-poster="true"] { grid-template-columns: 220px minmax(0, 1.2fr) minmax(0, 1fr); }
-          .fm-hero-layout[data-monthly="true"][data-still="true"][data-poster="true"] { grid-template-columns: 176px minmax(0, 1.2fr) minmax(0, 1fr); }
           .fm-hero-backdrop { left: 28%; opacity: 1; -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 55%); mask-image: linear-gradient(to right, transparent 0%, #000 55%); }
           .fm-hero-backdrop .fm-hero-shade { display: none; }
         }

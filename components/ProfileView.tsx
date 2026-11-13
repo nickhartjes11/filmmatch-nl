@@ -50,7 +50,7 @@ interface ProfileViewProps {
   profileHeaderPosters: Array<{ id: number; title: string; poster_path: string }>;
   profileFriendCount: number;
   favoriteFilmTitles?: string[];
-  watchedCredits?: Record<number, { director?: string | null; cast?: readonly string[] }>;
+  watchedCredits?: Record<number, { director?: string | null; cast?: readonly string[]; genres?: readonly string[] }>;
 }
 
 const field = 'w-full rounded-xl border border-sky-200/20 bg-[#102d46] px-3 py-2.5 text-sm text-white placeholder:text-sky-100/55 focus-visible:outline-2 focus-visible:outline-sky-300';
@@ -133,6 +133,7 @@ export default function ProfileView({
   genreOptions, onSelectMovieSpotlight,
   libraryWatched, movieRatings, profileFriendCount, onOpenFriends, watchedCredits,
 }: ProfileViewProps) {
+  const [tab, setTab] = useState<'overview' | 'settings'>('overview');
   const [avatarPath, setAvatarPath] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarSaving, setAvatarSaving] = useState(false);
@@ -179,6 +180,29 @@ export default function ProfileView({
   };
 
   const watched = [...new Map(libraryWatched.map((movie) => [movie.id, movie])).values()];
+  const scores = new Map(movieRatings.map(({ movie_id, rating }) => [movie_id, rating]));
+  const rated = watched.flatMap((film) => {
+    const rating = scores.get(film.id);
+    return rating !== undefined && Number.isFinite(rating) && rating >= 1 && rating <= 10 ? [{ film, rating }] : [];
+  });
+  const ranked = [...rated].sort((a, b) => b.rating - a.rating);
+  const banner = ranked.find(({ film }) => film.backdrop_path?.trim());
+  const bannerFilm = banner?.film ?? (ranked.length === 0 ? watched.find((film) => film.backdrop_path?.trim()) : undefined);
+  const backdrop = bannerFilm?.backdrop_path;
+  const genreRatings = new Map<string, { name: string; total: number; count: number }>();
+  for (const { film, rating } of rated) {
+    const filmGenres = watchedCredits?.[film.id]?.genres;
+    const uniqueGenres = new Map((filmGenres?.length ? filmGenres : film.genres ?? []).filter((genre) => genre.trim()).map((genre) => [personKey(genre), genre.trim()]));
+    for (const [key, name] of uniqueGenres) {
+      const entry = genreRatings.get(key) ?? { name, total: 0, count: 0 };
+      entry.total += rating;
+      entry.count += 1;
+      genreRatings.set(key, entry);
+    }
+  }
+  const topGenres = [...genreRatings.values()].filter(({ count }) => count >= 3)
+    .sort((a, b) => b.total / b.count - a.total / a.count || b.count - a.count || a.name.localeCompare(b.name, 'nl')).slice(0, 3);
+  const formatRating = (rating: number) => rating.toFixed(1).replace('.', ',');
   const average = movieRatings.length
     ? new Intl.NumberFormat('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(movieRatings.reduce((sum, movie) => sum + movie.rating, 0) / movieRatings.length)
     : '—';
@@ -195,7 +219,13 @@ export default function ProfileView({
   return (
     <main className="dashboard-content min-w-0 flex-1 overflow-y-auto px-4 py-5 text-sky-50 md:px-8">
       <div className="mx-auto max-w-6xl space-y-4">
-        <header className="flex items-center gap-3 rounded-2xl border border-sky-200/20 bg-gradient-to-br from-[#28536f] to-[#183853] p-4 sm:gap-4">
+        <header className="relative isolate flex min-h-44 flex-wrap items-center gap-3 overflow-hidden rounded-2xl border border-sky-200/20 bg-gradient-to-br from-[#28536f] to-[#183853] p-4 sm:min-h-56 sm:gap-4 sm:p-7">
+          {backdrop && (
+            <>
+              <Image src={backdrop.startsWith('/') ? `https://image.tmdb.org/t/p/w1280${backdrop}` : backdrop} alt="" fill unoptimized sizes="(min-width: 1152px) 1152px, 100vw" className="-z-20 object-cover object-[65%_50%]" />
+              <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-r from-[#10283e] via-[#10283e]/85 to-[#10283e]/25" />
+            </>
+          )}
           <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-200/30 bg-sky-200/15 text-2xl font-black">
             {avatarUrl ? <Image src={avatarUrl} alt="" fill unoptimized sizes="64px" className="object-cover" /> : displayName.trim().charAt(0).toUpperCase() || '?'}
           </div>
@@ -208,25 +238,47 @@ export default function ProfileView({
             </div>
           </div>
           <button type="button" onClick={goBackToPreviousView} className={secondary + ' shrink-0'}>← Terug</button>
+          {bannerFilm && (
+            <div className="flex w-full justify-end">
+              <button type="button" onClick={() => onSelectMovieSpotlight(bannerFilm.id)} className={secondary + ' bg-[#10283e]/90 text-left'}>
+                {bannerFilm.title}{banner && ` · ${formatRating(banner.rating)}`} <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          )}
         </header>
 
-        {(actor || director) && (
-          <div className="grid items-start gap-3 sm:grid-cols-2">
-            <ProfilePerson label="Meest bekeken acteur" person={actor} onSelect={onSelectMovieSpotlight} />
-            <ProfilePerson label="Meest bekeken regisseur" person={director} onSelect={onSelectMovieSpotlight} />
+        <nav aria-label="Profiel" className="flex gap-5 border-b border-sky-200/20">
+          {(['overview', 'settings'] as const).map((item) => (
+            <button key={item} type="button" aria-pressed={tab === item} onClick={() => setTab(item)} className="border-b-2 border-transparent px-1 pb-2.5 text-sm font-bold text-sky-100/80 hover:text-white aria-pressed:border-rose-500 aria-pressed:text-white">
+              {item === 'overview' ? 'Overzicht' : 'Instellingen'}
+            </button>
+          ))}
+        </nav>
+
+        {tab === 'overview' ? (
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <section aria-labelledby="profile-best-genres" className={card}>
+              <h2 id="profile-best-genres" className="text-lg font-black tracking-tight">Jouw filmsmaak</h2>
+              {topGenres.length ? (
+                <ul className="space-y-3">
+                  {topGenres.map(({ name, count, total }) => (
+                    <li key={name} className="flex items-center justify-between gap-3 rounded-xl bg-[#102d46] px-4 py-3">
+                      <div><strong className="block">{name}</strong><span className="text-xs text-sky-100/75">{count} beoordeelde films</span></div>
+                      <span className="text-xl font-black tabular-nums text-amber-200">{formatRating(total / count)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="text-sm text-sky-100/80">Beoordeel minstens drie films binnen een genre om het hier terug te zien.</p>}
+            </section>
+            {(actor || director) && (
+              <div className="space-y-3">
+                <ProfilePerson label="Meest bekeken acteur" person={actor} onSelect={onSelectMovieSpotlight} />
+                <ProfilePerson label="Meest bekeken regisseur" person={director} onSelect={onSelectMovieSpotlight} />
+              </div>
+            )}
           </div>
-        )}
-
-        {watched.length > 0 && (
-          <section aria-labelledby="profile-recent" className="space-y-2 py-1">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 id="profile-recent" className="text-lg font-black tracking-tight">Laatst gezien</h2>
-              <button type="button" onClick={onOpenWatched} className="text-sm font-semibold text-sky-200 hover:underline">Alles bekijken →</button>
-            </div>
-            <ProfilePosters films={watched.slice(0, 4)} onSelect={onSelectMovieSpotlight} />
-          </section>
-        )}
-
+        ) : (
+          <>
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <section aria-labelledby="profile-account" className={card}>
             <h2 id="profile-account" className="text-lg font-black tracking-tight">Mijn account</h2>
@@ -319,6 +371,8 @@ export default function ProfileView({
             {authLoading ? 'Opslaan…' : 'Wijzigingen opslaan'}
           </button>
         </div>
+          </>
+        )}
       </div>
     </main>
   );

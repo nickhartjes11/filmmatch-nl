@@ -893,8 +893,9 @@ function FilmMatchApp() {
   const gridMatches = libraryView === 'watched' ? visibleMovies : topMatch ? visibleMovies.filter((m) => m.id !== topMatch.id) : visibleMovies;
   const showRecommendationRows = libraryView === 'discover' && !searchQuery.trim() && !selectedPerson;
   const isWatchlist = libraryView === 'watchlist';
-  const showLibraryBanner = (isCinemaRequest || isWatchlist) && !selectedSpotlightMovie;
-  const libraryBannerImage = isCinemaRequest ? '/cinema-banner.png' : '/watchlist-banner.png';
+  const isWatched = libraryView === 'watched';
+  const showLibraryBanner = (isCinemaRequest || isWatchlist || isWatched) && !topMatch;
+  const libraryBannerImage = isCinemaRequest ? '/cinema-banner.png' : isWatchlist ? '/watchlist-banner.png' : '/gezien-banner.png';
 
   if (!authReady) {
     return (
@@ -1207,8 +1208,9 @@ function FilmMatchApp() {
                   <img src={libraryBannerImage} alt="" className="absolute inset-0 -z-20 h-full w-full object-cover object-[65%_50%]" />
                   <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-r from-[#10283e] via-[#10283e]/55 to-transparent" />
                   <div>
-                    <h1 className="text-2xl font-black tracking-tight text-white sm:text-4xl">{isWatchlist ? 'Jouw watchlist' : 'Nu in de bioscoop'}</h1>
+                    <h1 className="text-2xl font-black tracking-tight text-white sm:text-4xl">{isWatchlist ? 'Jouw watchlist' : isWatched ? 'Gezien' : 'Nu in de bioscoop'}</h1>
                     {isWatchlist && <p className="mt-1 text-sm text-sky-100/85">{library.watchlist.length} {library.watchlist.length === 1 ? 'bewaarde film' : 'bewaarde films'}</p>}
+                    {isWatched && <p className="mt-1 text-sm text-sky-100/85">{library.watched.length} {library.watched.length === 1 ? 'film gezien' : 'films gezien'}</p>}
                   </div>
                 </header>
               )}
@@ -1245,7 +1247,7 @@ function FilmMatchApp() {
                     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                       <div className="flex items-baseline gap-2.5">
                         <h2 className="text-lg font-bold tracking-tight text-slate-100">
-                          {libraryView === 'watchlist' ? (showLibraryBanner ? 'Bewaarde films' : 'Watchlist') : libraryView === 'watched' ? 'Gezien' : 'In de bioscoop'}
+                          {libraryView === 'watchlist' ? (showLibraryBanner ? 'Bewaarde films' : 'Watchlist') : isWatched ? (showLibraryBanner ? 'Bekeken films' : 'Gezien') : 'In de bioscoop'}
                         </h2>
                         <span className="text-xs text-slate-400">
                           {libraryView === 'watchlist' ? library.watchlist.length : libraryView === 'watched' ? library.watched.length : visibleMovies.length} films

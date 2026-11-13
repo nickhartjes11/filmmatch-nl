@@ -26,6 +26,11 @@ const TARGET_PROVIDERS: Record<number, string> = {
 
 const PROVIDER_IDS_QUERY = '8|72|119|9|337|1899|384';
 
+function displayMovieTitle(movie: { title?: string; original_title?: string; original_language?: string }, fallback?: string) {
+  if (movie.original_language === 'nl' && movie.original_title) return movie.original_title;
+  return movie.title || fallback || movie.original_title || 'Onbekende titel';
+}
+
 const TMDB_GENRES: Record<number, string> = {
   28: 'Actie',
   12: 'Avontuur',
@@ -432,7 +437,7 @@ export async function GET(request: Request) {
             const movie = {
               id: details.id,
               imdb_id: imdbId,
-              title: details.title,
+              title: displayMovieTitle(details),
               overview: details.overview || '',
               poster_path: details.poster_path || '',
               backdrop_path: details.backdrop_path || '',
@@ -496,7 +501,7 @@ export async function GET(request: Request) {
     if (nowPlaying) {
       const cinemaUrl =
         `https://api.themoviedb.org/3/movie/now_playing?api_key=${apiKey}` +
-        `&language=en-US&region=NL&page=${page}`;
+        `&language=nl-NL&region=NL&page=${page}`;
       const cinemaResponse = await fetchWithTimeout(cinemaUrl, {
         next: { revalidate: 1800 },
       });
@@ -514,7 +519,7 @@ export async function GET(request: Request) {
     } else if (personId) {
       const creditsUrl =
         `https://api.themoviedb.org/3/person/${encodeURIComponent(personId)}/movie_credits` +
-        `?api_key=${apiKey}&language=en-US`;
+        `?api_key=${apiKey}&language=nl-NL`;
       const creditsResponse = await fetchWithTimeout(creditsUrl, {
         next: { revalidate: 3600 },
       });
@@ -547,7 +552,7 @@ export async function GET(request: Request) {
     } else if (isSearch) {
       const searchUrl =
         `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}` +
-        `&language=en-US&query=${encodeURIComponent(query!.trim())}` +
+        `&language=nl-NL&query=${encodeURIComponent(query!.trim())}` +
         `&page=${page}&include_adult=false`;
       const searchResponse = await fetchWithTimeout(searchUrl, {
         next: { revalidate: 600 },
@@ -566,7 +571,7 @@ export async function GET(request: Request) {
     } else if (genreIds.length > 0) {
       const discoverUrl =
         `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}` +
-        '&language=en-US&sort_by=' + discoverySortQuery + '&watch_region=NL' +
+        '&language=nl-NL&sort_by=' + discoverySortQuery + '&watch_region=NL' +
         `&with_watch_providers=${providerIdsQuery}` +
         `&with_watch_monetization_types=flatrate` +
         `&with_genres=${genreIds.join('|')}&page=${page}&include_adult=false`;
@@ -587,7 +592,7 @@ export async function GET(request: Request) {
     } else if (similarToId) {
       const recommendationsUrl =
         `https://api.themoviedb.org/3/movie/${similarToId}/recommendations` +
-        `?api_key=${apiKey}&language=en-US&page=${page}`;
+        `?api_key=${apiKey}&language=nl-NL&page=${page}`;
       const recommendationsResponse = await fetchWithTimeout(recommendationsUrl, {
         next: { revalidate: 3600 },
       });
@@ -605,7 +610,7 @@ export async function GET(request: Request) {
     } else {
       const discoverUrl =
         `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}` +
-        '&language=en-US&sort_by=' + discoverySortQuery + '&watch_region=NL' +
+        '&language=nl-NL&sort_by=' + discoverySortQuery + '&watch_region=NL' +
         `&with_watch_providers=${providerIdsQuery}` +
         `&with_watch_monetization_types=flatrate&page=${page}&include_adult=false`;
       const discoverResponse = await fetchWithTimeout(discoverUrl, {
@@ -667,7 +672,7 @@ export async function GET(request: Request) {
           const cachedMovie = cachedMoviesMap.get(movie.id);
 
           const refreshedMovie = await refreshCachedMovieRating(cachedMovie, omdbKey);
-          return { ...refreshedMovie, title: movie.title || refreshedMovie.title };
+          return { ...refreshedMovie, title: displayMovieTitle(movie, refreshedMovie.title) };
         }
 
         try {
@@ -742,7 +747,7 @@ export async function GET(request: Request) {
           const newMovie = {
             id: movie.id,
             imdb_id: imdbId,
-            title: movie.title || detailsData?.title,
+            title: displayMovieTitle(detailsData ?? movie, displayMovieTitle(movie)),
             overview: detailsData?.overview || movie.overview || '',
             poster_path: detailsData?.poster_path || movie.poster_path || '',
             backdrop_path: detailsData?.backdrop_path || movie.backdrop_path || '',
@@ -785,7 +790,7 @@ export async function GET(request: Request) {
 
           return {
             id: movie.id,
-            title: movie.title,
+            title: displayMovieTitle(movie),
             overview: movie.overview || '',
             poster_path: movie.poster_path || '',
             release_date: movie.release_date || '',

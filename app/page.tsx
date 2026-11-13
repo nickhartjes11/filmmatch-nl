@@ -889,7 +889,7 @@ function FilmMatchApp() {
 
   const visibleMovies = filteredMovies.slice(0, visibleMovieLimit);
   const spotlightMovie = spotlightMovieId ? (selectedSpotlightMovie || visibleMovies.find((m) => m.id === spotlightMovieId) || null) : null;
-  const topMatch = spotlightMovie || (libraryView === 'cinema' ? visibleMovies[0] : null);
+  const topMatch = spotlightMovie;
   const gridMatches = libraryView === 'watched' ? visibleMovies : topMatch ? visibleMovies.filter((m) => m.id !== topMatch.id) : visibleMovies;
   const showRecommendationRows = libraryView === 'discover' && !searchQuery.trim() && !selectedPerson;
 
@@ -1199,9 +1199,17 @@ function FilmMatchApp() {
                 </section>
               )}
 
-              {loading && !showRecommendationRows ? (
+              {libraryView === 'cinema' && !selectedSpotlightMovie && (
+                <header className="relative isolate flex min-h-36 items-center overflow-hidden rounded-2xl border border-sky-200/20 bg-[#10283e] px-5 py-6 sm:min-h-52 sm:px-8">
+                  <img src="/cinema-banner.png" alt="" className="absolute inset-0 -z-20 h-full w-full object-cover object-[65%_50%]" />
+                  <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-r from-[#10283e] via-[#10283e]/55 to-transparent" />
+                  <h1 className="text-2xl font-black tracking-tight text-white sm:text-4xl">Nu in de bioscoop</h1>
+                </header>
+              )}
+
+              {loading && !showRecommendationRows && !(libraryView === 'cinema' && selectedSpotlightMovie) ? (
                 <div className="py-32 text-center text-xs text-neutral-400">Films inladen...</div>
-              ) : visibleMovies.length === 0 && !showRecommendationRows ? (
+              ) : visibleMovies.length === 0 && !showRecommendationRows && !(libraryView === 'cinema' && selectedSpotlightMovie) ? (
                 <div className="py-24 text-center space-y-2">
                   <p className="text-sm font-bold text-white">
                     {libraryView === 'watched' ? 'Je hebt nog geen films als gezien gemarkeerd' : libraryView === 'watchlist' ? 'Je watchlist is leeg' : 'Geen films gevonden'}
@@ -1212,6 +1220,7 @@ function FilmMatchApp() {
                   {(selectedSpotlightMovie || (libraryView === 'discover' && discoveryMode === 'recommended' && !searchQuery.trim())) && (
                     <HeroSpotlight
                       movie={selectedSpotlightMovie}
+                      backLabel={libraryView === 'cinema' ? 'Terug naar de bioscoop' : undefined}
                       allMovies={visibleMovies}
                       watchlistIds={library.watchlist.map((m) => m.id)}
                       watchedIds={library.watched.map((m) => m.id)}

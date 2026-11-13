@@ -77,6 +77,7 @@ interface HeroSpotlightProps {
   onToggleWatchlist: (movie: Movie) => void;
   onToggleWatched: (movie: Movie) => void;
   onSelectMovie?: (movie: Movie | undefined) => void;
+  backLabel?: string;
   onSelectPerson?: (name: string, department: 'Acting' | 'Directing') => void;
 }
 
@@ -90,6 +91,7 @@ export default function HeroSpotlight({
   onToggleWatched,
 
   onSelectMovie,
+  backLabel,
   onSelectPerson,
 }: HeroSpotlightProps) {
   const trailerButtonRef = useRef<HTMLButtonElement>(null);
@@ -435,7 +437,7 @@ export default function HeroSpotlight({
             )}
 
             {isSelectedByUser && onSelectMovie && (
-              <button type="button" onClick={() => onSelectMovie(undefined)} className="text-xs font-semibold text-sky-200 hover:text-white">{friendActivity ? '← Terug naar Recent gekeken' : '← Terug naar de maandtips'}</button>
+              <button type="button" onClick={() => onSelectMovie(undefined)} className="text-xs font-semibold text-sky-200 hover:text-white">← {backLabel ?? (friendActivity ? 'Terug naar Recent gekeken' : 'Terug naar de maandtips')}</button>
             )}
 
             {/* Knoppen */}

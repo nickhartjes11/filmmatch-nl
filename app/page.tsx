@@ -187,6 +187,8 @@ function FilmMatchApp() {
   const [releaseYearBefore, setReleaseYearBefore] = useState<number | null>(null);
   const [maxRuntimeMinutes, setMaxRuntimeMinutes] = useState<number | null>(null);
   const [dislikedGenres, setDislikedGenres] = useState<string[]>([]);
+  const toggleDislikedGenre = (genre: string) => setDislikedGenres((current) =>
+    current.includes(genre) ? current.filter((item) => item !== genre) : [...current, genre]);
   const [favoriteDirectors, setFavoriteDirectors] = useState<string[]>([]);
   const [favoriteCast, setFavoriteCast] = useState<string[]>([]);
   const [favoritePersonQuery, setFavoritePersonQuery] = useState('');
@@ -915,6 +917,8 @@ function FilmMatchApp() {
   if (currentView === 'register') {
     return (
       <RegisterFlow
+        dislikedGenres={dislikedGenres}
+        onToggleDislikedGenre={toggleDislikedGenre}
         registerStep={registerStep}
         setRegisterStep={setRegisterStep}
         displayName={displayName}
@@ -1119,7 +1123,7 @@ function FilmMatchApp() {
               tasteCount={profileTasteMovies.size}
               profileTopGenres={profileTopGenres}
               dislikedGenres={dislikedGenres}
-              toggleDislikedGenre={(genre) => setDislikedGenres((genres) => genres.includes(genre) ? genres.filter((item) => item !== genre) : [...genres, genre])}
+              toggleDislikedGenre={toggleDislikedGenre}
               genreOptions={genreOptions}
               favoriteDirectors={favoriteDirectors}
               removeFavoriteDirector={(name) => setFavoriteDirectors((names) => names.filter((item) => item !== name))}
@@ -1333,6 +1337,9 @@ function LocalRegistrationPreview({ initialStep }: { initialStep: 1 | 2 | 3 | 4 
   const [services, setServices] = useState<string[]>(['Netflix', 'Prime Video', 'Disney+']);
   const [favorites, setFavorites] = useState<number[]>([]);
   const [negatives, setNegatives] = useState<number[]>([]);
+  const [dislikedGenres, setDislikedGenres] = useState<string[]>([]);
+  const toggleDislikedGenre = (genre: string) => setDislikedGenres((current) =>
+    current.includes(genre) ? current.filter((item) => item !== genre) : [...current, genre]);
   const [unseen, setUnseen] = useState<number[]>([]);
   const [details, setDetails] = useState<Record<number, OnboardingMovie>>({});
   const remember = (items: OnboardingMovie[]) => setDetails((current) => ({ ...current, ...Object.fromEntries(items.map((movie) => [movie.id, movie])) }));
@@ -1369,6 +1376,8 @@ function LocalRegistrationPreview({ initialStep }: { initialStep: 1 | 2 | 3 | 4 
         <button type="button" onClick={leavePreview} className="min-h-11 rounded-full px-3 text-xs text-sky-100 underline underline-offset-4">Preview sluiten</button>
       </nav>
       <RegisterFlow
+        dislikedGenres={dislikedGenres}
+        onToggleDislikedGenre={toggleDislikedGenre}
         registerStep={step}
         setRegisterStep={changeStep}
         displayName={name}

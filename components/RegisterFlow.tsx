@@ -1,13 +1,16 @@
 'use client';
 
 import { useId, useState, type FormEvent } from 'react';
-import Image from 'next/image';
 import StreamingLogo from './StreamingLogo';
 import OnboardingFilmPicker from './OnboardingFilmPicker';
 import { canFinishTasteSelection, type OnboardingMovie, type MovieReaction } from '../lib/recommendations/onboardingCatalog';
 import type { StreamingPlatform } from './types';
 
+const onboardingGenres = ['Actie', 'Animatie', 'Avontuur', 'Documentaire', 'Drama', 'Familie', 'Fantasy', 'Horror', 'Komedie', 'Misdaad', 'Romantiek', 'Sciencefiction', 'Thriller'];
+
 interface RegisterFlowProps {
+  dislikedGenres: string[];
+  onToggleDislikedGenre: (genre: string) => void;
   registerStep: 1 | 2 | 3 | 4 | 5;
   setRegisterStep: (step: 1 | 2 | 3 | 4 | 5) => void;
   displayName: string;
@@ -75,6 +78,8 @@ function RegistrationPasswordField({ label, value, onChange, hint }: {
 }
 
 export default function RegisterFlow({
+  dislikedGenres,
+  onToggleDislikedGenre,
   registerStep,
   setRegisterStep,
   displayName,
@@ -107,11 +112,6 @@ export default function RegisterFlow({
   onOpenDashboard,
   onCancel,
 }: RegisterFlowProps) {
-  const allFavorites = Array.from(new Map([...onboardingFavorites, ...(savedTasteMovies || [])].map((movie) => [movie.id, movie])).values());
-  const welcomeMovies = allFavorites
-    .filter((film) => selectedFavorites.includes(film.id))
-    .slice(0, 5);
-
   return (
     <div className="fm-register relative isolate min-h-screen bg-[#173553] text-slate-100 selection:bg-rose-500 selection:text-white">
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#173553]" aria-hidden="true">
@@ -134,7 +134,7 @@ export default function RegisterFlow({
         <section aria-labelledby="fm-register-title" className={`w-full rounded-3xl border border-sky-200/25 bg-[#244d6d]/85 p-5 shadow-[0_20px_70px_rgba(5,24,42,.3)] backdrop-blur-md sm:p-8 ${registerStep === 3 ? 'max-w-6xl' : 'max-w-xl'}`}>
           <header className="mb-6">
             <ol className="mb-6 grid grid-cols-5 gap-2" aria-label="Registratievoortgang">
-              {['Account', 'Diensten', 'Films', 'Profiel', 'Klaar'].map((label, index) => (
+              {['Account', 'Diensten', 'Films', 'Genres', 'Klaar'].map((label, index) => (
                 <li key={label} aria-current={registerStep === index + 1 ? 'step' : undefined} className="min-w-0 text-center">
                   <span className={`block h-1.5 rounded-full ${registerStep >= index + 1 ? 'bg-rose-400' : 'bg-sky-100/15'}`} aria-hidden="true" />
                   <span className={`mt-2 block text-[10px] font-medium sm:text-xs ${registerStep === index + 1 ? 'text-white' : 'text-sky-100/75'}`}>
@@ -148,8 +148,8 @@ export default function RegisterFlow({
               {registerStep === 1 && 'Jouw filmavond begint hier'}
               {registerStep === 2 && 'Waar kijk jij?'}
               {registerStep === 3 && 'Welke films passen bij jou?'}
-              {registerStep === 4 && 'Dit wordt jouw FilmMatch'}
-              {registerStep === 5 && 'Je bent er helemaal klaar voor'}
+              {registerStep === 4 && 'Welke genres sla je liever over?'}
+              {registerStep === 5 && 'Zo werkt jouw FilmMatch'}
             </h2>
           </header>
 
@@ -259,46 +259,31 @@ export default function RegisterFlow({
           )}
 
           {registerStep === 4 && (
-            <div className="text-center space-y-5 max-w-md mx-auto py-4">
-              <div className="w-16 h-16 mx-auto rounded-full bg-emerald-300/15 border border-emerald-200/40 flex items-center justify-center text-emerald-200 text-2xl font-bold">
-                ✓
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white">Je voorkeuren zijn gekozen</h3>
-                <p className="text-sm text-sky-100/80 mt-2 leading-relaxed">
-                  Je startprofiel bevat {chosenPlatforms.length} streamingdiensten, {selectedFavorites.length} films die je goed vindt en {dislikedMovieIds.length} films die minder bij je passen. Sla je profiel op om je dashboard klaar te zetten.
-                </p>
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  {Array.from(new Set(allFavorites.filter((film) => selectedFavorites.includes(film.id)).flatMap((film) => film.genres))).slice(0, 5).map((genre) => (
-                    <span key={genre} className="rounded-full border border-rose-200/20 bg-rose-300/10 px-3 py-1 text-[10px] font-semibold text-rose-100">{genre}</span>
-                  ))}
-                </div>
+            <div className="mx-auto max-w-md space-y-4">
+              <p className="text-center text-sm leading-relaxed text-sky-100">Kies de genres die je liever minder vaak ziet. Je kunt deze stap ook overslaan.</p>
+              <div role="group" aria-label="Genres die je minder vaak wilt zien" className="flex flex-wrap justify-center gap-2">
+                {[...new Set([...onboardingGenres, ...dislikedGenres])].map((genre) => {
+                  const selected = dislikedGenres.includes(genre);
+                  return (
+                    <button key={genre} type="button" aria-pressed={selected} disabled={authLoading} onClick={() => onToggleDislikedGenre(genre)}
+                      className="min-h-10 rounded-full border border-sky-100/30 bg-[#133650]/70 px-4 py-2 text-sm font-semibold text-sky-50 transition hover:border-sky-100/60 aria-pressed:border-rose-300 aria-pressed:bg-rose-300/20">
+                      {selected && <span aria-hidden="true" className="mr-1.5">✓</span>}{genre}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {registerStep === 5 && (
-            <div className="mx-auto flex max-w-md flex-col items-center gap-5 py-3 text-center">
-              <span className="text-5xl" aria-hidden="true">🍿</span>
-              <div>
-                <p className="text-xs font-semibold text-rose-300">Welkom, {displayName.trim() || 'filmliefhebber'}</p>
-                <h3 className="mt-1 text-xl font-black text-white">Jouw dashboard staat klaar</h3>
-                <p className="mt-2 text-sm leading-relaxed text-sky-100">
-                  Je voorkeuren zijn opgeslagen. Je persoonlijke filmtips zijn afgestemd op {chosenPlatforms.length} streamingdiensten.
-                </p>
+            <div className="mx-auto max-w-md space-y-3">
+              <div className="rounded-xl border border-sky-200/25 bg-[#133650]/65 p-4">
+                <h3 className="font-bold text-white">Wat betekent je matchscore?</h3>
+                <p className="mt-1 text-sm leading-relaxed text-sky-100">Het percentage op een filmposter schat hoe goed die film bij je smaak past. Op Aanbevolen vind je je beste matches en zie je op welke diensten je kunt kijken.</p>
               </div>
-              <div className="grid w-full grid-cols-5 gap-2" aria-label="Jouw gekozen films">
-                {welcomeMovies.map((film) => (
-                  <div key={film.id} className="relative aspect-[2/3] overflow-hidden rounded-lg border border-white/10 bg-neutral-800">
-                    {film.poster_path ? <Image
-                      src={`https://image.tmdb.org/t/p/w500${film.poster_path}`}
-                      alt={film.title}
-                      fill
-                      unoptimized
-                      className="object-cover"
-                    /> : <span className="flex h-full items-center justify-center p-1 text-center text-[10px]">{film.title}</span>}
-                  </div>
-                ))}
+              <div className="rounded-xl border border-sky-200/25 bg-[#133650]/65 p-4">
+                <h3 className="font-bold text-white">Hoe maak je je matches beter?</h3>
+                <p className="mt-1 text-sm leading-relaxed text-sky-100">Markeer een film als gezien en geef hem een cijfer. Zowel hoge als lage cijfers helpen FilmMatch om je volgende tips beter op jou af te stemmen.</p>
               </div>
             </div>
           )}
@@ -343,14 +328,14 @@ export default function RegisterFlow({
               onClick={onCompleteOnboarding}
               type="button" className="min-h-12 rounded-full bg-rose-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-rose-950/20 transition hover:bg-rose-400 disabled:cursor-wait disabled:opacity-60"
             >
-              {authLoading ? 'Profiel opslaan…' : 'Profiel opslaan'}
+              {authLoading ? 'Profiel opslaan…' : dislikedGenres.length ? 'Verder' : 'Overslaan'}
             </button>
           ) : registerStep === 5 ? (
             <button
               onClick={onOpenDashboard}
               type="button" className="min-h-12 rounded-full bg-rose-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-rose-950/20 transition hover:bg-rose-400"
             >
-              Naar mijn dashboard &rarr;
+              Bekijk mijn filmtips &rarr;
             </button>
           ) : null}
         </div>

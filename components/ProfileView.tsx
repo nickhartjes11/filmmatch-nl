@@ -3,6 +3,8 @@
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import StreamingLogo from './StreamingLogo';
+import FilmAvatarPicker, { FilmAvatarArt } from './FilmAvatarPicker';
+import { filmAvatars } from './filmAvatars';
 import { createSupabaseBrowserClient } from '../lib/supabase/client';
 import type { Movie, MovieRating, StreamingPlatform } from './types';
 
@@ -138,6 +140,22 @@ export default function ProfileView({
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [avatarError, setAvatarError] = useState('');
+  const [avatarChoice, setAvatarChoice] = useState('');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
+
+  const initial = displayName.trim().charAt(0).toUpperCase() || '?';
+  const activeAvatar = avatarPreview ?? avatarChoice;
+  const characterAvatar = filmAvatars.find(({ id }) => id === activeAvatar);
+  const profileAvatar = activeAvatar === 'initial' ? '' : avatarUrl;
+
+  const saveAvatarChoice = async (choice: string) => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) throw new Error('Supabase is niet beschikbaar.');
+    const { error } = await supabase.auth.updateUser({ data: { film_match_avatar: choice || null } });
+    if (error) throw error;
+    setAvatarChoice(choice);
+  };
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -149,6 +167,10 @@ export default function ProfileView({
       const path = `${user.id}/avatar`;
       const { data } = await supabase.storage.from(avatarBucket).createSignedUrl(path, 3600);
       if (active) {
+        const choice: unknown = user.user_metadata.film_match_avatar;
+        if (choice === 'initial' || (typeof choice === 'string' && filmAvatars.some(({ id }) => id === choice))) {
+          setAvatarChoice(choice);
+        }
         setAvatarPath(path);
         setAvatarUrl(data?.signedUrl ?? '');
       }
@@ -170,7 +192,10 @@ export default function ProfileView({
       const { error } = await bucket.upload(avatarPath, file, { upsert: true, contentType: file.type, cacheControl: '0' });
       if (error) throw error;
       const { data } = await bucket.createSignedUrl(avatarPath, 3600);
-      if (data?.signedUrl) setAvatarUrl(data.signedUrl);
+      if (data?.signedUrl) {
+        setAvatarUrl(data.signedUrl);
+        if (avatarChoice) await saveAvatarChoice('');
+      }
       else setAvatarError('Foto opgeslagen. Open je profiel opnieuw om hem te zien.');
     } catch {
       setAvatarError('De profielfoto kon niet worden opgeslagen. Probeer het opnieuw.');
@@ -231,9 +256,10 @@ export default function ProfileView({
           <button type="button" onClick={goBackToPreviousView} className={secondary + ' absolute right-4 top-4 bg-[#10283e]/85 sm:right-8 sm:top-8'}>← Terug</button>
           <div className="flex flex-wrap items-end justify-between gap-4 pt-12 sm:flex-nowrap">
             <div className="flex min-w-0 items-center gap-4 sm:gap-6">
-              <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-200/40 bg-[#28536f] text-2xl font-black sm:h-24 sm:w-24 sm:text-4xl">
-                {avatarUrl ? <Image src={avatarUrl} alt="" fill unoptimized sizes="(min-width: 640px) 96px, 64px" className="object-cover" /> : displayName.trim().charAt(0).toUpperCase() || '?'}
-              </div>
+              <button type="button" aria-label="Profielfoto kiezen" disabled={!avatarPath || avatarSaving} onClick={() => setAvatarPickerOpen(true)} className="group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-200/40 bg-[#28536f] text-2xl font-black enabled:hover:border-sky-200 focus-visible:outline-2 focus-visible:outline-sky-300 sm:h-24 sm:w-24 sm:text-4xl">
+                {characterAvatar ? <FilmAvatarArt avatar={characterAvatar} /> : profileAvatar ? <Image src={profileAvatar} alt="" fill unoptimized sizes="(min-width: 640px) 96px, 64px" className="object-cover" /> : initial}
+                <span aria-hidden="true" className="absolute inset-x-0 bottom-0 bg-[#10283e]/90 py-1 text-xs opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Wijzig</span>
+              </button>
               <div className="min-w-0">
                 <h1 className="break-words text-2xl font-black tracking-tight sm:text-4xl">{displayName.trim() || 'Mijn profiel'}</h1>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-sky-50 sm:text-base">
@@ -287,9 +313,10 @@ export default function ProfileView({
           <section aria-labelledby="profile-account" className={card}>
             <h2 id="profile-account" className="text-lg font-black tracking-tight">Mijn account</h2>
 
-            <div className="flex items-center">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" disabled={!avatarPath || avatarSaving} onClick={() => setAvatarPickerOpen(true)} className={secondary}>Kies een filmpersonage</button>
               <label className={secondary + ' cursor-pointer focus-within:outline-2 focus-within:outline-sky-300'}>
-                {avatarSaving ? 'Foto opslaan…' : 'Profielfoto wijzigen'}
+                {avatarSaving ? 'Foto opslaan…' : 'Eigen foto uploaden'}
                 <input className="sr-only" type="file" accept={avatarTypes.join(',')} disabled={!avatarPath || avatarSaving} onChange={(event) => {
                   const file = event.currentTarget.files?.[0];
                   event.currentTarget.value = '';
@@ -378,6 +405,16 @@ export default function ProfileView({
           </>
         )}
       </div>
+      {avatarPickerOpen && (
+        <FilmAvatarPicker
+          current={avatarChoice || (avatarUrl ? '' : 'initial')}
+          savedPhoto={avatarUrl}
+          initial={initial}
+          onPreview={setAvatarPreview}
+          onSave={saveAvatarChoice}
+          onClose={() => setAvatarPickerOpen(false)}
+        />
+      )}
     </main>
   );
 }

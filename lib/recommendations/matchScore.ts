@@ -4,6 +4,7 @@ export interface MovieTasteSignals {
   director?: string | null;
   cast?: readonly string[];
   rating?: string | number | null;
+  rating_source?: 'IMDb' | 'TMDb' | null;
 }
 
 export interface RatedMovieTasteSignals extends MovieTasteSignals {
@@ -110,7 +111,7 @@ export function calculateMatchScore(movie: MovieTasteSignals, preferences: Match
   const calibratedPersonalScore = personalScore > 80
     ? 80 + (personalScore - 80) * upperRangeWeight
     : personalScore;
-  const externalScore = scoreImdb(movie.rating);
+  const externalScore = movie.rating_source === 'IMDb' ? scoreImdb(movie.rating) : null;
   const base = externalScore === null
     ? calibratedPersonalScore
     : calibratedPersonalScore * (1 - MATCH_WEIGHTS.imdb) + externalScore * MATCH_WEIGHTS.imdb;

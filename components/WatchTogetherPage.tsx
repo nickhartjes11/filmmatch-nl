@@ -358,8 +358,8 @@ export default function WatchTogetherPage({
   const credits = details?.cast?.length ? details.cast : activeMovie?.cast;
   const director = details?.director || activeMovie?.director;
   const overview = details?.overview || activeMovie?.overview;
-  const rating = details?.rating || activeMovie?.rating;
-  const ratingSource = (details?.rating ? details.rating_source : activeMovie?.rating_source) || 'TMDb';
+  const rating = (details?.rating_source === 'IMDb' ? details.rating : null) ??
+    (activeMovie?.rating_source === 'IMDb' ? activeMovie.rating : null);
 
   return (
     <div className="space-y-4 pb-8 text-sky-50">
@@ -431,7 +431,7 @@ export default function WatchTogetherPage({
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 {activeMovie.match_percentage !== undefined && <span className={'rounded-full border px-2.5 py-1 text-xs font-bold ' + matchColors[getMatchColorBand(activeMovie.match_percentage)]}>{activeMovie.match_percentage}% samenmatch</span>}
-                {rating && <span className="rounded-lg bg-[#10283e] px-2 py-1 text-xs font-bold"><span className={ratingSource === 'IMDb' ? 'rounded bg-[#f5c518] px-1 text-slate-950' : 'text-sky-100'}>{ratingSource}</span> {rating}</span>}
+                {rating && <span className="rounded-lg bg-[#10283e] px-2 py-1 text-xs font-bold"><span className="rounded bg-[#f5c518] px-1 text-slate-950">IMDb</span> {rating}</span>}
                 {activeMovie.providers?.map((provider) => (
                   <StreamingLogo key={provider.provider_id} name={provider.provider_name} logoPath={provider.logo_path} className="h-6 w-6 rounded" />
                 ))}

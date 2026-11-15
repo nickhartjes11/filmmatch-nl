@@ -286,7 +286,7 @@ export default function FriendActivityPage({
     const fromLibrary = moviesById.get(item.movieId);
     const metadata = activityMovieMetadata[item.movieId];
     const runtimeMinutes = metadata?.runtime_minutes ?? fromLibrary?.runtime_minutes;
-    const scoreSource = metadata?.rating ? metadata : fromLibrary;
+    const scoreSource = metadata?.rating_source === 'IMDb' && metadata.rating ? metadata : fromLibrary;
     const movie: Movie = {
       ...fromLibrary,
       ...metadata,

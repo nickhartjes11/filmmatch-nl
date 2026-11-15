@@ -229,6 +229,7 @@ export default function HeroSpotlight({
           director: displayedMovie.director,
           cast: displayedMovie.cast,
           rating: displayedMovie.rating,
+          rating_source: displayedMovie.rating_source,
         },
         matchPreferences
       )
@@ -399,10 +400,10 @@ export default function HeroSpotlight({
                 {matchScore}% FilmMatch
               </span>}
 
-              {displayedMovie.rating && (
+              {displayedMovie.rating && displayedMovie.rating_source === 'IMDb' && (
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#173553]/85 px-2.5 py-1 text-xs font-bold text-white border border-white/10 backdrop-blur-md">
                   <span className="rounded bg-[#f5c518] px-1 text-[9px] font-black text-black">
-                    {displayedMovie.rating_source || 'IMDb'}
+                    IMDb
                   </span>
                   <span>{displayedMovie.rating}</span>
                 </span>

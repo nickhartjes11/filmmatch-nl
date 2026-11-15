@@ -876,7 +876,10 @@ function FilmMatchApp() {
     let catalog = libraryView === 'watchlist' ? [...library.watchlist] : libraryView === 'watched' ? [...library.watched] : movies;
 
     if (librarySort === 'rating') {
-      catalog.sort((a, b) => (ratingsByMovieId[b.id] ?? Number.parseFloat(b.rating || '0')) - (ratingsByMovieId[a.id] ?? Number.parseFloat(a.rating || '0')));
+      const sortRating = (movie: Movie) =>
+        (libraryView === 'watched' ? ratingsByMovieId[movie.id] : undefined) ??
+        (movie.rating_source === 'IMDb' ? Number(movie.rating) || 0 : 0);
+      catalog.sort((a, b) => sortRating(b) - sortRating(a));
     } else if (librarySort === 'match') {
       catalog.sort((a, b) => (b.match_percentage || 0) - (a.match_percentage || 0));
     }

@@ -55,11 +55,6 @@ const TMDB_GENRES: Record<number, string> = {
 
 const pendingImdbRatings = new Map<string, Promise<string | null>>();
 
-function formatTmdbRating(value: unknown): string | null {
-  const rating = Number(value);
-  return Number.isFinite(rating) && rating > 0 ? rating.toFixed(1) : null;
-}
-
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
@@ -75,7 +70,7 @@ async function fetchWithTimeout(
   }
 }
 
-const IMDB_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const IMDB_CACHE_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
 function validImdbRating(value: unknown): string | null {
   if (value === null || value === undefined || value === '') return null;
@@ -160,13 +155,11 @@ async function getImdbRating(
 }
 
 async function refreshCachedMovieRating(movie: any, apiKey?: string) {
-  if (!movie.imdb_id || !apiKey) return movie;
-  const rating = await getImdbRating(
-    movie.imdb_id,
-    apiKey,
-    movie.rating_source === 'IMDb' ? movie.rating : null
-  );
-  if (!rating) return movie;
+  const previousRating = movie.rating_source === 'IMDb' ? validImdbRating(movie.rating) : null;
+  const rating = movie.imdb_id && apiKey
+    ? await getImdbRating(movie.imdb_id, apiKey, previousRating)
+    : previousRating;
+  if (!rating) return { ...movie, rating: null, rating_source: null };
 
   if (supabase && (String(movie.rating) !== rating || movie.rating_source !== 'IMDb')) {
     try {
@@ -427,7 +420,7 @@ export async function GET(request: Request) {
             const imdbId = details.external_ids?.imdb_id || details.imdb_id || null;
             const imdbRating =
               imdbId && omdbKey ? await getImdbRating(imdbId, omdbKey) : null;
-            const rating = imdbRating || formatTmdbRating(details.vote_average);
+            const rating = imdbRating;
             const cast = (details.credits?.cast || [])
               .slice(0, 8)
               .map((person: any) => person.name);
@@ -447,7 +440,7 @@ export async function GET(request: Request) {
               runtime_minutes: details.runtime || null,
               release_date: details.release_date || '',
               rating,
-              rating_source: imdbRating ? 'IMDb' : rating ? 'TMDb' : null,
+              rating_source: imdbRating ? 'IMDb' : null,
               providers,
             };
 
@@ -727,9 +720,7 @@ export async function GET(request: Request) {
             realImdbRating = await getImdbRating(imdbId, omdbKey);
           }
 
-          const rating =
-            realImdbRating ||
-            formatTmdbRating(detailsData?.vote_average ?? movie.vote_average);
+          const rating = realImdbRating;
           const genres =
             detailsData?.genres?.map((genre: any) => genre.name) ||
             (movie.genre_ids || [])
@@ -757,7 +748,7 @@ export async function GET(request: Request) {
             director,
             cast,
             rating,
-            rating_source: realImdbRating ? 'IMDb' : rating ? 'TMDb' : null,
+            rating_source: realImdbRating ? 'IMDb' : null,
             providers,
           };
 
@@ -786,7 +777,6 @@ export async function GET(request: Request) {
 
           return newMovie;
         } catch {
-          const rating = formatTmdbRating(movie.vote_average);
 
           return {
             id: movie.id,
@@ -797,8 +787,8 @@ export async function GET(request: Request) {
             genres: (movie.genre_ids || [])
               .map((id: number) => TMDB_GENRES[id])
               .filter(Boolean),
-            rating,
-            rating_source: rating ? 'TMDb' : null,
+            rating: null,
+            rating_source: null,
             providers: [],
           };
         }

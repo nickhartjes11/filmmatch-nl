@@ -106,12 +106,12 @@ const MOVIE_GENRES = [
 ];
 
 function RatingBadge({ rating, source }: { rating?: string | null; source?: Movie['rating_source'] }) {
-  if (!rating) return null;
+  if (!rating || source !== 'IMDb') return null;
 
   return (
     <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-white/15 bg-[#10283e]/95 px-1.5 py-1 shadow-md backdrop-blur-md">
-      <span className={`rounded-sm px-1 text-[8px] font-black leading-3 ${source === 'IMDb' ? 'bg-[#f5c518] text-black' : 'text-neutral-300'}`}>
-        {source || 'Score'}
+      <span className="rounded-sm bg-[#f5c518] px-1 text-[8px] font-black leading-3 text-black">
+        IMDb
       </span>
       <span className="text-[10px] font-bold text-sky-200">{rating}</span>
     </span>
@@ -183,7 +183,7 @@ export function MovieCard({
           {showMatchScore && <span className={`whitespace-nowrap rounded-full border px-2 py-1 text-[10px] font-bold shadow-md backdrop-blur-md ${matchBand === 'strong' ? 'border-emerald-300/30 bg-emerald-950/90 text-emerald-200' : matchBand === 'medium' ? 'border-amber-300/30 bg-amber-950/90 text-amber-200' : 'border-red-300/30 bg-red-950/90 text-red-200'}`}>
             {matchScore}% match
           </span>}
-          {movie.rating && (
+          {movie.rating && movie.rating_source === 'IMDb' && (
             <div className="ml-auto">
               <RatingBadge rating={movie.rating} source={movie.rating_source} />
             </div>
@@ -558,6 +558,7 @@ export default function MovieGrid({
           director: movie.director,
           cast: movie.cast,
           rating: movie.rating,
+          rating_source: movie.rating_source,
         },
         matchPreferences
       );
@@ -576,6 +577,7 @@ export default function MovieGrid({
           director: movie.director,
           cast: movie.cast,
           rating: movie.rating,
+          rating_source: movie.rating_source,
         },
         matchPreferences
       ),

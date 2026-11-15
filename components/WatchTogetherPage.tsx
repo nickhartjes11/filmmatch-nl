@@ -362,8 +362,16 @@ export default function WatchTogetherPage({
 
   return (
     <div className="space-y-4 pb-8 text-sky-50">
-      <section aria-labelledby="samen-kijken-instellingen" className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h1 id="samen-kijken-instellingen" className="text-lg font-black tracking-tight sm:text-xl">Samen Kijken</h1>
+      <section aria-labelledby="samen-kijken-instellingen" className={friend
+        ? 'flex flex-wrap items-center gap-x-3 gap-y-2'
+        : 'relative isolate flex min-h-36 flex-wrap content-center items-center gap-x-3 gap-y-2 overflow-hidden rounded-2xl border border-sky-200/20 bg-[#10283e] px-5 py-6 sm:min-h-52 sm:px-8'}>
+        {!friend && (
+          <>
+            <Image src="/samen-kijken-banner.png" alt="" fill unoptimized sizes="100vw" className="-z-20 object-cover object-[70%_48%] sm:object-center" />
+            <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-r from-[#10283e] via-[#10283e]/75 to-[#10283e]/25 sm:via-[#10283e]/40 sm:to-transparent" />
+          </>
+        )}
+        <h1 id="samen-kijken-instellingen" className={friend ? 'text-lg font-black tracking-tight sm:text-xl' : 'text-2xl font-black tracking-tight sm:text-4xl'}>Samen Kijken</h1>
         {friends.length > 0 && (
           <select
             aria-label="Kies een vriend"
@@ -384,6 +392,7 @@ export default function WatchTogetherPage({
             {friends.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}
           </select>
         )}
+        {!friend && <p className="w-full text-sm text-sky-100/85">{friends.length ? 'Kies een vriend om films te vinden die bij jullie allebei passen.' : 'Voeg een vriend toe via Mijn vrienden om samen films te vinden.'}</p>}
         {friend && (
           <>
             <select aria-label="Maximale speelduur" value={maxRuntime} onChange={(event) => setMaxRuntime(event.target.value)} className={control}>
@@ -452,7 +461,7 @@ export default function WatchTogetherPage({
 
       <section aria-labelledby="samen-kijken-resultaten" className="min-w-0 space-y-3">
         <h2 ref={resultsHeadingRef} tabIndex={-1} id="samen-kijken-resultaten" className="sr-only">Films voor jullie</h2>
-        {friend ? (
+        {friend && (
           <>
             {visibleMovies.length > 0 && (
               <div className={posterGrid}>
@@ -486,8 +495,6 @@ export default function WatchTogetherPage({
               </p>
             )}
           </>
-        ) : (
-          <p className="text-sm text-sky-100/85">{friends.length ? 'Kies een vriend om films te vinden die bij jullie allebei passen.' : 'Voeg een vriend toe via Mijn vrienden om samen films te vinden.'}</p>
         )}
       </section>
 

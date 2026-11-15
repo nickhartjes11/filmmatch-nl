@@ -105,6 +105,11 @@ const MOVIE_GENRES = [
   'Thriller', 'Oorlog', 'Western',
 ];
 
+function hasImdbRating(movie: Movie) {
+  const rating = Number(movie.rating);
+  return movie.rating_source === 'IMDb' && rating > 0 && rating <= 10;
+}
+
 function RatingBadge({ rating, source }: { rating?: string | null; source?: Movie['rating_source'] }) {
   if (!rating || source !== 'IMDb') return null;
 
@@ -619,9 +624,14 @@ export default function MovieGrid({
         const score = baseMatchMap.get(movie.id) ?? calculateMatchScore({ ...movie, genres: movie.genres || [] }, matchPreferences);
         row.push({ ...movie, match_percentage: score });
       }
-      row.sort(request.parameter === 'imdb'
-        ? (a, b) => Number(b.rating) - Number(a.rating)
-        : (a, b) => (b.match_percentage ?? 0) - (a.match_percentage ?? 0));
+      row.sort((a, b) => {
+        if (request.parameter === 'imdb') return Number(b.rating) - Number(a.rating);
+        if (request === hitsRequest) {
+          const imdbPriority = Number(hasImdbRating(b)) - Number(hasImdbRating(a));
+          if (imdbPriority) return imdbPriority;
+        }
+        return (b.match_percentage ?? 0) - (a.match_percentage ?? 0);
+      });
       const selected = row.slice(0, TARGET_RAIL_COUNT);
       selected.forEach((movie) => used.add(movie.id));
       const page = pool?.nextPage ?? 1;

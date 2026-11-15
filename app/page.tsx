@@ -345,24 +345,38 @@ function FilmMatchApp() {
     () => [...new Set(dislikedMovieIds)].filter((id) => !selectedFavorites.includes(id)).map((id) => tasteById.get(id) || { id, genres: [] }),
     [dislikedMovieIds, selectedFavorites, tasteById]
   );
-  const tasteMetadataIds = [...new Set([...selectedFavorites, ...dislikedMovieIds, ...movieRatings.map((rating) => rating.movie_id), ...library.watched.map((movie) => movie.id)])].sort((a, b) => a - b).join(',');
+  const tasteMetadataIds = [...new Set([...selectedFavorites, ...dislikedMovieIds, ...movieRatings.map((rating) => rating.movie_id), ...library.watched.map((movie) => movie.id), ...library.watchlist.map((movie) => movie.id)])].sort((a, b) => a - b).join(',');
   useEffect(() => {
     if (!authUserId || !tasteMetadataIds) return;
     const controller = new AbortController();
     const ids = tasteMetadataIds.split(',');
     void (async () => {
       const metadata: OnboardingMovie[] = [];
+      const imdbRatings = new Map<number, string>();
       try {
         for (let offset = 0; offset < ids.length; offset += 25) {
           const response = await fetch(`/api/movies?metadataIds=${ids.slice(offset, offset + 25).join(',')}`, { signal: controller.signal });
           if (!response.ok) continue;
           const data = await response.json();
           if (controller.signal.aborted) return;
-          const items = (Array.isArray(data.movies) ? data.movies : []).map(toOnboardingMovie).filter((movie: OnboardingMovie | null): movie is OnboardingMovie => movie !== null);
+          const films: MovieApiResult[] = Array.isArray(data.movies) ? data.movies : [];
+          for (const film of films) {
+            if (film.rating_source === 'IMDb' && film.rating) imdbRatings.set(film.id, film.rating);
+          }
+          const items = films.map(toOnboardingMovie).filter((movie: OnboardingMovie | null): movie is OnboardingMovie => movie !== null);
           metadata.push(...items);
         }
       } catch { /* Existing catalog and saved metadata remain usable. */ }
-      if (!controller.signal.aborted && metadata.length) rememberOnboardingMovies(metadata);
+      if (controller.signal.aborted) return;
+      if (metadata.length) rememberOnboardingMovies(metadata);
+      if (imdbRatings.size) {
+        const updateRatings = (movie: Movie): Movie => {
+          const rating = imdbRatings.get(movie.id);
+          return rating ? { ...movie, rating, rating_source: 'IMDb' } : movie;
+        };
+        setLibrary((current) => ({ watchlist: current.watchlist.map(updateRatings), watched: current.watched.map(updateRatings) }));
+        setSelectedSpotlightMovie((current) => current ? updateRatings(current) : current);
+      }
     })();
     return () => controller.abort();
   }, [authUserId, tasteMetadataIds]);
@@ -881,6 +895,12 @@ function FilmMatchApp() {
         (movie.rating_source === 'IMDb' ? Number(movie.rating) || 0 : 0);
       catalog.sort((a, b) => sortRating(b) - sortRating(a));
     } else if (librarySort === 'match') {
+      if (libraryView === 'watchlist' || libraryView === 'watched') {
+        catalog = catalog.map((movie) => ({
+          ...movie,
+          match_percentage: calculateMatchScore({ ...movie, genres: movie.genres || [] }, matchPreferences),
+        }));
+      }
       catalog.sort((a, b) => (b.match_percentage || 0) - (a.match_percentage || 0));
     }
 
@@ -891,7 +911,7 @@ function FilmMatchApp() {
       const isUnwatched = (libraryView !== 'discover' && !isCinema) || (libraryView === 'discover' && Boolean(searchQuery.trim())) || !watchedIds.has(m.id);
       return matchQuery && matchesFilters && isUnwatched;
     });
-  }, [movies, library, libraryView, searchQuery, selectedPerson, selectedPlatforms, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, librarySort, ratingsByMovieId]);
+  }, [movies, library, libraryView, searchQuery, selectedPerson, selectedPlatforms, minimumImdbRating, releaseYearBefore, maxRuntimeMinutes, librarySort, ratingsByMovieId, matchPreferences]);
 
   const visibleMovies = filteredMovies.slice(0, visibleMovieLimit);
   const spotlightMovie = spotlightMovieId ? (selectedSpotlightMovie || visibleMovies.find((m) => m.id === spotlightMovieId) || null) : null;

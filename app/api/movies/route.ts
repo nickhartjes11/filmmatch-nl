@@ -346,6 +346,7 @@ export async function GET(request: Request) {
       ).slice(0, 25);
 
       const cachedMap = new Map<number, any>();
+      const previousImdbRatings = new Map<string, string>();
 
       if (supabase && ids.length > 0) {
         try {
@@ -356,6 +357,8 @@ export async function GET(request: Request) {
 
           (data || []).forEach((row: any) => {
             if (!row.imdb_id) return;
+            const previousRating = row.rating_source === 'IMDb' ? validImdbRating(row.rating) : null;
+            if (previousRating) previousImdbRatings.set(row.imdb_id, previousRating);
 
             const providers = Array.isArray(row.providers) ? row.providers : [];
             const updatedAt = Date.parse(row.updated_at || '');
@@ -418,9 +421,8 @@ export async function GET(request: Request) {
               (person: any) => person.job === 'Director'
             )?.name;
             const imdbId = details.external_ids?.imdb_id || details.imdb_id || null;
-            const imdbRating =
-              imdbId && omdbKey ? await getImdbRating(imdbId, omdbKey) : null;
-            const rating = imdbRating;
+            const previousRating = imdbId ? previousImdbRatings.get(imdbId) ?? null : null;
+            const rating = imdbId && omdbKey ? await getImdbRating(imdbId, omdbKey, previousRating) : previousRating;
             const cast = (details.credits?.cast || [])
               .slice(0, 8)
               .map((person: any) => person.name);
@@ -440,7 +442,7 @@ export async function GET(request: Request) {
               runtime_minutes: details.runtime || null,
               release_date: details.release_date || '',
               rating,
-              rating_source: imdbRating ? 'IMDb' : null,
+              rating_source: rating ? 'IMDb' : null,
               providers,
             };
 
@@ -483,7 +485,7 @@ export async function GET(request: Request) {
         .filter((movie) => movie !== undefined && movie !== null);
 
       const refreshedMovies = await Promise.all(
-        resultList.map((movie) => refreshCachedMovieRating(movie, omdbKey))
+        resultList.map((movie) => missingIds.includes(movie.id) ? movie : refreshCachedMovieRating(movie, omdbKey))
       );
       return NextResponse.json({ movies: refreshedMovies });
     }
@@ -720,7 +722,6 @@ export async function GET(request: Request) {
             realImdbRating = await getImdbRating(imdbId, omdbKey);
           }
 
-          const rating = realImdbRating;
           const genres =
             detailsData?.genres?.map((genre: any) => genre.name) ||
             (movie.genre_ids || [])
@@ -747,7 +748,7 @@ export async function GET(request: Request) {
             genres,
             director,
             cast,
-            rating,
+            rating: realImdbRating,
             rating_source: realImdbRating ? 'IMDb' : null,
             providers,
           };

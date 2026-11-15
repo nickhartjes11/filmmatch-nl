@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import LibraryBannerArt from './LibraryBannerArt';
 import { MovieCard } from './MovieGrid';
 import StreamingLogo from './StreamingLogo';
 import type { Movie, StreamingPlatform } from './types';
@@ -365,12 +366,7 @@ export default function WatchTogetherPage({
       <section aria-labelledby="samen-kijken-instellingen" className={activeMovie
         ? 'flex flex-wrap items-center gap-x-3 gap-y-2'
         : 'relative isolate flex min-h-36 flex-wrap content-center items-center gap-x-3 gap-y-2 overflow-hidden rounded-2xl border border-sky-200/20 bg-[#10283e] px-5 py-6 sm:min-h-52 sm:px-8'}>
-        {!activeMovie && (
-          <>
-            <Image src="/samen-kijken-banner.png" alt="" fill unoptimized sizes="100vw" className="-z-20 object-cover object-[70%_48%] sm:object-center" />
-            <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-r from-[#10283e] via-[#10283e]/75 to-[#10283e]/25 sm:via-[#10283e]/40 sm:to-transparent" />
-          </>
-        )}
+        {!activeMovie && <LibraryBannerArt src="/samen-kijken-banner.png" />}
         <h1 id="samen-kijken-instellingen" className={activeMovie ? 'text-lg font-black tracking-tight sm:text-xl' : 'text-2xl font-black tracking-tight sm:text-4xl'}>Samen Kijken</h1>
         {friends.length > 0 && (
           <select

@@ -6,6 +6,7 @@ import LandingView from '../components/LandingView';
 import RegisterFlow from '../components/RegisterFlow';
 import { ONBOARDING_MOVIES, canFinishTasteSelection, toOnboardingMovie, type OnboardingMovie, type MovieReaction } from '../lib/recommendations/onboardingCatalog';
 import ProfileView from '../components/ProfileView';
+import LibraryBannerArt from '../components/LibraryBannerArt';
 import DashboardHeader from '../components/DashboardHeader';
 import FriendActivityPage from '../components/FriendActivityPage';
 import WatchTogetherPage from '../components/WatchTogetherPage';
@@ -1209,8 +1210,12 @@ function FilmMatchApp() {
 
               {showLibraryBanner && (
                 <header className="relative isolate flex min-h-36 items-center overflow-hidden rounded-2xl border border-sky-200/20 bg-[#10283e] px-5 py-6 sm:min-h-52 sm:px-8">
-                  <img src={libraryBannerImage} alt="" className="absolute inset-0 -z-20 h-full w-full object-cover object-[65%_50%]" />
-                  <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-r from-[#10283e] via-[#10283e]/55 to-transparent" />
+                  {isCinemaRequest ? (
+                    <>
+                      <img src={libraryBannerImage} alt="" className="absolute inset-0 -z-20 h-full w-full object-cover object-[65%_50%]" />
+                      <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-r from-[#10283e] via-[#10283e]/55 to-transparent" />
+                    </>
+                  ) : <LibraryBannerArt src={libraryBannerImage} />}
                   <div>
                     <h1 className="text-2xl font-black tracking-tight text-white sm:text-4xl">{isWatchlist ? 'Jouw watchlist' : isWatched ? 'Gezien' : 'Nu in de bioscoop'}</h1>
                     {isWatchlist && <p className="mt-1 text-sm text-sky-100/85">{library.watchlist.length} {library.watchlist.length === 1 ? 'bewaarde film' : 'bewaarde films'}</p>}

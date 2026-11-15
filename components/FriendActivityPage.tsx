@@ -1,5 +1,7 @@
 'use client';
 
+import LibraryBannerArt from './LibraryBannerArt';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import HeroSpotlight from './HeroSpotlight';
 import { MovieCard } from './MovieGrid';
@@ -323,14 +325,15 @@ export default function FriendActivityPage({
           ))}
         </nav>
       )}
+      {(currentUserId && view === 'friends' || !spotlightMovie) && (
+        <header className="relative isolate flex min-h-36 flex-col justify-center overflow-hidden rounded-2xl border border-sky-200/20 bg-[#10283e] px-5 py-6 sm:min-h-52 sm:px-8">
+          <LibraryBannerArt src="/friends-cinema.png" />
+          <h1 className="text-2xl font-black tracking-tight sm:text-4xl">{currentUserId && view === 'friends' ? 'Mijn vrienden' : 'Vriendenactiviteit'}</h1>
+          {currentUserId && view === 'friends' && <p className="mt-1 text-sm text-sky-100">{friends.length} {friends.length === 1 ? 'vriend' : 'vrienden'}</p>}
+        </header>
+      )}
       {currentUserId && view === 'friends' ? (
         <>
-          <header className="relative isolate flex min-h-36 flex-col justify-center overflow-hidden rounded-2xl border border-sky-200/20 bg-[#10283e] px-5 py-6 sm:min-h-52 sm:px-8">
-            <img src="/friends-cinema.png" alt="" className="absolute inset-0 -z-20 h-full w-full object-cover object-[65%_50%]" />
-            <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-r from-[#10283e] via-[#10283e]/55 to-transparent" />
-            <h1 className="text-2xl font-black tracking-tight sm:text-4xl">Mijn vrienden</h1>
-            <p className="mt-1 text-sm text-sky-100">{friends.length} {friends.length === 1 ? 'vriend' : 'vrienden'}</p>
-          </header>
           <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <ul aria-label="Vriendenlijst" className="space-y-3">
               {!friends.length && <li className="text-sm text-sky-100/80">Je hebt nog geen vrienden toegevoegd.</li>}
@@ -348,7 +351,9 @@ export default function FriendActivityPage({
       ) : (
         <>
       <section aria-labelledby="mijn-vrienden-titel" className="relative flex flex-wrap items-center gap-x-4 gap-y-1">
-        <h1 id="mijn-vrienden-titel" className="text-lg font-black tracking-tight sm:text-xl">Vriendenactiviteit</h1>
+        {spotlightMovie
+          ? <h1 id="mijn-vrienden-titel" className="text-lg font-black tracking-tight sm:text-xl">Vriendenactiviteit</h1>
+          : <h2 id="mijn-vrienden-titel" className="sr-only">Activiteit filteren en sorteren</h2>}
 
         {friendList.length > 0 && (
           <div

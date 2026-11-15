@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'IMDb batch unavailable' }, { status: 503 });
   }
 
-  const rows: Array<{ imdb_id: string; rating: string | null; rating_source: string | null }> = data ?? [];
+  const rows: Array<{ imdb_id: string }> = data ?? [];
   const uniqueRows = [...new Map(rows.map((row) => [row.imdb_id, row])).values()];
   let updated = 0;
   let writeFailures = 0;

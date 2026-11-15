@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/imdb",
+      "schedule": "0 5 * * *"
+    }
+  ]
+}

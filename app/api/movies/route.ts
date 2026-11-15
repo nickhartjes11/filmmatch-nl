@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getImdbRating, validImdbRating } from '../../../lib/imdbRatings';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey =
@@ -53,8 +54,6 @@ const TMDB_GENRES: Record<number, string> = {
   37: 'Western',
 };
 
-const pendingImdbRatings = new Map<string, Promise<string | null>>();
-
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
@@ -70,94 +69,10 @@ async function fetchWithTimeout(
   }
 }
 
-const IMDB_CACHE_MAX_AGE_MS = 48 * 60 * 60 * 1000;
-
-function validImdbRating(value: unknown): string | null {
-  if (value === null || value === undefined || value === '') return null;
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0 && number <= 10
-    ? number.toFixed(1)
-    : null;
-}
-
-async function getImdbRating(
-  imdbId: string,
-  apiKey: string,
-  fallbackRating: unknown = null
-): Promise<string | null> {
-  const pending = pendingImdbRatings.get(imdbId);
-  if (pending) return pending;
-
-  const request = (async () => {
-    let previousRating = validImdbRating(fallbackRating);
-    if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('movie_imdb_cache')
-          .select('imdb_rating, imdb_fetched_at')
-          .eq('imdb_id', imdbId)
-          .maybeSingle();
-
-        if (!error && data) {
-          const cachedRating = validImdbRating(data.imdb_rating);
-          previousRating = cachedRating || previousRating;
-          const fetchedAt = Date.parse(data.imdb_fetched_at || '');
-          const age = Date.now() - fetchedAt;
-          if (cachedRating && Number.isFinite(age) && age >= 0 && age < IMDB_CACHE_MAX_AGE_MS) {
-            return cachedRating;
-          }
-        } else if (error) {
-          console.warn('IMDb-cache kon niet worden gelezen:', error.message);
-        }
-      } catch {
-        // Keep the last known rating available during database outages.
-      }
-    }
-
-    try {
-      const response = await fetchWithTimeout(
-        `https://www.omdbapi.com/?i=${encodeURIComponent(imdbId)}&apikey=${encodeURIComponent(apiKey)}`,
-        { cache: 'no-store' },
-        2500
-      );
-      if (!response.ok) return previousRating;
-      const data = await response.json();
-      const rating = data.Response === 'False' ? null : validImdbRating(data.imdbRating);
-      if (!rating) return previousRating;
-
-      if (supabase) {
-        try {
-          const { error } = await supabase
-            .from('movie_imdb_cache')
-            .upsert({
-              imdb_id: imdbId,
-              imdb_rating: Number(rating),
-              imdb_fetched_at: new Date().toISOString(),
-            }, { onConflict: 'imdb_id' });
-          if (error) console.warn('IMDb-cache kon niet worden bijgewerkt:', error.message);
-        } catch {
-          console.warn('IMDb-cache kon niet worden bijgewerkt.');
-        }
-      }
-      return rating;
-    } catch {
-      // A failed refresh never deletes the last known IMDb rating.
-      return previousRating;
-    }
-  })();
-
-  pendingImdbRatings.set(imdbId, request);
-  try {
-    return await request;
-  } finally {
-    pendingImdbRatings.delete(imdbId);
-  }
-}
-
 async function refreshCachedMovieRating(movie: any, apiKey?: string) {
   const previousRating = movie.rating_source === 'IMDb' ? validImdbRating(movie.rating) : null;
   const rating = movie.imdb_id && apiKey
-    ? await getImdbRating(movie.imdb_id, apiKey, previousRating)
+    ? await getImdbRating(supabase, movie.imdb_id, apiKey, previousRating)
     : previousRating;
   if (!rating) return { ...movie, rating: null, rating_source: null };
 
@@ -422,7 +337,7 @@ export async function GET(request: Request) {
             )?.name;
             const imdbId = details.external_ids?.imdb_id || details.imdb_id || null;
             const previousRating = imdbId ? previousImdbRatings.get(imdbId) ?? null : null;
-            const rating = imdbId && omdbKey ? await getImdbRating(imdbId, omdbKey, previousRating) : previousRating;
+            const rating = imdbId && omdbKey ? await getImdbRating(supabase, imdbId, omdbKey, previousRating) : previousRating;
             const cast = (details.credits?.cast || [])
               .slice(0, 8)
               .map((person: any) => person.name);
@@ -719,7 +634,7 @@ export async function GET(request: Request) {
           let realImdbRating: string | null = null;
 
           if (imdbId && omdbKey) {
-            realImdbRating = await getImdbRating(imdbId, omdbKey);
+            realImdbRating = await getImdbRating(supabase, imdbId, omdbKey);
           }
 
           const genres =
